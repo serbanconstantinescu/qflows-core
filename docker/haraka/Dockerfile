@@ -1,4 +1,4 @@
-# CLD: 2026-11-01T19:00:00+02:00: qflows's inbound mail (the mail profile of compose.yaml): Haraka (a release from GitHub, as scripts/haraka.sh installs it) with
+# qflows's inbound mail (the mail profile of compose.yaml): Haraka (a release from GitHub, as scripts/haraka.sh installs it) with
 # qflows's plugin and configuration (scripts/haraka/); nfn.ini and me are filled at each start from the environment (docker/haraka/entrypoint.sh)
 FROM node:24-bookworm-slim
 
