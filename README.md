@@ -100,7 +100,7 @@ It shows the changes first (`--dry-run`: only that), keeps the old file as `<use
 On any Linux host with Docker Engine and its Compose plugin (2.24 or later); the images are built locally from the repository:
 
 ```bash
-git clone --recurse-submodules https://github.com/serbanconstantinescu/qflows-core.git && cd qflows
+git clone --recurse-submodules https://github.com/serbanconstantinescu/qflows-core.git && cd qflows-core
 docker/docker.sh install                          # asks (browser, host's Haraka, ports, ...), docker/.env, build, start
 ```
 
