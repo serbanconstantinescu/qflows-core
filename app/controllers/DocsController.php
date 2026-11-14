@@ -94,10 +94,10 @@ class DocsController extends \sys\BaseController {
 
     //the page's HTML for the viewer: its links to other pages (/<section>/<page>[/<child>][#...]) are this viewer's URLs, its h2 / h3 get ids;
     //returns [ html, [ [ level, id, text ], ... ] ] (the headings: "On this page")
-    //the docs are edited at example.com/docs: a link written as /docs/<section>/... is the same page; the images uploaded there (/docs/media/...,
+    //CLD: 2026-11-14T12:00:00+02:00: the docs are edited at qflows.eu/docs: a link written as /docs/<section>/... is the same page; the images uploaded there (/docs/media/...,
     ///media/...) are shown from there (DOCS_SITE_URL)
     private function prepare($html) {
-	$site = rtrim((string)(defined('DOCS_SITE_URL') && DOCS_SITE_URL !== '' ? DOCS_SITE_URL : 'https://example.com'), '/');
+	$site = rtrim((string)(defined('DOCS_SITE_URL') && DOCS_SITE_URL !== '' ? DOCS_SITE_URL : 'https://qflows.eu'), '/');
 	$html = preg_replace('~(\ssrc=")/(?:docs/)?media/~i', '$1' . $site . '/docs/media/', (string)$html);
 	$html = preg_replace_callback('~href="/(?:docs/)?([a-z0-9-]+)(?:/([a-z0-9-]+))?(?:/([a-z0-9-]+))?(#[^"]*)?"~i', function($m) {
 	    $url = self::pageUrl($m[1], ($m[2] ?? '') !== '' ? $m[2] : null, ($m[3] ?? '') !== '' ? $m[3] : null);

@@ -117,7 +117,7 @@
                                 				<tbody>
                                 				    <tr>
                                     					<td style="width:125px;">
-                                    					    <a href="https://www.example.com/" target="_blank">
+                                    					    <?php //CLD: 2026-11-14T12:00:00+02:00: the logo leads to the product site ?><a href="https://qflows.eu/" target="_blank">
                                         					<img alt="qflows" src="cid:n8n-logo" style="border:0;display:block;outline:none;text-decoration:none;height:auto;width:100%;font-size:13px;" width="125" height="auto" />
                                     					    </a>
                                     					</td>
