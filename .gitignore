@@ -20,7 +20,7 @@ app.env
 /docker/.env
 # an installation's own settings (plugins.json, mcp.json, next to app.env, are not whitelisted above)
 *.local.php
-# plugins kept in their own repositories, cloned into app/plugins/ (each its own git repository): MultiTenant (toolmk/multitenant), RegionalRO (toolmk/regional-ro), RegionalEU (toolmk/regional-eu), SAP (toolmk/sap)
+# plugins kept in their own repositories, cloned into app/plugins/ (each its own git repository): MultiTenant (serbanconstantinescu/qflows-multitenant), RegionalRO (serbanconstantinescu/qflows-regional-ro), RegionalEU (serbanconstantinescu/qflows-regional-eu), SAP (no repository yet)
 /app/plugins/MultiTenant/
 /app/plugins/RegionalRO/
 /app/plugins/SAP/
