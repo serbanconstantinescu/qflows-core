@@ -126,7 +126,7 @@ class Security extends BaseObject {
     //a key of its own for $purpose, derived from the secret (HMAC-SHA256), e.g. the audit log's seal (models\AuditLog)
     public function deriveKey($purpose) {
 	$this->requireSecret();
-	//CLD: 2026-11-13T21:20:00+02:00: the 'qflows:' prefix stays: it is part of every derived key, changing it breaks the seals already stored (audit log)
+	//CLD: 2026-11-14T23:30:00+02:00: the 'qflows:' prefix is part of every derived key: changing it breaks the seals already stored (audit log; the user accepted this for the rename)
 	return hash_hmac('sha256', 'qflows:' . $purpose, $this->secret, true);
     }
 
