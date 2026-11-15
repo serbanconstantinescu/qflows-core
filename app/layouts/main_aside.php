@@ -268,19 +268,16 @@ $dd_items = implode('', $dd_items);
 
 	<!-- two-level menu, pinned to the bottom of the sidebar -->
 	<div class="sidebar-bottom-menu">
-	    <div class="d-flex align-items-center justify-content-between px-2 pt-2 pb-1">
+	    <div class="d-flex align-items-center justify-content-between px-2 py-2">
 		<span class="small text-muted">v<?= \V::app()->html->escape(\data\Version::NUMBER) ?></span>
+		<?php //CLD: 2026-11-15T12:00:00+02:00: the documentation link is an icon on the version + theme line, not a menu row of its own ?>
+		<a href="/docs/index" class="btn btn-sm btn-outline-secondary py-0 ms-auto me-1" title="Documentation"><i class="bi bi-book" aria-hidden="true"></i><span class="visually-hidden">Documentation</span></a>
 		<div class="btn-group btn-group-sm" role="group" aria-label="Theme">
 		    <button type="button" class="btn btn-outline-secondary py-0" data-theme-value="light" title="Light" aria-pressed="false"><i class="bi bi-sun" aria-hidden="true"></i><span class="visually-hidden">Light</span></button>
 		    <button type="button" class="btn btn-outline-secondary py-0" data-theme-value="dark" title="Dark" aria-pressed="false"><i class="bi bi-moon-stars" aria-hidden="true"></i><span class="visually-hidden">Dark</span></button>
 		    <button type="button" class="btn btn-outline-secondary py-0" data-theme-value="auto" title="Auto (the system's)" aria-pressed="false"><i class="bi bi-circle-half" aria-hidden="true"></i><span class="visually-hidden">Auto</span></button>
 		</div>
 	    </div>
-	    <nav class="nav flex-column">
-		<a href="/docs/index" class="nav-link px-2">
-		    <i class="bi bi-book"></i> Documentation
-		</a>
-	    </nav>
 	</div>
 
     </div> <!-- sidebar-primary-view -->
