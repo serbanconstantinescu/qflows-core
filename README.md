@@ -64,10 +64,11 @@ The setup in the browser (every address of the site while `app.env` is missing) 
 
 ### The parts
 
-`install.sh` runs them in this order; each can also be run alone, as root, from anywhere (each finds the app's folder from its own place). Each takes a command, and `status` shows its state (the nginx site is written by `install.sh` itself: see *Web server* below):
+`install.sh` runs them in this order; each can also be run alone, as root, from anywhere (each finds the app's folder from its own place). Each takes a command, and `status` shows its state:
 
 | Script | Does | Needs |
 |--------|------|-------|
+| `sudo scripts/nginx.sh install` | nginx (when missing) and the app's site (the template in the script, filled in) over `<app>/etc/nginx.conf` (`/etc/nginx/conf.d/<user>.conf`); checked with `nginx -t`, then nginx reloaded. Also `setup` (the site only, `--dry-run`), `start`, `stop`, `restart`, `reload`, `status`, `test`, `uninstall` (the site out) | nginx; `BASE_URL` in `app.env` (or `--server-name=`); the certificate in `<app>/ssl/` |
 | `app/v sys::install` (as the app's user) | The app: the database indexes, the first account and its owner, `app.env` (the answers as JSON on stdin) | no `app.env` yet |
 | `sudo scripts/haraka.sh install` | Haraka, for inbound mail, into `<app>/haraka` (its files stay the app's user's), and its unit `nfn-haraka` (one per server: port 25), started. Also `start`, `stop`, `restart`, `status`, `uninstall` (the unit; the files stay) | `app.env`; `MAIL_INBOUND_DOMAIN` there (or `--domain=`); system-wide Node.js |
 | `sudo scripts/mongo.sh secure` | MongoDB users `nfn_admin`, `nfn_app`, `nfn_haraka`; their passwords into `app.env` (`MONGO_URI`, `HARAKA_MONGO_URI`) and, with Haraka, `haraka/config/nfn.ini`; then sign-in required (`/etc/mongod.conf`, mongod restarted) and the app's services restarted. Also `users`, `auth` (the two halves), `start`, `stop`, `restart`, `status` | `app.env`; MongoDB on this machine with authorization still off |
@@ -77,14 +78,14 @@ The setup in the browser (every address of the site while `app.env` is missing) 
 They can be run again: nothing already installed is overwritten (`haraka.sh` updates qflows's plugin). `mongo.sh secure` too, while MongoDB does not require sign-in: it creates its users again with new passwords; once authorization is on, it stops.
 The operators' MongoDB password is left in `<app>/.mongodb-admin` (root's): move it to a password manager and delete the file.
 
-Options: `--dry-run` (`haraka.sh install`) prints what would be done; `--help` lists the others.
+Options: `--dry-run` (`nginx.sh setup`, `haraka.sh install`) prints what would be done; `--help` lists the others.
 Check the services with `scripts/daemon.sh status`.
 
 ### Web server (nginx)
 
-The app's nginx site is `scripts/nginx/qflows.conf`, with the app's folder (`Q_HOME`) and the host of `BASE_URL` (`Q_SERVER_NAME`) to fill in. `install.sh` writes it to `/etc/nginx/conf.d/<user>.conf` (linked from `<app>/etc/nginx.conf`) when it is not there yet; a site already there is kept and only compared.
-`scripts/nginx/README.md` has the steps by hand for the RHEL family, Debian / Ubuntu, openSUSE, Arch and Alpine: nginx's user and site folder, the app's group, SELinux, the certificate (in `<app>/ssl/ssl.crt` and `ssl.key`), Let's Encrypt, and updating or removing the site.
-`/etc/nginx/nginx.conf` stays as the system installed it (it loads `conf.d/*.conf`).
+The app's nginx site is a template inside `scripts/nginx.sh`: it fills in the app's folder (`@BASE@`) and the host of `BASE_URL` (`@SERVER_NAME@`) and writes it where `<app>/etc/nginx.conf` points (`/etc/nginx/conf.d/<user>.conf`; the link is made when missing).
+It shows the changes first (`--dry-run`: only that), keeps the old file as `<user>.conf.bak-<time>`, and puts it back when `nginx -t` fails.
+`/etc/nginx/nginx.conf` stays as the system installed it (it loads `conf.d/*.conf`). The certificate goes in `<app>/ssl/ssl.crt` and `ssl.key`.
 
 ### Other files in `scripts/`
 
@@ -198,9 +199,8 @@ Install PHP, its extensions, MongoDB, nginx with a PHP-FPM pool running as the a
 
 ```sh
 git clone --recurse-submodules https://github.com/serbanconstantinescu/qflows-core.git /home/app
+sudo /home/app/scripts/nginx.sh install --server-name=netflow.example.com
 ```
-
-Write the nginx site as `scripts/nginx/README.md` shows for your system (with `flows.example.com` as the host name: there is no `app.env` yet).
 
 Open the site. While there is no `app.env`, every address shows the setup wizard. It checks the prerequisites, then asks for the server settings (public address, MongoDB, outgoing email) and the first account with its owner. After that, install the options and the services with the scripts in `scripts/` (see *The parts* above).
 

@@ -134,7 +134,7 @@ class LdapSettings extends \sys\BaseModel {
 		'help' => 'The role of a person is the one of the first row whose group the person is in (checked at each sign-in)',
 		'fields' => [
 		    [ 'key' => 'group', 'type' => 'text', 'label' => 'Group', 'required' => true, 'help' => false, 'transform' => 'trim',
-			'ui' => [ 'width' => 8, 'placeholder' => 'CN=qflows Admins,OU=Groups,DC=example,DC=com, or its name: qflows Admins' ] ],
+			'ui' => [ 'width' => 8, 'placeholder' => 'CN=NetFlow Admins,OU=Groups,DC=example,DC=com, or its name: NetFlow Admins' ] ],
 		    [ 'key' => 'role', 'type' => 'select', 'label' => 'Role', 'required' => true, 'help' => false, 'choices' => $roles, 'ui' => [ 'width' => 4 ] ],
 		],
 		'perm:read' => 'everybody',

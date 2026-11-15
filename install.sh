@@ -4,7 +4,7 @@
 # It asks the initial data (the public address, the database, the outgoing email, the first account)
 # the options (nginx, the web browser of the AI steps, inbound email, MongoDB's users and sign-in),
 # checks everything it needs first, then runs the parts in order:
-#  - the nginx site (scripts/nginx/qflows.conf; a self-signed certificate when there is none),
+#  - the nginx site (nginx.sh; a self-signed certificate when there is none),
 #  - the app's setup (app/v sys::install as the app's user: the account, its owner, app.env),
 #  - Haraka (haraka.sh install),
 #  - MongoDB's users and authorization (mongo.sh secure),
@@ -650,28 +650,8 @@ if [ ! -e "$BASE/ssl/ssl.crt" ]; then
     chown -h "$APP_USER:$APP_USER" "$BASE/ssl/selfsigned.key" "$BASE/ssl/selfsigned.crt" "$BASE/ssl/ssl.crt" "$BASE/ssl/ssl.key"
     echo "+ a self-signed certificate for $DOMAIN"
 fi
-#CLD: 2026-11-15T12:00:00+02:00: the site from scripts/nginx/qflows.conf (scripts/nginx/README.md), named after the app's user; an existing one is kept (only compared); nginx started at boot and now
-site="/etc/nginx/conf.d/$APP_USER.conf"
-new_site=$(sed -e "s#Q_HOME#$BASE#g" -e "s#Q_SERVER_NAME#$DOMAIN#g" "$SCRIPTS/nginx/qflows.conf")
-if [ ! -e "$site" ]; then
-    printf '%s\n' "$new_site" > "$site"
-    if ! nginx -t; then
-        rm -f "$site"
-        echo "nginx -t failed: $site removed"
-        exit 1
-    fi
-    echo "+ $site"
-elif [ "$new_site" != "$(cat "$site")" ]; then
-    echo "! $site differs from scripts/nginx/qflows.conf: kept (scripts/nginx/README.md, Later)"
-fi
-if [ ! -e "$BASE/etc/nginx.conf" ] && [ ! -L "$BASE/etc/nginx.conf" ]; then
-    ln -s "$site" "$BASE/etc/nginx.conf"
-    chown -h "$APP_USER:$APP_USER" "$BASE/etc/nginx.conf"
-fi
-nginx -t
-systemctl enable nginx >/dev/null 2>&1
-#a restart: the workers get the app's group (usermod above)
-systemctl restart nginx
+# its install command: the site, nginx started at boot and now
+"$SCRIPTS/nginx.sh" install --server-name="$DOMAIN"
 if [ "$OPT_LE" -eq 1 ]; then
     #http-01 through the site (port 80 redirects to https, which serves .well-known/acme-challenge from the web root)
     if certbot certonly --webroot -w "$BASE/public_html" -d "$DOMAIN" --non-interactive --agree-tos \

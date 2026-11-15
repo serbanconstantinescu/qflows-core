@@ -28,7 +28,7 @@ class CredentialLdap extends \models\Credential {
 	    if ($f['key'] === 'hosts' || $f['key'] === 'baseDn')
 		$f['required'] = true;
 	    if ($f['key'] === 'bindDn')
-		$f['help'] = 'The account the LDAP steps work as (its rights in the directory are theirs), e.g. CN=svc-qflows,OU=Service,DC=example,DC=com; empty: anonymous';
+		$f['help'] = 'The account the LDAP steps work as (its rights in the directory are theirs), e.g. CN=svc-netflow,OU=Service,DC=example,DC=com; empty: anonymous';
 	    if ($f['key'] === 'baseDn')
 		$f['help'] = 'Where the steps\' searches start when they give no base, e.g. DC=example,DC=com';
 	}
