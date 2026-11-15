@@ -1787,6 +1787,17 @@ class CheckCommand extends \sys\BaseController {
 	    $this->check('LM Studio: a run (the answer, the model, the prompt, the temperature)', [ 'success', 'Hello from Qwen3-8B-GGUF', 'Qwen3-8B-GGUF', 'Hi Ana', 0.3 ],
 		[ $exe?->getVariable('route'), $exe?->getVariable('ai')['text'] ?? null, $sent[0]['model'] ?? null, $unmark($sent[0]['messages'][1]['content'] ?? ''), $sent[0]['temperature'] ?? null ]);
 
+	    //CLD: 2026-11-15T21:47:55+02:00: vLLM: the OpenAI requests, at its own default address, a local provider, embeddings
+	    $vll = $make('CredentialVllm', "http://127.0.0.1:{$port}/api/v1", 'check-key');
+	    $this->check('vLLM: the step type; the credential: what it provides, its default address, its Test; the Assistant\'s address; local; embeddings', [ true, [ 'vllm', 'http' ], 'http://localhost:8000/v1', '2 models: Qwen3-8B-GGUF, Gemma-3-4b-it-GGUF', 'http://localhost:8000/v1', true, 900, true ],
+		[ isset($all['app::vllm']), \models\credential\CredentialVllm::$provides, $om->create('CredentialVllm', [ 'aid' => $this->account->_id ])->baseUrl, $refused($vll),
+		\util\WorkflowAssistant::credentialOf((object)[ 'provider' => 'vllm' ])->baseUrl, \data\AiProviders::isLocal('vllm'), \models\node\NodeAppVllm::MAX_TIMEOUT, isset(\data\AiProviders::forEmbeddings()['vllm']) ]);
+	    @unlink($log);
+	    $exe = $flow('vllm', 'app::vllm', [ 'model' => 'Qwen3-8B-GGUF', 'temperature' => '0.3', 'tools' => [] ], $vll);
+	    $sent = $requests('/api/v1/chat/completions');
+	    $this->check('vLLM: a run (the answer, the model, the prompt, the temperature)', [ 'success', 'Hello from Qwen3-8B-GGUF', 'Qwen3-8B-GGUF', 'Hi Ana', 0.3 ],
+		[ $exe?->getVariable('route'), $exe?->getVariable('ai')['text'] ?? null, $sent[0]['model'] ?? null, $unmark($sent[0]['messages'][1]['content'] ?? ''), $sent[0]['temperature'] ?? null ]);
+
 	    //CLD: 2026-11-12T23:55:00+02:00: Mistral: the OpenAI requests, at Mistral's address by default, a cloud provider (masking offered, a key required)
 	    $mis = $make('CredentialMistral', "http://127.0.0.1:{$port}/api/v1", 'check-key');
 	    $noKey = $om->create('CredentialMistral', [ 'aid' => $this->account->_id, 'name' => 'x' ]);
@@ -4224,8 +4235,8 @@ class CheckCommand extends \sys\BaseController {
 	    $exe = $start('claude', [ [ $list ] ], [ 'prompt' => "Write to {$names}\nSCRIPT: " . json_encode([ [ $list ] ]) ]);
 	    $this->check('agent guard: masking is off by default', $secret, $hasSecret($sentRaw()));
 	    //System AI of a cloud provider: masked, of a local one: not (the provider's kind decides)
-	    $this->check('agent guard: masking: the switch is offered on cloud providers only', [ true, true, true, false, false, false, true ], array_map(fn($c) => in_array('maskPersonalData', array_column($c::configSchema(), 'key'), true),
-		[ \models\node\NodeAppClaude::class, \models\node\NodeAppOpenAI::class, \models\node\NodeAppGemini::class, \models\node\NodeAppLemonade::class, \models\node\NodeAppOllama::class, \models\node\NodeAppLmStudio::class, \models\node\NodeAppMistral::class ]));
+	    $this->check('agent guard: masking: the switch is offered on cloud providers only', [ true, true, true, false, false, false, true, false ], array_map(fn($c) => in_array('maskPersonalData', array_column($c::configSchema(), 'key'), true),
+		[ \models\node\NodeAppClaude::class, \models\node\NodeAppOpenAI::class, \models\node\NodeAppGemini::class, \models\node\NodeAppLemonade::class, \models\node\NodeAppOllama::class, \models\node\NodeAppLmStudio::class, \models\node\NodeAppMistral::class, \models\node\NodeAppVllm::class ]));
 	    //a tool result, across a wait for approval
 	    $listed = 'wf_check_guard_child';
 	    $clear();

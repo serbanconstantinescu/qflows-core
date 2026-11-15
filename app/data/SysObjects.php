@@ -198,6 +198,11 @@ class SysObjects {
 		'class' => 'models\credential\CredentialLmStudio',
 		'variant-of' => 'Credential',
 	    ],
+	    //CLD: 2026-11-15T21:47:55+02:00: a vLLM server (OpenAI-compatible; the vLLM step)
+	    'CredentialVllm' => [
+		'class' => 'models\credential\CredentialVllm',
+		'variant-of' => 'Credential',
+	    ],
 	    'CredentialOllama' => [
 		'class' => 'models\credential\CredentialOllama',
 		'variant-of' => 'Credential',
@@ -725,6 +730,11 @@ class SysObjects {
 	    ],
 	    'NodeAppLmStudio' => [
 		'class' => 'models\node\NodeAppLmStudio',
+		'wfNode' => true,
+	    ],
+	    //CLD: 2026-11-15T21:47:55+02:00: vLLM (the OpenAI step's requests, on a vLLM server)
+	    'NodeAppVllm' => [
+		'class' => 'models\node\NodeAppVllm',
 		'wfNode' => true,
 	    ],
 	    'NodeAppOllama' => [

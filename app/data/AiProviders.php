@@ -81,6 +81,15 @@ class AiProviders {
 	    'embeddings' => true,
 	    'url' => 'http://localhost:1234/v1',
 	],
+	//CLD: 2026-11-15T21:47:55+02:00: vLLM (`vllm serve`), OpenAI-compatible: chat completions, models, embeddings (a server started with an embedding model)
+	'vllm' => [
+	    'label' => 'vLLM',
+	    'name' => 'vLLM',
+	    'protocol' => 'openai',
+	    'cloud' => false,
+	    'embeddings' => true,
+	    'url' => 'http://localhost:8000/v1',
+	],
     ];
 
     //the list prices of the cloud models, USD per 1M tokens: [ input, output, cached input ], by model id or the start of one (util\AiPrices::of: the longest that matches, followed by
