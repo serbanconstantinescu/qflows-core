@@ -14,7 +14,7 @@
 namespace commands;
 
 class CheckCommand extends \sys\BaseController {
-    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'infobip', 'yousign', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move' ];
+    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move' ];
     //not run unless named in --only
     const SLOW = [ 'steps' ];
 
@@ -8165,6 +8165,270 @@ class CheckCommand extends \sys\BaseController {
 	    foreach(glob("{$dir}/*") as $f)
 		@unlink($f);
 	    @rmdir($dir);
+	}
+    }
+
+    //CLD: 2026-11-15T16:00:00+02:00: what the email services' suites share (brevo, mailjet, amazonses): the fake service started (util\<client>::$testing: its address, $base
+    //after it), credentials of $class saved ($make), project files (a PDF to attach, a PNG for a designed message's image), a step run in a workflow with On error "output"
+    //($step: [ execution, the requests the fake got ]), what is cleaned up at the end ($done). null when the server did not start
+    private function emailServiceFixture($suite, $script, $env, $client, $class, $base = '') {
+	$om = \V::app()->om;
+	$n = [ self::class, 'node' ];
+	$e = [ self::class, 'edge' ];
+	$dir = sys_get_temp_dir() . "/qflows-check-{$suite}-" . uniqid();
+	@mkdir($dir, 0700, true);
+	$server = $this->startServer($suite, $script, $dir, [ $env => $dir ]);
+	if (!$server)
+	    return null;
+	[ $port, $proc ] = $server;
+	$client::$testing = "http://127.0.0.1:{$port}{$base}";
+	$requests = function() use ($dir) {
+	    $list = array_map(fn($l) => json_decode($l, true), array_filter(explode("\n", (string)@file_get_contents("{$dir}/requests.jsonl"))));
+	    @unlink("{$dir}/requests.jsonl");
+	    return $list;
+	};
+	$creds = [];
+	$make = function(array $fields) use ($om, $class, $suite, &$creds) {
+	    $c = $om->create($class, $fields + [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'name' => "Check: {$suite} " . uniqid() ]);
+	    if (!$c->validates() || !$c->save()) {
+		$this->fail("{$suite}: the credential was not saved: " . json_encode($c->errors()));
+		return null;
+	    }
+	    $creds[] = $c;
+	    return $om->findById($class, (string)$c->_id);
+	};
+	$meta = [ 'metadata' => [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'owner' => null, 'source' => 'check' ] ];
+	$pdf = (string)\models\File::createFromString('check-invoice.pdf', '%PDF-1.4 check', $meta);
+	$png = (string)\models\File::createFromString('check-logo.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='), $meta);
+	$step = function($fq, $cred, array $cfg, array $vars = []) use ($n, $e, $requests, $suite) {
+	    $requests();
+	    $exe = $this->runFlow("{$suite} {$fq}", [ $n('m', 'trigger::manual'), $n('s', $fq, $cfg + [ 'credential' => (string)$cred->_id, 'onError' => 'output', 'variable' => 'r' ]),
+		$n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
+	    return [ $exe, $requests() ];
+	};
+	$done = function() use ($om, $client, $proc, $dir, &$creds, $pdf, $png) {
+	    $client::$testing = null;
+	    foreach([ $pdf, $png ] as $f)
+		$om->findOne('File', [ '_id' => $f ])?->delete();
+	    foreach($creds as $c)
+		$c->delete();
+	    proc_terminate($proc);
+	    proc_close($proc);
+	    foreach(glob("{$dir}/*") as $f)
+		@unlink($f);
+	    @rmdir($dir);
+	};
+	//a designed message: a text block and the PNG
+	$designed = [ 'preheader' => '', 'blocks' => [ [ 'type' => 'html', 'html' => '<p>Hello {{ who }}</p>' ], [ 'type' => 'image', 'file' => $png, 'alt' => 'Logo', 'width' => 200, 'align' => 'left', 'href' => '' ] ] ];
+	return [ $dir, $requests, $make, $step, $done, $pdf, $png, $designed ];
+    }
+
+    //the error (or 'no error') of a closure
+    private static function thrown(\Closure $f) {
+	try {
+	    $f();
+	    return 'no error';
+	} catch (\Throwable $x) {
+	    return $x->getMessage();
+	}
+    }
+
+    //CLD: 2026-11-15T16:00:00+02:00: Brevo against a fake API (commands/tests/BrevoTestServer.php; util\Brevo::$testing): the credential (the form, Test, a wrong key), Brevo Email (a
+    //message with names, a project file attached, tags; a Brevo template's params; a designed message - rendered, its image refused: Brevo has no inline images -; the designer's
+    //checks; Brevo's refusal on the error output; sent emails after a 429; events; a period; templates), Brevo Contacts (create or update, update, lists, add to a list), Brevo API
+    private function suiteBrevo() {
+	$fx = $this->emailServiceFixture('brevo', 'BrevoTestServer.php', 'BREVO_STATE', \util\Brevo::class, 'CredentialBrevo', '/v3');
+	if (!$fx)
+	    return;
+	[ $dir, $requests, $make, $step, $done, $pdf, $png, $designed ] = $fx;
+	$n = [ self::class, 'node' ];
+	try {
+	    $ok = $make([ 'apiKey' => 'key-brevo', 'fromAddress' => 'Acme <noreply@acme.com>' ]);
+	    $wrong = $make([ 'apiKey' => 'nope' ]);
+	    if (!$ok || !$wrong)
+		return;
+	    $bad = \V::app()->om->create('CredentialBrevo', [ 'name' => 'x' ]);
+	    $bad->validates();
+	    $requests();
+	    $tt = $ok->test();
+	    $sent = $requests();
+	    $this->check('brevo: the form (the API key); Test: the api-key header, the account; a wrong key said', [ [ 'apiKey' ], 'connected to Brevo as ops@acme.com (Acme), free: 300 credits',
+		[ '/v3/account', 'key-brevo' ], 'HTTP status 401: Key not found [unauthorized]' ], [ array_values(array_intersect([ 'apiKey' ], array_keys((array)$bad->errors()))), $tt,
+		[ $sent[0]['path'] ?? null, $sent[0]['key'] ?? null ], self::thrown(fn() => $wrong->test()) ]);
+
+	    $E = 'app::brevo-email';
+	    [ $s1, $sent ] = $step($E, $ok, [ 'operation' => 'send', 'to' => 'Ana Pop <ana@example.com>, {{ extra }}', 'subject' => 'Invoice {{ no }}', 'content' => 'html', 'text' => 'See attached',
+		'html' => '<p>See attached</p>', 'attachments' => $pdf, 'tags' => 'invoices' ], [ 'no' => 42, 'extra' => 'bob@example.com' ]);
+	    $b = $sent[0]['body'] ?? [];
+	    $this->check('brevo: Send: the credential\'s sender, recipients with names, the subject\'s {{ }}, text and HTML, a project file attached (base64), tags; the result and the log', [
+		[ 'email' => 'noreply@acme.com', 'name' => 'Acme' ], [ [ 'email' => 'ana@example.com', 'name' => 'Ana Pop' ], [ 'email' => 'bob@example.com' ] ], 'Invoice 42', 'See attached',
+		[ [ 'name' => 'check-invoice.pdf', 'content' => base64_encode('%PDF-1.4 check') ] ], [ 'invoices' ], [ 'ana@example.com', 'bob@example.com' ], true ], [
+		$b['sender'] ?? null, $b['to'] ?? null, $b['subject'] ?? null, $b['textContent'] ?? null, $b['attachment'] ?? null, $b['tags'] ?? null, $s1?->getVariable('r')['to'] ?? null,
+		str_starts_with((string)self::logLine($s1, 'Brevo Email send: sent to ana@example.com, bob@example.com (1 attachment): <'), 'Brevo Email send: sent to') ]);
+	    [ $s2, $sent ] = $step($E, $ok, [ 'operation' => 'send', 'to' => 'ana@example.com', 'content' => 'template', 'template' => '1', 'templateVars' => '{"name": "{{ who }}"}' ], [ 'who' => 'Ana' ]);
+	    [ $s3, ] = $step($E, $ok, [ 'operation' => 'send', 'to' => 'ana@example.com', 'content' => 'designer', 'subject' => 'News', 'email' => $designed ], [ 'who' => 'Ana' ]);
+	    [ $s4, ] = $step($E, $ok, [ 'operation' => 'send', 'from' => 'me@gmail.com', 'to' => 'ana@example.com', 'subject' => 's', 'text' => 't' ]);
+	    $designErrors = json_encode($this->errorsOf('brevo designer', [ $n('m', 'trigger::manual'), $n('s', $E, [ 'credential' => (string)$ok->_id, 'operation' => 'send', 'to' => 'a@example.com',
+		'content' => 'designer', 'subject' => 's', 'email' => [ 'preheader' => '', 'blocks' => [] ] ]), self::edge('e1', 'm', 's') ]));
+	    $this->check('brevo: Send a template (its ID, the params\' {{ }}); a designed message with an image refused (no inline images in Brevo\'s API); the designer\'s checks; Brevo\'s refusal on the '
+		. 'error output', [ [ 1, [ 'name' => 'Ana' ] ], [ 'error', true ], true, [ 'error', true ] ], [ [ $sent[0]['body']['templateId'] ?? null, $sent[0]['body']['params'] ?? null ],
+		[ $s3?->getVariable('route'), str_contains((string)self::logLine($s3, 'Brevo Email send: '), 'cannot send images inside the message') ],
+		str_contains($designErrors, 'Message: add at least one block'), [ $s4?->getVariable('route'), str_contains((string)self::logLine($s4, 'Brevo Email send: '), 'Sender is invalid') ] ]);
+	    file_put_contents("{$dir}/throttle.json", '1');
+	    [ $l1, $sent ] = $step($E, $ok, [ 'operation' => 'sent', 'recipient' => 'ana@example.com', 'maxItems' => 10 ]);
+	    file_put_contents("{$dir}/events.json", json_encode([ [ 'email' => 'ana@example.com', 'event' => 'opened' ], [ 'email' => 'ana@example.com', 'event' => 'delivered' ] ]));
+	    [ $l2, $sent2 ] = $step($E, $ok, [ 'operation' => 'events', 'event' => 'opened', 'startDate' => '2026-11-01', 'endDate' => '2026-11-14' ]);
+	    [ $l3, ] = $step($E, $ok, [ 'operation' => 'templates', 'activeOnly' => true ]);
+	    $this->check('brevo: sent emails of a recipient after a 429; events of a kind in a period; active templates', [ [ 2, 'ana@example.com' ], [ 1, '2026-11-01', '2026-11-14', 'opened' ], [ 1, 2 ] ], [
+		[ $l1?->getVariable('r')['count'] ?? null, $sent[1]['query']['email'] ?? null ],
+		[ $l2?->getVariable('r')['count'] ?? null, $sent2[0]['query']['startDate'] ?? null, $sent2[0]['query']['endDate'] ?? null, $sent2[0]['query']['event'] ?? null ],
+		array_column($l3?->getVariable('r')['items'] ?? [], 'id') ]);
+
+	    $C = 'app::brevo-contacts';
+	    [ $c1, ] = $step($C, $ok, [ 'operation' => 'upsert', 'contact' => 'nora@acme.com', 'attributes' => '{"FIRSTNAME": "{{ name }}"}', 'listIds' => '7' ], [ 'name' => 'Nora' ]);
+	    [ $c2, $sent ] = $step($C, $ok, [ 'operation' => 'update', 'contact' => 'nora@acme.com', 'listIds' => '8', 'blocklisted' => 'no' ]);
+	    [ $c3, ] = $step($C, $ok, [ 'operation' => 'get', 'contact' => 'nora@acme.com' ]);
+	    [ $c4, ] = $step($C, $ok, [ 'operation' => 'add', 'listId' => '8', 'emails' => 'ana@acme.com, ghost@acme.com' ]);
+	    [ $c5, ] = $step($C, $ok, [ 'operation' => 'lists' ]);
+	    $this->check('brevo: Contacts: created (attributes\' {{ }}, a list), updated (another list, not blocklisted), read; addresses added to a list (an unknown one failed); the lists', [
+		true, [ 'listIds' => [ 8 ], 'emailBlacklisted' => false ], [ 'Nora', [ 7, 8 ] ], [ [ 'ana@acme.com' ], [ 'ghost@acme.com' ] ], [ 7, 8 ] ], [
+		$c1?->getVariable('r')['created'] ?? null, $sent[0]['body'] ?? null, [ $c3?->getVariable('r')['attributes']['FIRSTNAME'] ?? null, $c3?->getVariable('r')['listIds'] ?? null ],
+		[ $c4?->getVariable('r')['success'] ?? null, $c4?->getVariable('r')['failure'] ?? null ], array_column($c5?->getVariable('r')['items'] ?? [], 'id') ]);
+	    [ $a1, ] = $step('app::brevo-api', $ok, [ 'method' => 'GET', 'path' => '/senders' ]);
+	    $this->check('brevo: API: a request below /v3', 'noreply@acme.com', $a1?->getVariable('r')['senders'][0]['email'] ?? null);
+	} finally {
+	    $done();
+	}
+    }
+
+    //CLD: 2026-11-15T16:00:00+02:00: Mailjet against a fake account (commands/tests/MailjetTestServer.php; util\Mailjet::$testing): the credential (the form, Test, a wrong secret),
+    //Mailjet Email (a message with a project file attached, tags as the campaign; a designed message: its image inline, the cid in the HTML; a template with its variables,
+    //sandbox; Mailjet's refusal on the error output; messages after a 429, one, its events), Mailjet Contacts (create, properties, subscribe with properties, a list's contacts,
+    //delete by address), Mailjet API
+    private function suiteMailjet() {
+	$fx = $this->emailServiceFixture('mailjet', 'MailjetTestServer.php', 'MAILJET_STATE', \util\Mailjet::class, 'CredentialMailjet');
+	if (!$fx)
+	    return;
+	[ $dir, $requests, $make, $step, $done, $pdf, $png, $designed ] = $fx;
+	try {
+	    $ok = $make([ 'apiKey' => 'mj-key', 'secretKey' => 'mj-secret', 'region' => 'global', 'fromAddress' => 'Acme <noreply@acme.com>' ]);
+	    $wrong = $make([ 'apiKey' => 'mj-key', 'secretKey' => 'nope', 'region' => 'global' ]);
+	    if (!$ok || !$wrong)
+		return;
+	    $bad = \V::app()->om->create('CredentialMailjet', [ 'name' => 'x' ]);
+	    $bad->validates();
+	    $this->check('mailjet: the form (the keys); Test: the account\'s user; a wrong secret said', [ [ 'apiKey', 'secretKey' ], 'connected to Mailjet as ops@acme.com', true ], [
+		array_values(array_intersect([ 'apiKey', 'secretKey' ], array_keys((array)$bad->errors()))), $ok->test(),
+		str_starts_with(self::thrown(fn() => $wrong->test()), 'HTTP status 401: API key authentication') ]);
+
+	    $E = 'app::mailjet-email';
+	    [ $s1, $sent ] = $step($E, $ok, [ 'operation' => 'send', 'to' => 'Ana Pop <ana@example.com>', 'subject' => 'Invoice', 'content' => 'html', 'html' => '<p>See attached</p>',
+		'attachments' => '{{ files }}', 'tags' => 'invoices' ], [ 'files' => [ [ 'id' => $pdf, 'filename' => 'check-invoice.pdf' ] ] ]);
+	    $m = $sent[0]['body']['Messages'][0] ?? [];
+	    [ $s2, $sent2 ] = $step($E, $ok, [ 'operation' => 'send', 'to' => 'ana@example.com', 'content' => 'designer', 'subject' => 'News', 'email' => $designed ], [ 'who' => 'Ana' ]);
+	    $d = $sent2[0]['body']['Messages'][0] ?? [];
+	    $cid = $d['InlinedAttachments'][0]['ContentID'] ?? '?';
+	    $this->check('mailjet: Send: a project file attached (a list of file objects), the tags as the campaign, the MessageIDs; a designed message: rendered, its image inline with the '
+		. 'cid of its <img>', [ [ [ 'ContentType' => 'application/pdf', 'Filename' => 'check-invoice.pdf', 'Base64Content' => base64_encode('%PDF-1.4 check') ] ], 'invoices', 1, true,
+		[ 'image/png', true, true ] ], [ $m['Attachments'] ?? null, $m['CustomCampaign'] ?? null, count($s1?->getVariable('r')['messageIds'] ?? []),
+		str_contains((string)($d['HTMLPart'] ?? ''), 'Hello Ana'), [ $d['InlinedAttachments'][0]['ContentType'] ?? null, str_contains((string)($d['HTMLPart'] ?? ''), "cid:{$cid}"),
+		str_contains((string)($d['TextPart'] ?? ''), 'Hello Ana') ] ]);
+	    [ $s3, $sent ] = $step($E, $ok, [ 'operation' => 'send', 'to' => 'ana@example.com', 'content' => 'template', 'template' => '501', 'templateVars' => '{"name": "Ana"}', 'sandbox' => true ]);
+	    [ $s4, ] = $step($E, $ok, [ 'operation' => 'send', 'from' => 'me@gmail.com', 'to' => 'ana@example.com', 'subject' => 's', 'text' => 't' ]);
+	    $this->check('mailjet: a template (TemplateLanguage, its variables) in the sandbox; Mailjet\'s refusal of a sender on the error output', [ [ 501, true, [ 'name' => 'Ana' ], true ],
+		[ 'error', true ] ], [ [ $sent[0]['body']['Messages'][0]['TemplateID'] ?? null, $sent[0]['body']['Messages'][0]['TemplateLanguage'] ?? null,
+		$sent[0]['body']['Messages'][0]['Variables'] ?? null, $sent[0]['body']['SandboxMode'] ?? null ],
+		[ $s4?->getVariable('route'), str_contains((string)self::logLine($s4, 'Mailjet Email send: '), 'The sender is not authorised') ] ]);
+	    file_put_contents("{$dir}/throttle.json", '1');
+	    [ $l1, ] = $step($E, $ok, [ 'operation' => 'messages', 'recipient' => 'ana@example.com' ]);
+	    $first = (string)($l1?->getVariable('r')['items'][0]['ID'] ?? '');
+	    [ $l2, ] = $step($E, $ok, [ 'operation' => 'history', 'messageId' => $first ]);
+	    $this->check('mailjet: messages of a recipient after a 429; a message\'s events', [ 2, [ 'sent', 'opened' ] ], [ $l1?->getVariable('r')['count'] ?? null,
+		array_column($l2?->getVariable('r')['items'] ?? [], 'EventType') ]);
+
+	    $C = 'app::mailjet-contacts';
+	    [ $c1, ] = $step($C, $ok, [ 'operation' => 'create', 'contact' => 'nora@acme.com', 'contactName' => 'Nora' ]);
+	    [ $c2, ] = $step($C, $ok, [ 'operation' => 'properties', 'contact' => 'nora@acme.com', 'properties' => '{"firstname": "Nora"}' ]);
+	    [ $c3, $sent ] = $step($C, $ok, [ 'operation' => 'subscribe', 'contact' => 'nora@acme.com', 'listId' => '31', 'properties' => '{"country": "RO"}' ]);
+	    [ $c4, ] = $step($C, $ok, [ 'operation' => 'get', 'contact' => 'nora@acme.com' ]);
+	    [ $c5, ] = $step($C, $ok, [ 'operation' => 'list', 'listId' => '31' ]);
+	    [ $c6, $sent2 ] = $step($C, $ok, [ 'operation' => 'delete', 'contact' => 'nora@acme.com' ]);
+	    $this->check('mailjet: Contacts: created, properties set, subscribed to a list with a property, read with its properties, in the list; deleted by address (its ID looked up)', [
+		true, [ 'addforce', [ 'country' => 'RO' ] ], [ 'firstname' => 'Nora', 'country' => 'RO' ], [ 'ana@acme.com', 'nora@acme.com' ], [ 'GET', 'DELETE' ] ], [
+		isset($c1?->getVariable('r')['ID']), [ $sent[0]['body']['Action'] ?? null, $sent[0]['body']['Properties'] ?? null ], $c4?->getVariable('r')['properties'] ?? null,
+		array_column($c5?->getVariable('r')['items'] ?? [], 'Email'), array_column($sent2, 'method') ]);
+	    [ $a1, ] = $step('app::mailjet-api', $ok, [ 'method' => 'GET', 'path' => '/v3/REST/sender' ]);
+	    $this->check('mailjet: API: a request with its version', 'noreply@acme.com', $a1?->getVariable('r')['Data'][0]['Email'] ?? null);
+	} finally {
+	    $done();
+	}
+    }
+
+    //CLD: 2026-11-15T16:00:00+02:00: Amazon SES against a fake API v2 (commands/tests/SesTestServer.php: every request's Signature V4 checked again; util\AmazonSes::$testing): the
+    //credential (the form, Test, a wrong secret), Amazon SES Email (Simple content with names and tags, the configuration set; a project file attached: a raw MIME message;
+    //a designed message: raw, its image inline; a template; SES's refusal of a sender on the error output; templates in pages), Amazon SES Account (the quota, an address
+    //identity by its encoded path, a domain's DKIM records, the suppression list), Amazon SES API
+    private function suiteAmazonses() {
+	$fx = $this->emailServiceFixture('amazonses', 'SesTestServer.php', 'SES_STATE', \util\AmazonSes::class, 'CredentialAmazonSes');
+	if (!$fx)
+	    return;
+	[ $dir, $requests, $make, $step, $done, $pdf, $png, $designed ] = $fx;
+	try {
+	    $ok = $make([ 'region' => 'eu-west-1', 'accessKeyId' => 'AKIDCHECKSES', 'secretAccessKey' => 'ses-check-secret', 'configurationSet' => 'tracking', 'fromAddress' => 'Acme <noreply@acme.com>' ]);
+	    $wrong = $make([ 'region' => 'eu-west-1', 'accessKeyId' => 'AKIDCHECKSES', 'secretAccessKey' => 'other' ]);
+	    if (!$ok || !$wrong)
+		return;
+	    $bad = \V::app()->om->create('CredentialAmazonSes', [ 'name' => 'x', 'region' => 'Ireland', 'accessKeyId' => 'akid' ]);
+	    $bad->validates();
+	    $requests();
+	    $tt = $ok->test();
+	    $sent = $requests();
+	    $this->check('amazonses: the form (a region code, an access key ID, the secret); Test: signed (V4), the quota; a wrong secret said', [ [ 'region', 'accessKeyId', 'secretAccessKey' ],
+		'connected to Amazon SES (eu-west-1): production, 0 of 50000 sent in 24 h', [ true, 'eu-west-1' ],
+		'HTTP status 403: The request signature we calculated does not match the signature you provided. [SignatureDoesNotMatch]' ], [
+		array_values(array_intersect([ 'region', 'accessKeyId', 'secretAccessKey' ], array_keys((array)$bad->errors()))), $tt, [ $sent[0]['signed'] ?? null, $sent[0]['region'] ?? null ],
+		self::thrown(fn() => $wrong->test()) ]);
+
+	    $E = 'app::ses-email';
+	    [ $s1, $sent ] = $step($E, $ok, [ 'operation' => 'send', 'to' => 'Ana Pop <ana@example.com>', 'subject' => 'Order {{ no }}', 'content' => 'html', 'text' => 'Thanks', 'html' => '<p>Thanks</p>',
+		'tags' => 'flow=orders' ], [ 'no' => 7 ]);
+	    $b = $sent[0]['body'] ?? [];
+	    [ $s2, $sent2 ] = $step($E, $ok, [ 'operation' => 'send', 'to' => 'ana@example.com', 'subject' => 'Invoice', 'content' => 'html', 'text' => 'See attached', 'attachments' => $pdf ]);
+	    $raw1 = (string)@file_get_contents("{$dir}/raw.eml");
+	    [ $s3, ] = $step($E, $ok, [ 'operation' => 'send', 'to' => 'ana@example.com', 'content' => 'designer', 'subject' => 'News', 'email' => $designed ], [ 'who' => 'Ana' ]);
+	    $raw2 = (string)@file_get_contents("{$dir}/raw.eml");
+	    $this->check('amazonses: Send: Simple content (names, the subject\'s {{ }}, a tag, the configuration set), signed; a project file attached: a raw message (multipart/mixed, the file);'
+		. ' a designed message: raw, its image inline (multipart/related, the cid of its <img>)', [ [ true, '"Acme" <noreply@acme.com>', [ '"Ana Pop" <ana@example.com>' ], 'Order 7',
+		[ [ 'Name' => 'flow', 'Value' => 'orders' ] ], 'tracking' ], [ true, true, true ], [ true, true, true ] ], [
+		[ $sent[0]['signed'] ?? null, $b['FromEmailAddress'] ?? null, $b['Destination']['ToAddresses'] ?? null, $b['Content']['Simple']['Subject']['Data'] ?? null, $b['EmailTags'] ?? null,
+		    $b['ConfigurationSetName'] ?? null ],
+		[ isset($sent2[0]['body']['Content']['Raw']), str_contains($raw1, 'multipart/mixed'), str_contains($raw1, base64_encode('%PDF-1.4 check')) ],
+		[ str_contains($raw2, 'multipart/related'), (bool)preg_match('/Content-ID: <([^>]+)>/', $raw2, $cm) && str_contains(quoted_printable_decode($raw2), 'cid:' . ($cm[1] ?? '?')),
+		    str_contains(quoted_printable_decode($raw2), 'Hello Ana') ] ]);
+	    [ $s4, $sent ] = $step($E, $ok, [ 'operation' => 'send', 'to' => 'ana@example.com', 'content' => 'template', 'template' => 'welcome', 'templateVars' => '{"name": "Ana"}' ]);
+	    [ $s5, ] = $step($E, $ok, [ 'operation' => 'send', 'from' => 'me@gmail.com', 'to' => 'ana@example.com', 'subject' => 's', 'text' => 't' ]);
+	    [ $s6, ] = $step($E, $ok, [ 'operation' => 'templates', 'maxItems' => 2 ]);
+	    $this->check('amazonses: a template with its data; SES\'s refusal of a sender on the error output; templates in pages (At most 2: truncated)', [ [ 'welcome', '{"name":"Ana"}' ],
+		[ 'error', true ], [ [ 'welcome', 'invoice' ], true ] ], [ [ $sent[0]['body']['Content']['Template']['TemplateName'] ?? null, $sent[0]['body']['Content']['Template']['TemplateData'] ?? null ],
+		[ $s5?->getVariable('route'), str_contains((string)self::logLine($s5, 'Amazon SES Email send: '), 'MessageRejected') ],
+		[ array_column($s6?->getVariable('r')['items'] ?? [], 'TemplateName'), $s6?->getVariable('r')['truncated'] ?? null ] ]);
+
+	    $C = 'app::ses-account';
+	    [ $c1, ] = $step($C, $ok, [ 'operation' => 'account' ]);
+	    [ $c2, $sent ] = $step($C, $ok, [ 'operation' => 'identity', 'identity' => 'ops@other.com' ]);
+	    [ $c3, ] = $step($C, $ok, [ 'operation' => 'verify', 'identity' => 'news.acme.com' ]);
+	    [ $c4, ] = $step($C, $ok, [ 'operation' => 'suppress', 'address' => 'x@example.com', 'reason' => 'COMPLAINT' ]);
+	    [ $c5, ] = $step($C, $ok, [ 'operation' => 'check', 'address' => 'x@example.com' ]);
+	    [ $c6, ] = $step($C, $ok, [ 'operation' => 'unsuppress', 'address' => 'x@example.com' ]);
+	    [ $c7, ] = $step($C, $ok, [ 'operation' => 'check', 'address' => 'x@example.com' ]);
+	    $this->check('amazonses: Account: the quota (4 sent); an address identity by its encoded path, signed; a domain\'s DKIM records; an address suppressed, checked, taken out', [
+		4, [ '/v2/email/identities/ops%40other.com', true, 'PENDING' ], 'tok1._domainkey.news.acme.com', [ true, 'COMPLAINT', false ] ], [
+		$c1?->getVariable('r')['SendQuota']['SentLast24Hours'] ?? null, [ $sent[0]['rawPath'] ?? null, $sent[0]['signed'] ?? null, $c2?->getVariable('r')['VerificationStatus'] ?? null ],
+		$c3?->getVariable('r')['dkimRecords'][0]['name'] ?? null, [ $c5?->getVariable('r')['suppressed'] ?? null, $c5?->getVariable('r')['reason'] ?? null, $c7?->getVariable('r')['suppressed'] ?? null ] ]);
+	    [ $a1, ] = $step('app::ses-api', $ok, [ 'method' => 'GET', 'path' => '/configuration-sets' ]);
+	    $this->check('amazonses: API: a request below /v2/email', [ 'tracking' ], $a1?->getVariable('r')['ConfigurationSets'] ?? null);
+	} finally {
+	    $done();
 	}
     }
 

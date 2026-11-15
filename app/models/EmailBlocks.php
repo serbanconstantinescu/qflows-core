@@ -16,6 +16,7 @@
     schema($label)        the config field (for configSchema(); the designer is the smartform field type `emaildesigner`)
     normalize($email)     the email as stored: known blocks and properties only, the HTML cleaned
     errors($email)        what is wrong with it: [ message ]
+    problems($email, $wf) errors() + the expressions of its blocks + its images (files of the workflow's project, IMAGE_TYPES): [ message ]
 
     util\EmailHtml turns it into the HTML / text sent (responsive, inline styles, Outlook-safe)
 
@@ -28,6 +29,8 @@ class EmailBlocks {
     const MAX_BLOCKS = 50;
     const MAX_HTML = 100000;
     const ALIGN = [ 'left', 'center', 'right' ];
+    //CLD: 2026-11-15T16:00:00+02:00: the image types every email client shows (Outlook shows no WebP); was NodeAppSendEmail's
+    const IMAGE_TYPES = [ 'image/png', 'image/jpeg', 'image/gif' ];
 
     //tags kept in an HTML block => their attributes (others are unwrapped: their text stays)
     const TAGS = [
@@ -102,6 +105,28 @@ class EmailBlocks {
 		$errors[] = "block {$n}: the link must start with https://, http:// or mailto:";
 	}
 	return $errors;
+    }
+
+    //CLD: 2026-11-15T16:00:00+02:00: what is wrong with a normalized email, for a step's validates() (Send email, the Brevo / Mailjet / Amazon SES send steps): errors(), the
+    //expressions of its blocks (their {{ }} well formed), its images (files of workflow $wf's project, of IMAGE_TYPES); was in NodeAppSendEmail::validates
+    public static function problems(array $email, $wf) {
+	$problems = self::errors($email);
+	foreach($email['blocks'] ?? [] as $i => $b) {
+	    $texts = $b['type'] === 'html' ? [ $b['html'] ] : [ $b['href'] ];
+	    if ($b['type'] === 'html')
+		$texts = array_map(fn($p) => \sys\J\Template::OPEN . html_entity_decode(substr($b['html'], $p['start'], $p['end'] - $p['start']), ENT_QUOTES | ENT_HTML5, 'UTF-8') . \sys\J\Template::CLOSE,
+		    \sys\J\Template::parts($b['html']));
+	    foreach($texts as $t)
+		foreach(\util\Expression::check($t) as $p)
+		    if ($p['severity'] === 'error')
+			$problems[] = 'block ' . ($i + 1) . ': ' . $p['message'];
+	    $file = $b['type'] === 'image' && $b['file'] !== '' && $wf ? \V::app()->om->findOne('File', [ '_id' => $b['file'], 'aid' => $wf->aid, 'metadata.project' => $wf->project ]) : null;
+	    if ($b['type'] === 'image' && $b['file'] !== '' && !$file)
+		$problems[] = 'block ' . ($i + 1) . ': the image is not a file of this project';
+	    elseif ($file && !in_array($file->imageMimeType(), self::IMAGE_TYPES, true))
+		$problems[] = 'block ' . ($i + 1) . ': use a PNG, JPEG or GIF image';
+	}
+	return $problems;
     }
 
     //an HTML block's markup reduced to TAGS / their attributes / STYLES; links only http(s), mailto or an expression; the text (and {{ }}) kept

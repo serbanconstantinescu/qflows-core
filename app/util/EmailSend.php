@@ -218,7 +218,8 @@ class EmailSend {
 		subject,
 		html,
 		text,
-		images: [ cid => File ]
+		images: [ cid => File ],
+		attachments: [ { name, type, content } ] (optional)
 	    } -> [ headers, body ];
 	    with images: multipart/related (the alternative + the images, inline),
 	    else multipart/alternative (text, html); quoted-printable bodies, encoded headers (CR / LF removed: no header injection)
@@ -250,20 +251,36 @@ class EmailSend {
 	$alt = 'alt-' . $id;
 	$alternative = "--{$alt}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n" . self::quotedPrintable($m['text'] ?? '') . "\r\n"
 	    . "--{$alt}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n" . self::quotedPrintable($m['html'] ?? '') . "\r\n--{$alt}--\r\n";
+	//CLD: 2026-11-15T16:00:00+02:00: the message's own part (alternative, or related with the images) as [ its Content-Type, its body ]; with attachments
+	//([ { name, type, content } ]: the Amazon SES steps' raw emails) wrapped in multipart/mixed, each attachment base64
 	if (empty($m['images'])) {
-	    $headers[] = "Content-Type: multipart/alternative; boundary=\"{$alt}\"";
-	    return [ implode("\r\n", $headers), $alternative ];
+	    $part = [ "multipart/alternative; boundary=\"{$alt}\"", $alternative ];
+	} else {
+	    $rel = 'rel-' . $id;
+	    $body = "--{$rel}\r\nContent-Type: multipart/alternative; boundary=\"{$alt}\"\r\n\r\n" . $alternative;
+	    foreach($m['images'] as $cid => $file) {
+		$type = $file->imageMimeType() ?: 'application/octet-stream';
+		$fname = self::headerText(preg_replace('/[^A-Za-z0-9._-]/', '_', (string)$file->filename));
+		$body .= "--{$rel}\r\nContent-Type: {$type}; name=\"{$fname}\"\r\nContent-Transfer-Encoding: base64\r\nContent-ID: <{$cid}>\r\n"
+		    . "Content-Disposition: inline; filename=\"{$fname}\"\r\n\r\n" . chunk_split(base64_encode($file->getContents()), 76, "\r\n");
+	    }
+	    $part = [ "multipart/related; boundary=\"{$rel}\"; type=\"multipart/alternative\"", $body . "--{$rel}--\r\n" ];
 	}
-	$rel = 'rel-' . $id;
-	$headers[] = "Content-Type: multipart/related; boundary=\"{$rel}\"; type=\"multipart/alternative\"";
-	$body = "--{$rel}\r\nContent-Type: multipart/alternative; boundary=\"{$alt}\"\r\n\r\n" . $alternative;
-	foreach($m['images'] as $cid => $file) {
-	    $type = $file->imageMimeType() ?: 'application/octet-stream';
-	    $fname = self::headerText(preg_replace('/[^A-Za-z0-9._-]/', '_', (string)$file->filename));
-	    $body .= "--{$rel}\r\nContent-Type: {$type}; name=\"{$fname}\"\r\nContent-Transfer-Encoding: base64\r\nContent-ID: <{$cid}>\r\n"
-		. "Content-Disposition: inline; filename=\"{$fname}\"\r\n\r\n" . chunk_split(base64_encode($file->getContents()), 76, "\r\n");
+	if (empty($m['attachments'])) {
+	    $headers[] = "Content-Type: {$part[0]}";
+	    return [ implode("\r\n", $headers), $part[1] ];
 	}
-	return [ implode("\r\n", $headers), $body . "--{$rel}--\r\n" ];
+	$mix = 'mix-' . $id;
+	$headers[] = "Content-Type: multipart/mixed; boundary=\"{$mix}\"";
+	$body = "--{$mix}\r\nContent-Type: {$part[0]}\r\n\r\n" . $part[1];
+	foreach($m['attachments'] as $a) {
+	    $fname = self::headerText((string)$a['name']);
+	    $fname = mb_check_encoding($fname, 'ASCII') ? '"' . addcslashes($fname, '"\\') . '"' : "\"" . mb_encode_mimeheader($fname, 'UTF-8', 'B') . "\"";
+	    $type = preg_match('~^[\w.+-]+/[\w.+-]+$~', (string)($a['type'] ?? '')) ? $a['type'] : 'application/octet-stream';
+	    $body .= "--{$mix}\r\nContent-Type: {$type}; name={$fname}\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename={$fname}\r\n\r\n"
+		. chunk_split(base64_encode((string)$a['content']), 76, "\r\n");
+	}
+	return [ implode("\r\n", $headers), $body . "--{$mix}--\r\n" ];
     }
 
     //the job of a queued email (the Send Email step): { aid, from_name, to, cc, bcc, reply_to, subject, html, text, images: [ cid => file id ] }; sent from

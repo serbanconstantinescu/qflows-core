@@ -22,8 +22,6 @@ class NodeAppSendEmail extends \models\wf\WfNode {
     public static $outputs = 1;
 
     const MAX_RECIPIENTS = 50;
-    //the image types every email client shows
-    const IMAGE_TYPES = [ 'image/png', 'image/jpeg', 'image/gif' ];
 
     public static function configSchema() {
 	return [
@@ -79,33 +77,10 @@ class NodeAppSendEmail extends \models\wf\WfNode {
 	$config = is_array($this->config) ? $this->config : [];
 	$config['email'] = \models\EmailBlocks::normalize($config['email'] ?? []);
 	$this->config = $config;
-	foreach(\models\EmailBlocks::errors($config['email']) as $m) {
+	//CLD: 2026-11-15T16:00:00+02:00: the checks of the message (blocks, expressions, images) in models\EmailBlocks::problems, shared with the email services' send steps
+	foreach(\models\EmailBlocks::problems($config['email'], $this->workflow) as $m) {
 	    $this->errors('config', "Message: {$m}");
 	    $valid = false;
-	}
-	$wf = $this->workflow;
-	foreach($config['email']['blocks'] as $i => $b) {
-	    $texts = $b['type'] === 'html' ? [ $b['html'] ] : [ $b['href'] ];
-	    if ($b['type'] === 'html')
-		$texts = array_map(fn($p) => \sys\J\Template::OPEN . html_entity_decode(substr($b['html'], $p['start'], $p['end'] - $p['start']), ENT_QUOTES | ENT_HTML5, 'UTF-8') . \sys\J\Template::CLOSE,
-		    \sys\J\Template::parts($b['html']));
-	    foreach($texts as $t) {
-		foreach(\util\Expression::check($t) as $p) {
-		    if ($p['severity'] === 'error') {
-			$this->errors('config', 'Message: block ' . ($i + 1) . ': ' . $p['message']);
-			$valid = false;
-		    }
-		}
-	    }
-	    $file = $b['type'] === 'image' && $b['file'] !== '' && $wf ? \V::app()->om->findOne('File', [ '_id' => $b['file'], 'aid' => $wf->aid, 'metadata.project' => $wf->project ]) : null;
-	    if ($b['type'] === 'image' && $b['file'] !== '' && !$file) {
-		$this->errors('config', 'Message: block ' . ($i + 1) . ': the image is not a file of this project');
-		$valid = false;
-	    } elseif ($file && !in_array($file->imageMimeType(), self::IMAGE_TYPES, true)) {
-		//only the image types every email client shows (Outlook shows no WebP)
-		$this->errors('config', 'Message: block ' . ($i + 1) . ': use a PNG, JPEG or GIF image');
-		$valid = false;
-	    }
 	}
 	return $valid;
     }

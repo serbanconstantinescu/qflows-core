@@ -1765,7 +1765,10 @@ window.app.Workflow = (function() {
 	    el.className = 'modal fade wf-editor';
 	    //two sizes: nearly full screen with a designer (.modal-near-fullscreen: a margin all around; the whole screen on phones,
 	    //modal-fullscreen-sm-down: theme local/_modal.scss), else extra-large
-	    const dialogSize = configSchema.some((f) => [ 'formdesigner', 'emaildesigner' ].includes(f.type)) ? 'modal-near-fullscreen' : 'modal-xl';
+	    //CLD: 2026-11-15T16:00:00+02:00: only a designer always shown (Send email, Form, Human task) makes the dialog the designer; one shown for some settings (the email
+	    //services' send steps: Content "Designed") stays a field of an extra-large dialog
+	    const isDesigner = (f) => [ 'formdesigner', 'emaildesigner' ].includes(f.type) && !f.showIf && !f.hideIf;
+	    const dialogSize = configSchema.some(isDesigner) ? 'modal-near-fullscreen' : 'modal-xl';
 	    el.tabIndex = -1;
 	    el.innerHTML = `
 		<!-- the email designer (Send Email) -->
@@ -1795,7 +1798,7 @@ window.app.Workflow = (function() {
 
 	    //a step with a form or an email (Form trigger, Human task, Send Email; user's choice): the dialog is the form / email designer; the step's other settings (name, ...)
 	    //are in the designer's right panel, shown when no field of the form is selected (the same inputs: data and checks); stacked there (the panel is narrow)
-	    const designerField = form.fields.find((f) => [ 'formdesigner', 'emaildesigner' ].includes(f.schema.type) && f.designer);
+	    const designerField = form.fields.find((f) => isDesigner(f.schema) && f.designer);
 	    let stepPanel = null;
 	    if (designerField) {
 		const root = el.querySelector('.wf-editor-form form');

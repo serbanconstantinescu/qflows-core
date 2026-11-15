@@ -37,6 +37,10 @@ class AgentTools {
 	'yousign' => [ 'label' => 'Yousign', 'prefix' => 'yousign', 'capability' => 'yousign', 'base' => \models\node\NodeAppYousign::class ],
 	//CLD: 2026-11-13T00:30:00+02:00: Infobip's steps as tools
 	'infobip' => [ 'label' => 'Infobip', 'prefix' => 'infobip', 'capability' => 'infobip', 'base' => \models\node\NodeAppInfobip::class ],
+	//CLD: 2026-11-15T16:00:00+02:00: the email services' steps as tools (their own families: the steps share NodeAppEmailService)
+	'brevo' => [ 'label' => 'Brevo', 'prefix' => 'brevo', 'capability' => 'brevo', 'steps' => [ \models\node\NodeAppBrevoEmail::class, \models\node\NodeAppBrevoContacts::class, \models\node\NodeAppBrevoApi::class ] ],
+	'mailjet' => [ 'label' => 'Mailjet', 'prefix' => 'mailjet', 'capability' => 'mailjet', 'steps' => [ \models\node\NodeAppMailjetEmail::class, \models\node\NodeAppMailjetContacts::class, \models\node\NodeAppMailjetApi::class ] ],
+	'amazonses' => [ 'label' => 'Amazon SES', 'prefix' => 'ses', 'capability' => 'amazonses', 'steps' => [ \models\node\NodeAppSesEmail::class, \models\node\NodeAppSesAccount::class, \models\node\NodeAppSesApi::class ] ],
 	//CLD: 2026-11-12T23:45:00+02:00: Zendesk's steps as tools
 	'zendesk' => [ 'label' => 'Zendesk', 'prefix' => 'zendesk', 'capability' => 'zendesk', 'base' => \models\node\NodeAppZendesk::class ],
 	//CLD: 2026-11-12T22:00:00+02:00: Intune's steps as tools
@@ -513,7 +517,9 @@ class AgentTools {
 	    $key = (string)($f['key'] ?? '');
 	    $type = (string)($f['type'] ?? 'text');
 	    $ui = (array)($f['ui'] ?? []);
-	    if ($key === '' || in_array($key, self::NOT_ARGUMENTS, true) || in_array($type, self::NOT_ARGUMENT_TYPES, true) || !empty($f['encrypt']))
+	    //CLD: 2026-11-15T16:00:00+02:00: a designer is also declared by its ui type (models\EmailBlocks::schema: type array, ui emaildesigner)
+	    if ($key === '' || in_array($key, self::NOT_ARGUMENTS, true) || in_array($type, self::NOT_ARGUMENT_TYPES, true) || in_array((string)($ui['type'] ?? ''), self::NOT_ARGUMENT_TYPES, true)
+		|| !empty($f['encrypt']))
 		continue;
 	    [ $shown, $byOthers ] = self::shownFor($ui['showIf'] ?? null, $ui['hideIf'] ?? null, $op);
 	    if (!$shown)

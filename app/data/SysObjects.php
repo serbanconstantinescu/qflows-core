@@ -315,6 +315,19 @@ class SysObjects {
 		'class' => 'models\credential\CredentialInfobip',
 		'variant-of' => 'Credential',
 	    ],
+	    //CLD: 2026-11-15T16:00:00+02:00: the email services (the Brevo, Mailjet and Amazon SES steps), core for every account
+	    'CredentialBrevo' => [
+		'class' => 'models\credential\CredentialBrevo',
+		'variant-of' => 'Credential',
+	    ],
+	    'CredentialMailjet' => [
+		'class' => 'models\credential\CredentialMailjet',
+		'variant-of' => 'Credential',
+	    ],
+	    'CredentialAmazonSes' => [
+		'class' => 'models\credential\CredentialAmazonSes',
+		'variant-of' => 'Credential',
+	    ],
 	    //CLD: 2026-11-12T23:45:00+02:00: a Zendesk Support account (the Zendesk steps and ticket trigger), core for every account
 	    'CredentialZendesk' => [
 		'class' => 'models\credential\CredentialZendesk',
@@ -584,6 +597,44 @@ class SysObjects {
 	    ],
 	    'NodeTriggerInfobip' => [
 		'class' => 'models\node\NodeTriggerInfobip',
+		'wfNode' => true,
+	    ],
+	    //CLD: 2026-11-15T16:00:00+02:00: the email services: Brevo, Mailjet, Amazon SES (Email, Contacts or Account, API each; NodeAppEmailService their base; no trigger: their
+	    //events reach the Webhook trigger), core for every account
+	    'NodeAppBrevoEmail' => [
+		'class' => 'models\node\NodeAppBrevoEmail',
+		'wfNode' => true,
+	    ],
+	    'NodeAppBrevoContacts' => [
+		'class' => 'models\node\NodeAppBrevoContacts',
+		'wfNode' => true,
+	    ],
+	    'NodeAppBrevoApi' => [
+		'class' => 'models\node\NodeAppBrevoApi',
+		'wfNode' => true,
+	    ],
+	    'NodeAppMailjetEmail' => [
+		'class' => 'models\node\NodeAppMailjetEmail',
+		'wfNode' => true,
+	    ],
+	    'NodeAppMailjetContacts' => [
+		'class' => 'models\node\NodeAppMailjetContacts',
+		'wfNode' => true,
+	    ],
+	    'NodeAppMailjetApi' => [
+		'class' => 'models\node\NodeAppMailjetApi',
+		'wfNode' => true,
+	    ],
+	    'NodeAppSesEmail' => [
+		'class' => 'models\node\NodeAppSesEmail',
+		'wfNode' => true,
+	    ],
+	    'NodeAppSesAccount' => [
+		'class' => 'models\node\NodeAppSesAccount',
+		'wfNode' => true,
+	    ],
+	    'NodeAppSesApi' => [
+		'class' => 'models\node\NodeAppSesApi',
 		'wfNode' => true,
 	    ],
 	    //CLD: 2026-11-12T23:45:00+02:00: Zendesk (one step per area, NodeAppZendesk their base; the ticket trigger: a search on a schedule), core for every account
