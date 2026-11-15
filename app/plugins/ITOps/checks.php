@@ -2308,7 +2308,7 @@ return [
 		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
 		return [ $exe, $requests() ];
 	    };
-	    $logOf = fn($exe, $prefix) => str_replace($prefix, '', (string)self::logLine($exe, $prefix));
+	    $logOf = fn($exe, $prefix) => preg_replace('/ \(\d+ ms\)$/', '', str_replace($prefix, '', (string)self::logLine($exe, $prefix)));
 	    $TS = 'app::glpi-tickets';
 	    $posted = fn($sent, $path) => array_values(array_filter($sent, fn($r) => $r['method'] !== 'GET' && $r['path'] === "/apirest.php{$path}"))[0] ?? [];
 
@@ -2535,7 +2535,7 @@ return [
 		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
 		return [ $exe, $requests() ];
 	    };
-	    $logOf = fn($exe, $prefix) => str_replace($prefix, '', (string)self::logLine($exe, $prefix));
+	    $logOf = fn($exe, $prefix) => preg_replace('/ \(\d+ ms\)$/', '', str_replace($prefix, '', (string)self::logLine($exe, $prefix)));
 	    $DV = 'app::intune-devices';
 
 	    //devices

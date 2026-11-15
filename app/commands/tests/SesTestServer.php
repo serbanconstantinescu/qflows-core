@@ -3,7 +3,7 @@
 /*
     CLD: 2026-11-15T16:00:00+02:00: a fake Amazon SES API v2 for the check suite (CheckCommand::suiteAmazonses), run by PHP's built-in server:
     SES_STATE=<a folder> php -S 127.0.0.1:<port> SesTestServer.php
-	Every request's AWS Signature V4 checked again (util\AwsSigV4) with the key AKIDCHECKSES / ses-check-secret (else 403 SignatureDoesNotMatch; another key: 403
+	Every request's AWS Signature V4 checked again (util\AwsSigV4) with the key AKIDCHECKSES0001 / ses-check-secret (else 403 SignatureDoesNotMatch; another key: 403
 	UnrecognizedClientException). account; outbound-emails (Simple, Raw - kept decoded in <state>/raw.eml -, Template 'welcome'; a sender of acme.com only, else 400
 	MessageRejected); templates (3, pages of PageSize with NextToken) and one; identities (acme.com verified, pages), one (an address: by its encoded path), a new one (DKIM
 	tokens); the suppression list (list, one - 404 NotFoundException -, PUT, DELETE). Errors as SES's: { message }, the type in x-amzn-ErrorType.
@@ -42,11 +42,11 @@ if (preg_match('~^AWS4-HMAC-SHA256 Credential=([^/]+)/(\d{8})/([a-z0-9-]+)/ses/a
     $time = DateTime::createFromFormat('Ymd\THis\Z', (string)($_SERVER['HTTP_X_AMZ_DATE'] ?? ''), new DateTimeZone('UTC'));
     $again = \util\AwsSigV4::headers($method, 'http://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'], $headers, $raw, [ 'accessKeyId' => $m[1], 'secretAccessKey' => 'ses-check-secret',
 	'region' => $m[3], 'service' => 'ses', 'time' => $time ? $time->getTimestamp() : 0, 'sessionToken' => $_SERVER['HTTP_X_AMZ_SECURITY_TOKEN'] ?? '' ]);
-    $signed = $m[1] === 'AKIDCHECKSES' && hash_equals($again['Authorization'], $auth);
+    $signed = $m[1] === 'AKIDCHECKSES0001' && hash_equals($again['Authorization'], $auth);
 }
 file_put_contents("{$state}/requests.jsonl", json_encode([ 'method' => $method, 'path' => $path, 'rawPath' => $rawPath, 'query' => $query, 'body' => $body, 'signed' => $signed,
     'region' => $m[3] ?? null ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND);
-if (!str_contains($auth, 'Credential=AKIDCHECKSES/'))
+if (!str_contains($auth, 'Credential=AKIDCHECKSES0001/'))
     $err(403, 'UnrecognizedClientException', 'The security token included in the request is invalid.');
 if (!$signed)
     $err(403, 'SignatureDoesNotMatch', 'The request signature we calculated does not match the signature you provided.');

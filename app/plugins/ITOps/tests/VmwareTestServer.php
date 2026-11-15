@@ -55,7 +55,7 @@ $default = [
     'snapshots' => [ 'vm-42' => [
 	[ 'id' => 'snapshot-1', 'name' => 'Base', 'parent' => null, 'createTime' => '2026-09-01T10:00:00Z' ],
 	[ 'id' => 'snapshot-2', 'name' => 'Before patch', 'parent' => 'snapshot-1', 'createTime' => '2026-10-01T10:00:00Z' ],
-	[ 'id' => 'snapshot-3', 'name' => 'broken', 'parent' => 'snapshot-2', 'createTime' => '2026-10-30T10:00:00Z' ],
+	[ 'id' => 'snapshot-3', 'name' => 'broken', 'parent' => 'snapshot-2', 'createTime' => gmdate('Y-m-d\TH:i:s\Z', time() - 2 * 86400) ],
     ] ],
     'current' => [ 'vm-42' => 'snapshot-3' ],
     'tasks' => [],

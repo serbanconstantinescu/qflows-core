@@ -126,6 +126,8 @@ class Nextcloud {
 	    $m = trim((string)($meta['message'] ?? ''));
 	    if (!is_array($meta) && $r['status'] < 400)
 		throw new \RuntimeException('the answer is not Nextcloud\'s (is the address the server\'s?)');
+	    //CLD: 2026-11-15T18:00:00+02:00: a sign-in or permission refusal (401, 403) says its HTTP status, as the other integrations' errors; else Nextcloud's message
+	    $m = $m !== '' && in_array($r['status'], [ 401, 403 ], true) ? "HTTP status {$r['status']}: {$m}" : $m;
 	    throw new \RuntimeException(($m !== '' ? $m : self::statusText($r['status'], $r['body'])) . ($code && $code !== $r['status'] ? " (OCS {$code})" : ''));
 	}
 	return $r['data']['ocs']['data'] ?? null;

@@ -88,6 +88,7 @@ class Yousign {
     }
 
     //Yousign's filters: [ 'status' => [ 'in' => 'draft,done' ] ] => status[in]=draft,done
+    //CLD: 2026-11-15T18:00:00+02:00: the brackets percent-encoded (status%5Bin%5D), as RFC 3986 asks and http_build_query does
     public static function query(array $query) {
 	$parts = [];
 	foreach($query as $k => $v) {
@@ -96,7 +97,7 @@ class Yousign {
 	    if (is_array($v)) {
 		foreach($v as $op => $x)
 		    if ($x !== null && $x !== '')
-			$parts[] = rawurlencode($k) . '[' . rawurlencode((string)$op) . ']=' . rawurlencode(is_array($x) ? implode(',', $x) : (is_bool($x) ? ($x ? 'true' : 'false') : (string)$x));
+			$parts[] = rawurlencode($k . '[' . $op . ']') . '=' . rawurlencode(is_array($x) ? implode(',', $x) : (is_bool($x) ? ($x ? 'true' : 'false') : (string)$x));
 	    } else
 		$parts[] = rawurlencode($k) . '=' . rawurlencode(is_bool($v) ? ($v ? 'true' : 'false') : (string)$v);
 	}

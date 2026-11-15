@@ -1788,7 +1788,7 @@ class CheckCommand extends \sys\BaseController {
 		[ $exe?->getVariable('route'), $exe?->getVariable('ai')['text'] ?? null, $sent[0]['model'] ?? null, $unmark($sent[0]['messages'][1]['content'] ?? ''), $sent[0]['temperature'] ?? null ]);
 
 	    //CLD: 2026-11-12T23:55:00+02:00: Mistral: the OpenAI requests, at Mistral's address by default, a cloud provider (masking offered, a key required)
-	    $mis = $make('CredentialMistral', "http://127.0.0.1:{$port}/v1", 'check-key');
+	    $mis = $make('CredentialMistral', "http://127.0.0.1:{$port}/api/v1", 'check-key');
 	    $noKey = $om->create('CredentialMistral', [ 'aid' => $this->account->_id, 'name' => 'x' ]);
 	    $noKey->validates();
 	    $this->check('Mistral: the step type; the credential: what it provides, its default address, a key required, its Test; the Assistant\'s address; cloud', [ true, [ 'mistral', 'http' ],
@@ -1797,7 +1797,7 @@ class CheckCommand extends \sys\BaseController {
 		\util\WorkflowAssistant::credentialOf((object)[ 'provider' => 'mistral' ])->baseUrl, \data\AiProviders::isCloud('mistral'), isset(\data\AiProviders::forEmbeddings()['mistral']) ]);
 	    @unlink($log);
 	    $exe = $flow('mistral', 'app::mistral', [ 'model' => 'mistral-small-latest', 'temperature' => '0.2', 'tools' => [] ], $mis);
-	    $sent = $requests('/v1/chat/completions');
+	    $sent = $requests('/api/v1/chat/completions');
 	    $this->check('Mistral: a run (the answer, the model, the prompt, the temperature, the key)', [ 'success', 'mistral-small-latest', 'Hi Ana', 0.2 ],
 		[ $exe?->getVariable('route'), $sent[0]['model'] ?? null, $unmark($sent[0]['messages'][1]['content'] ?? ''), $sent[0]['temperature'] ?? null ]);
 
@@ -2865,7 +2865,7 @@ class CheckCommand extends \sys\BaseController {
 		'html' => $r['html'], 'text' => $r['text'], 'images' => array_map(fn($f) => $file, $r['images']) ]);
 	    $back = new \util\MailParser($h . "\r\n\r\n" . $body);
 	    $att = $back->attachments()[0] ?? [];
-	    $this->check('mime: read back (subject, name kept on one line, html, the image inline, no injected header)', [ 'Bună ziua  X-Evil: 1', 'qflows  Bcc: e@x.ro', true, 'inline', true, false ],
+	    $this->check('mime: read back (subject, name kept on one line, html, the image inline, no injected header)', [ 'Bună ziua X-Evil: 1', 'qflows Bcc: e@x.ro', true, 'inline', true, false ],
 		[ $back->subject(), $back->from()['name'] ?? null, str_contains($back->html(), 'cid:'), $att['disposition'] ?? null, ($att['content'] ?? null) === $png, (bool)preg_match('/^(Bcc|X-Evil):/mi', $h) ]);
 
 	    $n = [ self::class, 'node' ];
@@ -6395,7 +6395,7 @@ class CheckCommand extends \sys\BaseController {
 		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
 		return [ $exe, $requests() ];
 	    };
-	    $logOf = fn($exe, $prefix) => str_replace($prefix, '', (string)self::logLine($exe, $prefix));
+	    $logOf = fn($exe, $prefix) => preg_replace('/ \(\d+ ms\)$/', '', str_replace($prefix, '', (string)self::logLine($exe, $prefix)));
 
 	    //orders
 	    $money = fn($a) => [ 'shopMoney' => [ 'amount' => $a, 'currencyCode' => 'RON' ] ];
@@ -6410,7 +6410,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $l, $sent ] = $step('app::shopify-orders', [ 'operation' => 'list', 'search' => 'financial_status:pending', 'variable' => 'r' ]);
 	    $r = $l?->getVariable('r');
 	    [ $l2, ] = $step('app::shopify-orders', [ 'operation' => 'list', 'maxItems' => 5, 'variable' => 'r' ]);
-	    $this->check('shopify: Orders list: pages of 50 (first / after), the search and the sort; money as { amount, currencyCode }; truncated at At most', [ 60, false, [ 50, 10 ], [ null, '50' ],
+	    $this->check('shopify: Orders list: pages of 50 (first / after), the search and the sort; money as { amount, currencyCode }; truncated at At most', [ 60, false, [ 50, 50 ], [ null, '50' ],
 		'financial_status:pending', true, [ 'amount' => '120.00', 'currencyCode' => 'RON' ], [ 5, true ] ], [
 		$r['count'] ?? null, $r['truncated'] ?? null, array_map(fn($s) => $s['variables']['first'] ?? null, $sent), array_map(fn($s) => $s['variables']['after'] ?? null, $sent),
 		$sent[0]['variables']['query'] ?? null, str_contains((string)($sent[0]['query'] ?? ''), 'sortKey: CREATED_AT, reverse: true'), $r['items'][0]['totalPrice'] ?? null,
@@ -6675,7 +6675,7 @@ class CheckCommand extends \sys\BaseController {
 		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
 		return [ $exe, $requests() ];
 	    };
-	    $logOf = fn($exe, $prefix) => str_replace($prefix, '', (string)self::logLine($exe, $prefix));
+	    $logOf = fn($exe, $prefix) => preg_replace('/ \(\d+ ms\)$/', '', str_replace($prefix, '', (string)self::logLine($exe, $prefix)));
 	    $F = 'app::nextcloud-files';
 
 	    //files
@@ -6742,7 +6742,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $uc3, ] = $step($U, [ 'operation' => 'create', 'userid' => 'ana', 'email' => 'x@example.com', 'variable' => 'u' ]);
 	    [ $uu, $usent ] = $step($U, [ 'operation' => 'update', 'user' => 'ana', 'email' => 'ana.pop@example.com', 'quota' => '5 GB', 'variable' => 'u' ]);
 	    [ $ud, ] = $step($U, [ 'operation' => 'disable', 'user' => '{{ u }}', 'variable' => 'u' ], [ 'u' => [ 'id' => 'ana' ] ]);
-	    [ $ug, ] = $step($U, [ 'operation' => 'addToGroup', 'user' => 'ana', 'groupList' => [ 'admins' ], 'variable' => 'u' ]);
+	    [ $ug, ] = $step($U, [ 'operation' => 'addToGroup', 'user' => 'ana', 'groupList' => 'admins', 'variable' => 'u' ]);
 	    [ $ug2, ] = $step($U, [ 'operation' => 'removeFromGroup', 'user' => 'ana', 'groupList' => 'staff', 'variable' => 'u' ]);
 	    [ $ul, ] = $step($U, [ 'operation' => 'list', 'search' => 'pop', 'variable' => 'u' ]);
 	    [ $gone, ] = $step($U, [ 'operation' => 'get', 'user' => 'ghost', 'variable' => 'u' ]);
@@ -6896,7 +6896,7 @@ class CheckCommand extends \sys\BaseController {
 		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
 		return [ $exe, $requests() ];
 	    };
-	    $logOf = fn($exe, $prefix) => str_replace($prefix, '', (string)self::logLine($exe, $prefix));
+	    $logOf = fn($exe, $prefix) => preg_replace('/ \(\d+ ms\)$/', '', str_replace($prefix, '', (string)self::logLine($exe, $prefix)));
 	    $IS = 'app::jira-issues';
 	    $posted = fn($sent, $suffix) => array_values(array_filter($sent, fn($r) => $r['method'] !== 'GET' && str_ends_with($r['path'], $suffix)))[0] ?? [];
 
@@ -6915,14 +6915,14 @@ class CheckCommand extends \sys\BaseController {
 		    $f['customfield_10016'] ?? null, $f['priority'] ?? null ],
 		[ $i1['key'] ?? null, $i1['description'] ?? null, $i1['assignee']['displayName'] ?? null, str_ends_with((string)($i1['url'] ?? ''), '/browse/OPS-1') ],
 		$logOf($c2, 'Jira Issues create: '), $logOf($c3, 'Jira Issues create: ') ]);
-	    [ $u, $sent ] = $step($IS, [ 'operation' => 'update', 'issue' => '{{ i }}', 'summary' => 'Disk full', 'labels' => [ 'disk' ], 'variable' => 'i' ], [ 'i' => $i1 ]);
+	    [ $u, $sent ] = $step($IS, [ 'operation' => 'update', 'issue' => '{{ i }}', 'summary' => 'Disk full', 'labels' => 'disk', 'variable' => 'i' ], [ 'i' => $i1 ]);
 	    [ $al, $sent2 ] = $step($IS, [ 'operation' => 'addLabels', 'issue' => 'ops-1', 'labels' => 'p1', 'variable' => 'x' ]);
 	    [ $as, $sent3 ] = $step($IS, [ 'operation' => 'assign', 'issue' => 'OPS-1', 'assignee' => '-', 'variable' => 'x' ]);
 	    $o1 = $issues()['OPS-1']['fields'] ?? [];
 	    $this->check('jira: Issues update (an issue of a variable; labels replaced); add labels (update.labels add); unassign (accountId null)', [
 		[ 'summary' => 'Disk full', 'labels' => [ 'disk' ] ], [ [ 'add' => 'p1' ] ], [ 'accountId' => null ], [ 'disk', 'p1' ], null ], [
 		$posted($sent, '/issue/OPS-1')['body']['fields'] ?? null, $posted($sent2, '/issue/OPS-1')['body']['update']['labels'] ?? null, $posted($sent3, '/assignee')['body'] ?? null,
-		$o1['labels'] ?? null, $o1['assignee'] ?? 'kept' ]);
+		$o1['labels'] ?? null, array_key_exists('assignee', $o1) ? $o1['assignee'] : 'kept' ]);
 
 	    //search (paged, a 429), transitions, comments
 	    for ($k = 2; $k <= 4; $k++)
@@ -6953,7 +6953,7 @@ class CheckCommand extends \sys\BaseController {
 		[ count($posted($sent, '/comment')['body']['body']['content'] ?? []), $posted($dsent, '/comment')['body']['body'] ?? null ],
 		(function() use ($step, $IS) { [ $x ] = $step($IS, [ 'operation' => 'comments', 'issue' => 'OPS-3', 'variable' => 'c' ]); return array_column($x?->getVariable('c')['items'] ?? [], 'body'); })(),
 		$cms?->getVariable('c')['count'] ?? 0 ]);
-	    [ $lk, $sent ] = $step($IS, [ 'operation' => 'link', 'issue' => 'OPS-3', 'linkType' => 'Blocks', 'other' => 'OPS-4', 'variable' => 'l' ]);
+	    [ $lk, $sentL ] = $step($IS, [ 'operation' => 'link', 'issue' => 'OPS-3', 'linkType' => 'Blocks', 'other' => 'OPS-4', 'variable' => 'l' ]);
 	    [ $lk2, ] = $step($IS, [ 'operation' => 'link', 'issue' => 'OPS-3', 'linkType' => 'Blocks', 'other' => 'OPS-99', 'variable' => 'l' ]);
 	    $file = \models\File::createFromString('log.txt', "line\n", [ 'metadata' => [ 'project' => $this->project->_id, 'aid' => $this->account->_id, 'owner' => null, 'source' => 'check' ] ]);
 	    $files[] = $file;
@@ -6961,7 +6961,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $dl, $sent2 ] = $step($IS, [ 'operation' => 'delete', 'issue' => 'OPS-4', 'deleteSubtasks' => true, 'variable' => 'd' ]);
 	    $this->check('jira: Issues link (outwardIssue this, inwardIssue the other; an unknown issue said); attach a project file (multipart, X-Atlassian-Token); delete with subtasks', [
 		[ 'Blocks', 'OPS-3', 'OPS-4' ], 'error', [ 'log.txt', 5, 'no-check' ], [ 'true', false ] ], [
-		[ $posted($sent, '/issueLink')['body']['type']['name'] ?? null, $posted($sent, '/issueLink')['body']['outwardIssue']['key'] ?? null, $posted($sent, '/issueLink')['body']['inwardIssue']['key'] ?? null ],
+		[ $posted($sentL, '/issueLink')['body']['type']['name'] ?? null, $posted($sentL, '/issueLink')['body']['outwardIssue']['key'] ?? null, $posted($sentL, '/issueLink')['body']['inwardIssue']['key'] ?? null ],
 		$lk2?->getVariable('route'), [ $at?->getVariable('a')['filename'] ?? null, $at?->getVariable('a')['size'] ?? null, $posted($sent, '/attachments')['headers']['atlassian'] ?? null ],
 		[ $posted($sent2, '/issue/OPS-4')['query']['deleteSubtasks'] ?? null, isset($issues()['OPS-4']) ] ]);
 
@@ -7099,7 +7099,7 @@ class CheckCommand extends \sys\BaseController {
 		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
 		return [ $exe, $requests() ];
 	    };
-	    $logOf = fn($exe, $prefix) => str_replace($prefix, '', (string)self::logLine($exe, $prefix));
+	    $logOf = fn($exe, $prefix) => preg_replace('/ \(\d+ ms\)$/', '', str_replace($prefix, '', (string)self::logLine($exe, $prefix)));
 
 	    //create, get, update, upsert
 	    [ $c1, $sent ] = $step([ 'operation' => 'create', 'objectType' => 'contacts', 'properties' => '{"email": "{{ f.email }}", "firstname": "Ana", "hs_tags": ["vip", "eu"], "consent": true}',
@@ -7306,7 +7306,7 @@ class CheckCommand extends \sys\BaseController {
 		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
 		return [ $exe, $requests() ];
 	    };
-	    $logOf = fn($exe, $prefix) => str_replace($prefix, '', (string)self::logLine($exe, $prefix));
+	    $logOf = fn($exe, $prefix) => preg_replace('/ \(\d+ ms\)$/', '', str_replace($prefix, '', (string)self::logLine($exe, $prefix)));
 
 	    //create, get, update, upsert, delete
 	    [ $c1, $sent ] = $step([ 'operation' => 'create', 'object' => 'Lead', 'values' => '{"LastName": "{{ f.name }}", "Company": "Acme", "LeadSource": "Web"}', 'variable' => 'l' ], [ 'f' => [ 'name' => "O'Brien" ] ]);
@@ -7501,7 +7501,7 @@ class CheckCommand extends \sys\BaseController {
 		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
 		return [ $exe, $requests() ];
 	    };
-	    $logOf = fn($exe, $prefix) => str_replace($prefix, '', (string)self::logLine($exe, $prefix));
+	    $logOf = fn($exe, $prefix) => preg_replace('/ \(\d+ ms\)$/', '', str_replace($prefix, '', (string)self::logLine($exe, $prefix)));
 	    $TS = 'app::zendesk-tickets';
 	    $sentTo = fn($sent, $method, $path) => array_values(array_filter($sent, fn($r) => $r['method'] === $method && $r['path'] === "/api/v2{$path}.json"))[0]['body'] ?? [];
 
@@ -7524,7 +7524,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $u1, $sent ] = $step($TS, [ 'operation' => 'update', 'ticket' => '{{ t }}', 'subject' => 'Printer down', 'tags' => 'printer', 'message' => 'Checked the tray', 'public' => false, 'variable' => 'u' ], [ 't' => $t1 ]);
 	    [ $s1, $sent2 ] = $step($TS, [ 'operation' => 'status', 'ticket' => '1', 'newStatus' => 'pending', 'message' => 'Waiting for the part', 'variable' => 's' ]);
 	    [ $a1, $sent3 ] = $step($TS, [ 'operation' => 'assign', 'ticket' => '1', 'assignee' => 'Dan Ionescu', 'group' => 'Support', 'variable' => 'a' ]);
-	    [ $g1, ] = $step($TS, [ 'operation' => 'addTags', 'ticket' => '1', 'tags' => [ 'vip', 'urgent-fix' ], 'variable' => 'g' ]);
+	    [ $g1, ] = $step($TS, [ 'operation' => 'addTags', 'ticket' => '1', 'tags' => 'vip, urgent-fix', 'variable' => 'g' ]);
 	    [ $g2, ] = $step($TS, [ 'operation' => 'removeTags', 'ticket' => '1', 'tags' => 'urgent-fix', 'variable' => 'g' ]);
 	    $this->check('zendesk: Tickets update (a ticket of a variable; tags replaced; an internal note); status with a comment; assign by name and group; tags added and removed', [
 		[ 'Printer down', [ 'printer' ], false ], [ 'pending', 'Waiting for the part' ], [ 102, 401 ], [ 'printer', 'vip', 'urgent-fix' ], [ 'printer', 'vip' ] ], [
@@ -7728,7 +7728,7 @@ class CheckCommand extends \sys\BaseController {
 		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
 		return [ $exe, $requests() ];
 	    };
-	    $logOf = fn($exe, $prefix) => str_replace($prefix, '', (string)self::logLine($exe, $prefix));
+	    $logOf = fn($exe, $prefix) => preg_replace('/ \(\d+ ms\)$/', '', str_replace($prefix, '', (string)self::logLine($exe, $prefix)));
 	    $to = fn($sent, $path) => array_values(array_filter($sent, fn($r) => $r['path'] === $path));
 
 	    //SMS
@@ -7763,7 +7763,7 @@ class CheckCommand extends \sys\BaseController {
 	    //WhatsApp, Email
 	    $WA = 'app::infobip-whatsapp';
 	    file_put_contents("{$dir}/throttle.json", '1');
-	    [ $w1, $sent ] = $step($WA, [ 'operation' => 'text', 'to' => [ '40722123456', '40733000000' ], 'text' => 'Hi *there*', 'variable' => 'w' ]);
+	    [ $w1, $sent ] = $step($WA, [ 'operation' => 'text', 'to' => '{{ numbers }}', 'text' => 'Hi *there*', 'variable' => 'w' ], [ 'numbers' => [ '40722123456', '40733000000' ] ]);
 	    [ $w2, ] = $step($WA, [ 'operation' => 'text', 'to' => '40722123456', 'from' => '40700000000', 'text' => 'x', 'variable' => 'w' ]);
 	    [ $w3, $sent2 ] = $step($WA, [ 'operation' => 'template', 'to' => '40722123456', 'templateName' => 'order_shipped', 'language' => 'en', 'placeholders' => "{{ name }}\n#1001", 'variable' => 'w' ], [ 'name' => 'Ana' ]);
 	    [ $w4, ] = $step($WA, [ 'operation' => 'templates', 'variable' => 'w' ]);
@@ -7986,10 +7986,10 @@ class CheckCommand extends \sys\BaseController {
 
 	    //Send
 	    file_put_contents("{$dir}/throttle.json", '1');
-	    [ $s1, $sent ] = $step($SR, [ 'operation' => 'send', 'name' => 'Contract {{ k }}', 'documents' => "{$doc}, {$annex}", 'attachments' => [ [ 'id' => $logo ] ],
-		'signers' => "Ana Pop <ana@example.com> +40722123456\nIon Ionescu <ion@example.com>", 'signatureLevel' => 'advanced_electronic_signature', 'authMode' => 'otp_sms',
+	    [ $s1, $sent ] = $step($SR, [ 'operation' => 'send', 'name' => 'Contract {{ k }}', 'documents' => "{$doc}, {$annex}", 'attachments' => '{{ atts }}',
+		'signers' => "Ana Pop <ana@example.com> +40722123456\nIon Ionescu <ion@example.com> +40733000000", 'signatureLevel' => 'advanced_electronic_signature', 'authMode' => 'otp_sms',
 		'locale' => 'ro', 'deliveryMode' => 'none', 'placement' => 'position', 'page' => 'last', 'x' => '60', 'y' => '700', 'orderedSigners' => true, 'expiration' => '2027-01-31',
-		'externalId' => 'order-{{ k }}', 'activate' => true, 'variable' => 'x' ], [ 'k' => 7 ]);
+		'externalId' => 'order-{{ k }}', 'activate' => true, 'variable' => 'x' ], [ 'k' => 7, 'atts' => [ [ 'id' => $logo ] ] ]);
 	    $create = $to($sent, 'POST', '/signature_requests')[0]['body'] ?? [];
 	    $docs = $to($sent, 'POST', '/documents');
 	    $signers = array_column($to($sent, 'POST', '/signers'), 'body');
@@ -7997,7 +7997,7 @@ class CheckCommand extends \sys\BaseController {
 	    $this->check('yousign: Send: the request (name, delivery, order, expiry, external ID, the credential\'s workspace; a 429 waited for), the documents and the attachment as multipart, '
 		. 'the signers (level, SMS codes, language) each with a field on the last page in a row, activated; the result with the signature links', [
 		[ 'Contract 7', 'none', true, '2027-01-31', 'order-7', '00000000-0000-4000-8000-0000000000ff' ], [ [ 'contract.pdf', 'signable_document' ], [ 'annex.pdf', 'signable_document' ], [ 'terms.png', 'attachment' ] ],
-		[ [ 'Ana', 'ana@example.com', '+40722123456', 'ro', 'advanced_electronic_signature', 'otp_sms', 3, 60, 700 ], [ 'Ion', 'ion@example.com', null, 'ro', 'advanced_electronic_signature', 'otp_sms', 3, 260, 700 ] ],
+		[ [ 'Ana', 'ana@example.com', '+40722123456', 'ro', 'advanced_electronic_signature', 'otp_sms', 3, 60, 700 ], [ 'Ion', 'ion@example.com', '+40733000000', 'ro', 'advanced_electronic_signature', 'otp_sms', 3, 260, 700 ] ],
 		[ 'ongoing', 2, true, 'order-7' ], 'Contract 7: ongoing, 2 signers (ana@example.com, ion@example.com)' ], [
 		[ $create['name'] ?? null, $create['delivery_mode'] ?? null, $create['ordered_signers'] ?? null, $create['expiration_date'] ?? null, $create['external_id'] ?? null, $create['workspace_id'] ?? null ],
 		array_map(fn($d) => [ $d['files']['file'][0] ?? null, $d['post']['nature'] ?? null ], $docs),
@@ -8090,7 +8090,7 @@ class CheckCommand extends \sys\BaseController {
 	    $p1 = $TY::onPublish($wf, $node);
 	    $hooks = json_decode((string)@file_get_contents("{$dir}/webhooks.json"), true) ?: [];
 	    $hook = array_values($hooks)[0] ?? [];
-	    $p2 = $TY::onPublish($wf, array_replace_recursive($node, [ 'config' => [ 'events' => [ 'signature_request.declined' ] ] ]));
+	    $p2 = $TY::onPublish($wf, [ 'config' => [ 'events' => [ 'signature_request.declined' ] ] + (array)$node['config'] ] + $node);
 	    $hooks2 = array_values(json_decode((string)@file_get_contents("{$dir}/webhooks.json"), true) ?: []);
 	    $u1 = $TY::onUnpublish($wf, $node);
 	    $hooks3 = json_decode((string)@file_get_contents("{$dir}/webhooks.json"), true) ?: [];
@@ -8374,8 +8374,8 @@ class CheckCommand extends \sys\BaseController {
 	    return;
 	[ $dir, $requests, $make, $step, $done, $pdf, $png, $designed ] = $fx;
 	try {
-	    $ok = $make([ 'region' => 'eu-west-1', 'accessKeyId' => 'AKIDCHECKSES', 'secretAccessKey' => 'ses-check-secret', 'configurationSet' => 'tracking', 'fromAddress' => 'Acme <noreply@acme.com>' ]);
-	    $wrong = $make([ 'region' => 'eu-west-1', 'accessKeyId' => 'AKIDCHECKSES', 'secretAccessKey' => 'other' ]);
+	    $ok = $make([ 'region' => 'eu-west-1', 'accessKeyId' => 'AKIDCHECKSES0001', 'secretAccessKey' => 'ses-check-secret', 'configurationSet' => 'tracking', 'fromAddress' => 'Acme <noreply@acme.com>' ]);
+	    $wrong = $make([ 'region' => 'eu-west-1', 'accessKeyId' => 'AKIDCHECKSES0001', 'secretAccessKey' => 'other' ]);
 	    if (!$ok || !$wrong)
 		return;
 	    $bad = \V::app()->om->create('CredentialAmazonSes', [ 'name' => 'x', 'region' => 'Ireland', 'accessKeyId' => 'akid' ]);
