@@ -151,7 +151,7 @@ class SamlSettings extends \sys\BaseModel {
 		'help' => 'The role of a person is the one of the first row whose group the person has (checked at each sign-in); a group as the IdP sends it (a name, an ID, a DN)',
 		'fields' => [
 		    [ 'key' => 'group', 'type' => 'text', 'label' => 'Group', 'required' => true, 'help' => false, 'transform' => 'trim',
-			'ui' => [ 'width' => 8, 'placeholder' => 'NetFlow Admins, or Entra ID\'s group object ID' ] ],
+			'ui' => [ 'width' => 8, 'placeholder' => 'qflows Admins, or Entra ID\'s group object ID' ] ],
 		    [ 'key' => 'role', 'type' => 'select', 'label' => 'Role', 'required' => true, 'help' => false, 'choices' => $roles, 'ui' => [ 'width' => 4 ] ],
 		],
 		'ui' => [ 'addLabel' => 'Add a group', 'compact' => true, 'maxRows' => 50 ],
@@ -270,7 +270,7 @@ class SamlSettings extends \sys\BaseModel {
     }
 
     //the role of a person with groups $groups: [ role id, the group row matched (null: the default role) ]; [ null, null ] = refused. A row's group matches a value the
-    //same (any case), or the first name of a DN value (CN=NetFlow Admins,OU=... matches NetFlow Admins)
+    //same (any case), or the first name of a DN value (CN=qflows Admins,OU=... matches qflows Admins)
     public function roleFor(array $groups) {
 	$values = [];
 	foreach($groups as $g) {

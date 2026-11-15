@@ -106,7 +106,7 @@ trait LdapServerTrait {
 		'label' => 'Bind DN',
 		'default' => '',
 		'transform' => 'trim',
-		'help' => 'The account that reads the directory, e.g. CN=svc-netflow,OU=Service,DC=example,DC=com (Active Directory also takes svc-netflow@example.com); empty: anonymous',
+		'help' => 'The account that reads the directory, e.g. CN=svc-qflows,OU=Service,DC=example,DC=com (Active Directory also takes svc-qflows@example.com); empty: anonymous',
 		'perm:read' => 'everybody',
 		'perm:update' => 'everybody',
 		'ui' => [ 'width' => 6 ],
