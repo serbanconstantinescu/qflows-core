@@ -120,13 +120,6 @@ class Boot {
 	\V::app()->session->noSessionFor('/hook/');
 	\V::app()->router->add_rule('hook/<id:[a-f0-9]{32}>', 'hook/receive', true);
 
-	//the GravityZone event trigger's endpoint: `/gravityzone/<32 hex token>` -> GravityzoneController::receive (GravityZone's push service; no session)
-	\V::app()->session->noSessionFor('/gravityzone/');
-	\V::app()->router->add_rule('gravityzone/<id:[a-f0-9]{32}>', 'gravityzone/receive', true);
-
-	//the FortiGate event trigger's endpoint: `/fortigate/<32 hex token>` -> FortigateController::receive (an automation stitch's webhook; no session)
-	\V::app()->session->noSessionFor('/fortigate/');
-	\V::app()->router->add_rule('fortigate/<id:[a-f0-9]{32}>', 'fortigate/receive', true);
 	//CLD: 2026-11-12T10:00:00+02:00: the Shopify event trigger's endpoint: `/shopify/<32 hex token>` -> ShopifyController::receive (the store's webhooks; no session)
 	\V::app()->session->noSessionFor('/shopify/');
 	\V::app()->router->add_rule('shopify/<id:[a-f0-9]{32}>', 'shopify/receive', true);

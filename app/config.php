@@ -3,6 +3,9 @@
 //CLD: 2026-11-12T23:30:00+02:00: the app's version (app.version) is data\Version::NUMBER; required here: get_config() runs before V::create() registers the autoloader
 require_once __DIR__ . '/data/Version.php';
 
+//CLD: 2026-11-15T12:00:00+02:00: the plugins shipped in the core's repository (app/plugins/<name>), on unless plugins.json says `"enabled": false`
+const DEFAULT_PLUGINS = [ 'ITOps' ];
+
 //app.env's SYSTEM_AI_<name>, else $default
 function system_ai_env($name, $default = '') {
     return defined('SYSTEM_AI_' . $name) ? constant('SYSTEM_AI_' . $name) : $default;
@@ -13,18 +16,20 @@ function get_config($mode = 'web') {
     //plugins
     // { "<plugin>": { "enabled", its own settings (e.g. MultiTenant: config, tiers, credit_rates) }, ... },
     // loaded in this order; "enabled": false keeps a plugin's settings but leaves it out.
-    // No file: no plugins
+    //CLD: 2026-11-15T12:00:00+02:00: the plugins shipped with the core (DEFAULT_PLUGINS: ITOps) are on without an entry, loaded first; `"enabled": false` turns one off.
+    // No file: only those
     $plugins = (function() {
+	$defaults = array_fill_keys(DEFAULT_PLUGINS, []);
 	//in V::configDir() (NFN_CONFIG_DIR, else the app's folder)
 	$f = \V::configDir() . '/plugins.json';
 	if (!is_file($f))
-	    return [];
+	    return $defaults;
 	$p = json_decode((string)file_get_contents($f), true);
 	if (!is_array($p) || array_is_list($p) && $p !== []) {
-	    error_log("$f: not a JSON object of the plugins (" . json_last_error_msg() . "): no plugins loaded");
-	    return [];
+	    error_log("$f: not a JSON object of the plugins (" . json_last_error_msg() . "): only the default plugins loaded");
+	    return $defaults;
 	}
-	return array_map(fn($v) => is_array($v) ? $v : [], $p);
+	return array_replace($defaults, array_map(fn($v) => is_array($v) ? $v : [], $p));
     })();
 
     $_config = [

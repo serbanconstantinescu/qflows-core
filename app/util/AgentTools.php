@@ -29,13 +29,6 @@ class AgentTools {
     //the families: key => [ label, prefix (of the tools' names), capability (the credential's: the steps' own when null), base (the registered steps extending it) or steps (these
     //classes), alt: the steps are alternatives - one per type of credential (Database: the credential's type picks the step; the tools are named without the step) ]
     const FAMILIES = [
-	'gravityzone' => [ 'label' => 'Bitdefender GravityZone', 'prefix' => 'gz', 'capability' => 'gravityzone', 'base' => \models\node\NodeAppGravityZone::class ],
-	'fortigate' => [ 'label' => 'FortiGate', 'prefix' => 'fgt', 'capability' => 'fortigate', 'base' => \models\node\NodeAppFortiGate::class ],
-	'sophos' => [ 'label' => 'Sophos Firewall', 'prefix' => 'sfos', 'capability' => 'sophos', 'base' => \models\node\NodeAppSophos::class ],
-	//Wazuh's steps as tools
-	'wazuh' => [ 'label' => 'Wazuh', 'prefix' => 'wazuh', 'capability' => 'wazuh', 'base' => \models\node\NodeAppWazuh::class ],
-	//Namecheap's steps as tools
-	'namecheap' => [ 'label' => 'Namecheap', 'prefix' => 'namecheap', 'capability' => 'namecheap', 'base' => \models\node\NodeAppNamecheap::class ],
 	//CLD: 2026-11-12T18:00:00+02:00: Salesforce's steps as tools
 	'salesforce' => [ 'label' => 'Salesforce', 'prefix' => 'salesforce', 'capability' => 'salesforce', 'base' => \models\node\NodeAppSalesforce::class ],
 	//CLD: 2026-11-12T16:00:00+02:00: HubSpot's steps as tools
@@ -47,21 +40,13 @@ class AgentTools {
 	//CLD: 2026-11-12T23:45:00+02:00: Zendesk's steps as tools
 	'zendesk' => [ 'label' => 'Zendesk', 'prefix' => 'zendesk', 'capability' => 'zendesk', 'base' => \models\node\NodeAppZendesk::class ],
 	//CLD: 2026-11-12T22:00:00+02:00: Intune's steps as tools
-	'intune' => [ 'label' => 'Microsoft Intune', 'prefix' => 'intune', 'capability' => 'intune', 'base' => \models\node\NodeAppIntune::class ],
 	//CLD: 2026-11-12T21:00:00+02:00: GLPI's steps as tools
-	'glpi' => [ 'label' => 'GLPI', 'prefix' => 'glpi', 'capability' => 'glpi', 'base' => \models\node\NodeAppGlpi::class ],
 	//CLD: 2026-11-12T14:00:00+02:00: Jira's steps as tools
 	'jira' => [ 'label' => 'Jira', 'prefix' => 'jira', 'capability' => 'jira', 'base' => \models\node\NodeAppJira::class ],
 	//CLD: 2026-11-12T12:00:00+02:00: Nextcloud's steps as tools
 	'nextcloud' => [ 'label' => 'Nextcloud', 'prefix' => 'nextcloud', 'capability' => 'nextcloud', 'base' => \models\node\NodeAppNextcloud::class ],
 	//CLD: 2026-11-12T10:00:00+02:00: Shopify's steps as tools
 	'shopify' => [ 'label' => 'Shopify', 'prefix' => 'shopify', 'capability' => 'shopify', 'base' => \models\node\NodeAppShopify::class ],
-	'veeam' => [ 'label' => 'Veeam Backup & Replication', 'prefix' => 'veeam', 'capability' => 'veeam', 'base' => \models\node\NodeAppVeeam::class ],
-	'vmware' => [ 'label' => 'VMware vCenter', 'prefix' => 'vmware', 'capability' => 'vmware', 'base' => \models\node\NodeAppVmware::class ],
-	'proxmox' => [ 'label' => 'Proxmox VE', 'prefix' => 'proxmox', 'capability' => 'proxmox', 'base' => \models\node\NodeAppProxmox::class ],
-	'hyperv' => [ 'label' => 'Hyper-V', 'prefix' => 'hyperv', 'capability' => 'hyperv', 'base' => \models\node\NodeAppHyperV::class ],
-	'checkmk' => [ 'label' => 'Checkmk', 'prefix' => 'cmk', 'capability' => 'checkmk', 'base' => \models\node\NodeAppCheckmk::class ],
-	'zabbix' => [ 'label' => 'Zabbix', 'prefix' => 'zbx', 'capability' => 'zabbix', 'base' => \models\node\NodeAppZabbix::class ],
 	'database' => [ 'label' => 'Database', 'prefix' => 'db', 'capability' => null, 'base' => \models\node\NodeAppDatabase::class, 'alt' => true ],
 	'outlookMail' => [ 'label' => 'Outlook Mail', 'prefix' => 'outlook_mail', 'capability' => null, 'steps' => [ \models\node\NodeAppOutlookMail::class ] ],
 	'outlookCalendar' => [ 'label' => 'Outlook Calendar', 'prefix' => 'outlook_calendar', 'capability' => null, 'steps' => [ \models\node\NodeAppOutlookCalendar::class ] ],

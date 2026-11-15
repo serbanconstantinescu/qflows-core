@@ -4,11 +4,14 @@
     what the audit log (models\AuditLog: people) and the execution log (models\ExecutionLog: triggers, workflow runs, daemon, console) share:
     the common fields, entries that are never changed, access (global: the account, project: member of the entry's project), the
     changes of an object (values before / after, secrets masked, long values shortened)
-    Using classes define: OBJECT (registry name), ACTIONS (the action choices besides create / update / delete)
+    Using classes define: OBJECT (registry name), ACTIONS (the action choices besides create / update / delete); the plugins add theirs to $pluginActions
 */
 namespace models\log;
 
 trait LogTrait {
+
+    //CLD: 2026-11-15T12:00:00+02:00: the plugins' actions (key => label), added in their constructors (e.g. ITOps: \models\ExecutionLog::$pluginActions += [ ... ])
+    public static $pluginActions = [];
 
     //longest value kept (characters of its text / JSON form)
     const MAX_VALUE = 2000;
@@ -30,7 +33,7 @@ trait LogTrait {
 		    'create' => 'Create',
 		    'update' => 'Update',
 		    'delete' => 'Delete'
-		] + static::ACTIONS,
+		] + static::ACTIONS + static::$pluginActions,
 	    ],
 	    //registry name of the object (e.g. Workflow, a data table's iname) and its display name (e.g. "Data table: Orders")
 	    [

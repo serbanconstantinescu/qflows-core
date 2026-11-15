@@ -37,10 +37,6 @@ class ExecutionLog extends \sys\BaseModel {
 	//killed by a user (WfExecution::kill, the Overview)
 	'execution.cancel' => 'Execution killed',
 	'webhook.refused' => 'Webhook refused',
-	//a GravityZone event push refused, or events left out (GravityzoneController)
-	'gravityzone.refused' => 'GravityZone event refused',
-	//a FortiGate event refused (FortigateController)
-	'fortigate.refused' => 'FortiGate event refused',
 	//CLD: 2026-11-12T10:00:00+02:00: a Shopify webhook refused (ShopifyController)
 	'shopify.refused' => 'Shopify event refused',
 	//CLD: 2026-11-12T23:30:00+02:00: a Yousign webhook refused (YousignController)

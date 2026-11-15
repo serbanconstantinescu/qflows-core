@@ -165,7 +165,7 @@ class Account extends \sys\BaseModel {
 		'default' => [],
 		'showInForms' => false,
 	    ],
-	    //the integration steps whose servers may be on-premises (the GravityZone steps: util\GravityZone) may connect to addresses of a private network
+	    //the integration steps whose servers may be on-premises (the GravityZone steps: plugins\ITOps\util\GravityZone) may connect to addresses of a private network
 	    //(util\Http `private`: never this server itself, loopback, link-local); off: public addresses only
 	    [
 		'key' => 'allow_private_addresses',

@@ -30,7 +30,7 @@ class Constants {
     const TIME_UNITS_ALL = [ 'seconds' => 'Seconds' ] + self::TIME_UNITS;
     const TIME_UNIT_SECONDS_ALL = [ 'seconds' => 1 ] + self::TIME_UNIT_SECONDS;
 
-    //the largest request body accepted by the public endpoints (bytes): webhooks (HookController), MCP (McpController), the FortiGate push (FortigateController)
+    //the largest request body accepted by the public endpoints (bytes): webhooks (HookController), MCP (McpController), the FortiGate push (plugins\ITOps\controllers\FortigateController)
     const MAX_REQUEST_BODY = 1048576;
 
     //the objects of a project that can be shared with other projects of the account and moved to another one (ShareController: the `object` parameter)
