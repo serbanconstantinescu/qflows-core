@@ -203,6 +203,11 @@ class SysObjects {
 		'class' => 'models\credential\CredentialVllm',
 		'variant-of' => 'Credential',
 	    ],
+	    //CLD: 2026-11-15T21:50:13+02:00: a LiteLLM proxy (OpenAI-compatible; the LiteLLM step)
+	    'CredentialLiteLlm' => [
+		'class' => 'models\credential\CredentialLiteLlm',
+		'variant-of' => 'Credential',
+	    ],
 	    'CredentialOllama' => [
 		'class' => 'models\credential\CredentialOllama',
 		'variant-of' => 'Credential',
@@ -735,6 +740,11 @@ class SysObjects {
 	    //CLD: 2026-11-15T21:47:55+02:00: vLLM (the OpenAI step's requests, on a vLLM server)
 	    'NodeAppVllm' => [
 		'class' => 'models\node\NodeAppVllm',
+		'wfNode' => true,
+	    ],
+	    //CLD: 2026-11-15T21:50:13+02:00: LiteLLM (the OpenAI step's requests, on a LiteLLM proxy)
+	    'NodeAppLiteLlm' => [
+		'class' => 'models\node\NodeAppLiteLlm',
 		'wfNode' => true,
 	    ],
 	    'NodeAppOllama' => [

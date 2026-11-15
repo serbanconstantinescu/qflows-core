@@ -90,6 +90,15 @@ class AiProviders {
 	    'embeddings' => true,
 	    'url' => 'http://localhost:8000/v1',
 	],
+	//CLD: 2026-11-15T21:50:13+02:00: LiteLLM proxy, OpenAI-compatible: chat completions, models, embeddings (the embedding models of its model_list); local: the installation's own proxy
+	'litellm' => [
+	    'label' => 'LiteLLM proxy',
+	    'name' => 'LiteLLM',
+	    'protocol' => 'openai',
+	    'cloud' => false,
+	    'embeddings' => true,
+	    'url' => 'http://localhost:4000/v1',
+	],
     ];
 
     //the list prices of the cloud models, USD per 1M tokens: [ input, output, cached input ], by model id or the start of one (util\AiPrices::of: the longest that matches, followed by
