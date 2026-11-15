@@ -3373,10 +3373,21 @@ class CheckCommand extends \sys\BaseController {
 	    [ $exe->state, str_contains((string)($exe->getVariable('result')['error'] ?? ''), 'already running in this chain of workflows') ]);
     }
 
+    //CLD: 2026-11-15T13:00:00+02:00: the agent suites use the ITOps plugin's FortiGate (and GravityZone) steps as their tools: skipped, said, while the installation has
+    //not chosen them (plugins.json ITOps `products`, or the plugin off)
+    private function itopsMissing($suite, array $families) {
+	$missing = array_diff($families, array_keys(\util\AgentTools::families()));
+	if ($missing)
+	    echo "  skipped: {$suite} needs the ITOps products " . implode(', ', $missing) . "\n";
+	return (bool)$missing;
+    }
+
     //qflows's own steps and workflows as an AI step's tools (util\AgentTools): the families, the tools' names, read / write, the input schemas, the arguments
     //checked; the AI step's settings; a Lemonade AI step against the fake AI server (a scripted chat) using a GravityZone tool that reads, a FortiGate tool that changes (their fake
     //servers) and a workflow tool with typed inputs and outputs; wrong arguments, a tool not chosen, a workflow's bad input: tool errors, the step goes on
     private function suiteAgenttools() {
+	if ($this->itopsMissing('agenttools', [ 'gravityzone', 'fortigate' ]))
+	    return;
 	$A = \util\AgentTools::class;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
@@ -3592,6 +3603,8 @@ class CheckCommand extends \sys\BaseController {
     //database, the caches reset), rejected, not decided in time, several calls in one task, killed while waiting; the System AI's credits charged before the wait and reserved
     //again after; the decisions in the execution log
     private function suiteAgentapproval() {
+	if ($this->itopsMissing('agentapproval', [ 'fortigate' ]))
+	    return;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
 	$e = [ self::class, 'edge' ];
@@ -3811,6 +3824,8 @@ class CheckCommand extends \sys\BaseController {
     //the guardrails of the AI steps' agents (util\AgentGuard, models\agent\AgentPolicy, util\PersonalData, AuditLog::agentCall), with the fake AI server. On an account of its
     //own (its policy would apply to the real account's runs, its audit entries are sealed): removed at the end, with what it wrote
     private function suiteAgentguard() {
+	if ($this->itopsMissing('agentguard', [ 'fortigate' ]))
+	    return;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
 	$e = [ self::class, 'edge' ];
@@ -4262,6 +4277,8 @@ class CheckCommand extends \sys\BaseController {
     //the trace of an AI step's visit (util\AgentTracer, models\agent\AgentTrace): a run of several rounds with read and write tools and an approval against the fake AI server, a
     //rejection, the cuts, secrets, the cost and the price table, Run again, retention. On its own account, as agentguard: a run with prices counts in the account's monthly usage
     private function suiteAgenttrace() {
+	if ($this->itopsMissing('agenttrace', [ 'fortigate' ]))
+	    return;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
 	$e = [ self::class, 'edge' ];
