@@ -199,7 +199,7 @@ Install PHP, its extensions, MongoDB, nginx with a PHP-FPM pool running as the a
 
 ```sh
 git clone --recurse-submodules https://github.com/serbanconstantinescu/qflows-core.git /home/app
-sudo /home/app/scripts/nginx.sh install --server-name=netflow.example.com
+sudo /home/app/scripts/nginx.sh install --server-name=flows.example.com
 ```
 
 Open the site. While there is no `app.env`, every address shows the setup wizard. It checks the prerequisites, then asks for the server settings (public address, MongoDB, outgoing email) and the first account with its owner. After that, install the options and the services with the scripts in `scripts/` (see *The parts* above).
