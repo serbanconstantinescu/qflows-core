@@ -269,20 +269,26 @@ app.utils = (function() {
 
     	    data = $.extend({}, defaults, data);
 
-	    //color is one of: 'error', 'warning', 'success', 'info'
-	    var color = 'text-' + data.type;
+	    //CLD: 2026-11-15T15:00:00+02:00: compact (.toast-compact, theme local/_toast.scss): one row, the type's icon and color (error: danger), the title in bold followed
+	    //by the text, a small close button; errors are announced at once (role alert), the others politely (role status)
+	    const kinds = {
+		success: [ 'bi-check-circle-fill', 'text-success' ],
+		error: [ 'bi-x-circle-fill', 'text-danger' ],
+		warning: [ 'bi-exclamation-triangle-fill', 'text-warning' ],
+		info: [ 'bi-info-circle-fill', 'text-info' ],
+	    };
+	    const [ icon, color ] = kinds[data.type] || kinds.info;
+	    const live = data.type === 'error' ? 'role="alert" aria-live="assertive"' : 'role="status" aria-live="polite"';
 
-	    var toast = $('' +
-	    '<div class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="true" data-bs-delay="' + data.delay + '">' +
-		'<div class="toast-header">' +
-		    '<i class="bi me-2 fs-5 bi-circle-fill ' + color + '"></i>' +
-		    '<strong class="me-auto">' + data.title + '</strong>' +
-		    '<button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>' +
-		'</div>' +
-		'<div class="toast-body">' +
-		    data.body +
-		'</div>' +
-	    '</div>');
+	    var toast = $(`<div class="toast toast-compact" ${live} aria-atomic="true" data-bs-autohide="true" data-bs-delay="${data.delay}">
+		<div class="toast-row">
+		    <i class="bi ${icon} ${color} toast-icon" aria-hidden="true"></i>
+		    <div class="toast-text">${data.title ? `<strong>${data.title}</strong>` : ''}${data.title && data.body ? ' ' : ''}${data.body ? `<span class="toast-msg">${data.body}</span>` : ''}</div>
+		    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+		</div>
+	    </div>`);
+	    //removed once hidden: the stack keeps only the toasts on screen
+	    toast[0].addEventListener('hidden.bs.toast', () => toast.remove());
 
 	    $(toast).appendTo($('.toast-container'))
 	    bootstrap.Toast.getOrCreateInstance(toast[0]).show();

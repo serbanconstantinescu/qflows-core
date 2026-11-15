@@ -26,9 +26,8 @@ ob_start();
 </main>
 
 <!-- toasts -->
-<div aria-live="polite" aria-atomic="true" class="position-relative">
-    <div class="toast-container position-absolute bottom-0 end-0 p-3">
-    </div>
+<?php //CLD: 2026-11-15T15:00:00+02:00: the stack fixed at the window's bottom right (was absolute at the page's end); each toast announces itself (app.utils.toast) ?>
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
 </div>
 
 
