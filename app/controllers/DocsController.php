@@ -62,6 +62,13 @@ class DocsController extends \sys\BaseController {
 	$this->render('index', compact('sections', 'current', 'prev', 'next', 'html', 'toc', 'updated'));
     }
 
+    //CLD: 2026-11-16T17:00:00+02:00: the contents (sections > pages > child pages) for the sidebar's Documentation view (layouts/main_aside.php), fetched by
+    //app.sidebar when the view opens (not with every page: docs.json is large); app.sidebar marks the current page and opens its section
+    public function nav($req, $resp) {
+	$this->layout = false;
+	$this->render('nav', [ 'sections' => $this->load()['sections'] ]);
+    }
+
     //the URL of a page ($child: a child page, or null)
     public static function pageUrl($section, $page = null, $child = null) {
 	$params = [ 's' => is_array($section) ? $section['id'] : $section ];

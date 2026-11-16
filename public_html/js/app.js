@@ -41,6 +41,47 @@ window.app.sidebar = (function() {
     const openDrawer = () => $('.app-shell').addClass('sidebar-open');
     const closeDrawer = () => $('.app-shell').removeClass('sidebar-open');
 
+    //CLD: 2026-11-16T17:00:00+02:00: the sidebar's views (.sidebar-view-<name>: primary, secondary = Settings, docs = Documentation), one shown at a time
+    const showView = (view) => {
+	sidebar.find('.sidebar-view').addClass('d-none');
+	view.removeClass('d-none');
+    };
+
+    //the Documentation view's contents (DocsController::nav), fetched when the view first opens (not with every page: docs.json is large)
+    let docsLoading = null;
+    const loadDocs = () => {
+	if (sidebar.find('.sidebar-view-docs .docs-nav').children().length)
+	    return Promise.resolve();
+	if (!docsLoading)
+	    docsLoading = fetch('/docs/nav', { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+		.then((r) => r.ok ? r.text() : Promise.reject(r.status))
+		.then((html) => { sidebar.find('.sidebar-view-docs .docs-nav').html(html); })
+		.catch((err) => console.log('app.sidebar: the documentation contents', err))
+		.finally(() => { docsLoading = null; });
+	return docsLoading;
+    };
+
+    //the documentation page shown (docs/index?s=&p=&c=; no s: the first page, no p: the section's first) active, its section and child pages open
+    const markDocs = () => {
+	const url = new URL(location.href);
+	if (url.pathname !== '/docs/index')
+	    return;
+	const q = url.searchParams;
+	const links = sidebar.find('.docs-nav a.nav-link');
+	const link = q.get('s') ? links.filter(function() {
+	    const p = new URL(this.href).searchParams;
+	    return p.get('s') === q.get('s') && (!q.get('p') || p.get('p') === q.get('p')) && (p.get('c') || '') === (q.get('c') || '');
+	}).first() : links.first();
+	if (!link.length)
+	    return;
+	sidebar.find('a.nav-link').removeClass('active');
+	link.addClass('active');
+	link.closest('.docs-nav-section').addClass('open').children('.docs-nav-section-toggle').attr('aria-expanded', 'true');
+	link.parents('.docs-nav-children').addClass('open');
+	link.closest('li').children('.docs-nav-children').addClass('open');
+	link[0].scrollIntoView({ block: 'nearest' });
+    };
+
     // Resize (sidebar width)
     let isCollapsed = false;
     let _document = $(document);
@@ -54,17 +95,22 @@ window.app.sidebar = (function() {
 	    //locate an `a` with location href in it and add class active
 	    const url = URL.parse(location.href);
 
+	    //a documentation page: the Documentation view, the page in it
+	    if (url.pathname === '/docs/index') {
+		showView(sidebar.find('.sidebar-view-docs'));
+		loadDocs().then(markDocs);
+		return;
+	    }
+
 	    //if an `a` with current url is not found, leave active the latest
 	    const crtLink = sidebar.find('a[href="' + url.pathname + '"]');
 	    if (crtLink.length) {
 		sidebar.find('a.nav-link').removeClass('active');
 		crtLink.addClass('active');
-		//if closest parent with .sidebar-view has .sidebar-view-secondary, activate secondary menu
+		//the view holding the link shown
 		const sidebarViewParent = crtLink.closest('.sidebar-view');
-		if (sidebarViewParent.hasClass('sidebar-view-secondary')) {
-		    $('.sidebar-view-primary').addClass('d-none');
-		    $('.sidebar-view-secondary').removeClass('d-none');
-		}
+		if (sidebarViewParent.length)
+		    showView(sidebarViewParent);
 	    }
 	},
 
@@ -173,16 +219,24 @@ window.app.sidebar = (function() {
 		$(this).addClass('active');
 	    });
 
-	    //click on secondary-menu toggle
+	    //click on secondary-menu toggle (Settings), the Documentation icon; their back links
 	    sidebar.on('click', 'a.open-secondary-menu', (e) => {
 		e.preventDefault();
-		$('.sidebar-view-primary').addClass('d-none');
-		$('.sidebar-view-secondary').removeClass('d-none');
+		showView(sidebar.find('.sidebar-view-secondary'));
+	    });
+	    sidebar.on('click', 'a.open-docs-menu', (e) => {
+		e.preventDefault();
+		showView(sidebar.find('.sidebar-view-docs'));
+		loadDocs().then(markDocs);
 	    });
 	    sidebar.on('click', 'a.close-secondary-menu', (e) => {
 		e.preventDefault();
-		$('.sidebar-view-primary').removeClass('d-none');
-		$('.sidebar-view-secondary').addClass('d-none');
+		showView(sidebar.find('.sidebar-view-primary'));
+	    });
+	    //a documentation section opens / closes
+	    sidebar.on('click', '.docs-nav-section-toggle', function() {
+		const section = $(this).closest('.docs-nav-section').toggleClass('open');
+		this.setAttribute('aria-expanded', section.hasClass('open') ? 'true' : 'false');
 	    });
 
 	    //initialization

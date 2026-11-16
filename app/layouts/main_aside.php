@@ -272,8 +272,8 @@ $dd_items = implode('', $dd_items);
 	<div class="sidebar-bottom-menu">
 	    <div class="d-flex align-items-center justify-content-between px-2 py-2">
 		<span class="small text-muted">v<?= \V::app()->html->escape(\data\Version::NUMBER) ?></span>
-		<?php //CLD: 2026-11-15T12:00:00+02:00: the documentation link is an icon on the version + theme line, not a menu row of its own ?>
-		<a href="/docs/index" class="btn btn-sm btn-outline-secondary py-0 ms-auto me-1" title="Documentation"><i class="bi bi-book" aria-hidden="true"></i><span class="visually-hidden">Documentation</span></a>
+		<?php //CLD: 2026-11-16T17:00:00+02:00: the documentation is an icon on the version + theme line; it opens the sidebar's Documentation view (as Settings) ?>
+		<a href="/docs/index" class="btn btn-sm btn-outline-secondary py-0 ms-auto me-1 open-docs-menu" title="Documentation"><i class="bi bi-book" aria-hidden="true"></i><span class="visually-hidden">Documentation</span></a>
 		<div class="btn-group btn-group-sm" role="group" aria-label="Theme">
 		    <button type="button" class="btn btn-outline-secondary py-0" data-theme-value="light" title="Light" aria-pressed="false"><i class="bi bi-sun" aria-hidden="true"></i><span class="visually-hidden">Light</span></button>
 		    <button type="button" class="btn btn-outline-secondary py-0" data-theme-value="dark" title="Dark" aria-pressed="false"><i class="bi bi-moon-stars" aria-hidden="true"></i><span class="visually-hidden">Dark</span></button>
@@ -331,6 +331,16 @@ $dd_items = implode('', $dd_items);
 		</button>
 	    </form>
 	</nav>
+    </div>
+
+    <!-- DOCUMENTATION VIEW: the contents (DocsController::nav), fetched by app.sidebar when the view opens -->
+    <div class="sidebar-view sidebar-view-docs d-none">
+	<nav class="nav flex-column px-2 flex-shrink-0">
+	    <a href="#" class="nav-link close-secondary-menu" style="border-bottom: var(--bs-border-width) solid var(--bs-border-color)">
+		<i class="bi bi-arrow-left"></i> <b>Documentation</b>
+	    </a>
+	</nav>
+	<nav class="docs-nav overflow-y-auto flex-fill min-height-0 px-2 pb-3" aria-label="Documentation"></nav>
     </div>
 </div>
 

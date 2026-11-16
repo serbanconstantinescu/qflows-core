@@ -1,6 +1,6 @@
 <?php
-//one page of the documentation (DocsController::index): the contents (sections, their pages; the current section open), the page,
-//"On this page" (its h2 / h3; wide screens), previous / next
+//one page of the documentation (DocsController::index): the page, "On this page" (its h2 / h3; wide screens), previous / next;
+//CLD: 2026-11-16T17:00:00+02:00: the contents are in the sidebar's Documentation view (DocsController::nav)
 
 $section = $current['section'];
 $page = $current['page'];
@@ -27,37 +27,8 @@ $this->pageTitle = ($shown['title'] ?? '') . ' - Documentation';
 <div class="main-body p-3 p-lg-4">
     <div class="row g-4">
 
-	<!-- contents: a button opens them on narrow screens -->
-	<div class="col-lg-3">
-	    <button class="btn btn-sm btn-outline-secondary d-lg-none mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#docs-contents" aria-expanded="false" aria-controls="docs-contents">
-		<i class="bi bi-list"></i> Contents
-	    </button>
-	    <nav id="docs-contents" class="collapse d-lg-block small">
-		<?php foreach ($sections as $sec): ?>
-		<details class="mb-2" <?= $sec['id'] === $section['id'] ? 'open' : '' ?>>
-		    <summary class="fw-semibold py-1"><i class="bi <?= \V::app()->html->escape($sec['icon'] ?? 'bi-book') ?> me-1"></i> <?= \V::app()->html->escape($sec['title']) ?></summary>
-		    <ul class="list-unstyled ms-3 mb-1">
-			<?php foreach ($sec['pages'] as $pg): ?>
-			<?php $isPage = $sec['id'] === $section['id'] && $pg['id'] === $page['id']; ?>
-			<li>
-			    <a href="<?= \V::app()->html->escape(\controllers\DocsController::pageUrl($sec, $pg)) ?>" class="d-block py-1 text-decoration-none <?= $isPage && !$child ? 'fw-semibold' : 'text-body-secondary' ?>"><?= \V::app()->html->escape($pg['title']) ?></a>
-			    <?php if ($isPage && !empty($pg['pages'])): ?>
-			    <ul class="list-unstyled ms-3">
-				<?php foreach ($pg['pages'] as $ch): ?>
-				<li><a href="<?= \V::app()->html->escape(\controllers\DocsController::pageUrl($sec, $pg, $ch)) ?>" class="d-block py-1 text-decoration-none <?= $child && $ch['id'] === $child['id'] ? 'fw-semibold' : 'text-body-secondary' ?>"><?= \V::app()->html->escape($ch['title']) ?></a></li>
-				<?php endforeach; ?>
-			    </ul>
-			    <?php endif; ?>
-			</li>
-			<?php endforeach; ?>
-		    </ul>
-		</details>
-		<?php endforeach; ?>
-	    </nav>
-	</div>
-
 	<!-- the page -->
-	<div class="col-lg-9 col-xl-7">
+	<div class="col-xl-10">
 	    <article style="max-width: 860px">
 		<h1 class="h3 mb-2"><?= \V::app()->html->escape($shown['title']) ?></h1>
 		<?php if (!empty($shown['summary'])): ?>
