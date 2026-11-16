@@ -12157,6 +12157,7 @@ body {
 
 .sidebar a:not(.btn) {
   color: var(--bs-emphasis-color);
+  font-weight: 300;
 }
 
 .sidebar .nav .nav-link:hover {
