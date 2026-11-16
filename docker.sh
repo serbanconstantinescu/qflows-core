@@ -1,29 +1,12 @@
 #!/bin/bash
 
 #qflows with Docker Compose: the settings (docker/.env), the images, the containers. Next to install.sh (the servers' way), and as it, it runs from anywhere:
-#CLD: 2026-11-16T22:30:00+02:00: at the repository's root (was docker/docker.sh); downloaded alone, it fetches docker/ from GitHub (no clone: the app image clones the code);
-#the outgoing mail to mailpit by default, the host's Haraka an option (--mail)
 #   mkdir qflows && cd qflows
 #   curl -fsSLO https://raw.githubusercontent.com/serbanconstantinescu/qflows-core/main/docker.sh && bash docker.sh install
-#in the folder of this script: docker/ (the compose files, the images, the settings in docker/.env) and scripts/mongo_users.js (the database's users, at mongo's first start);
-#in the repository's working tree the ones there (never downloaded: git pull is yours). The images are built here: the app's code is cloned in the app image,
-#QFLOWS_REPO at QFLOWS_COMMIT (QFLOWS_BRANCH's head when installed or updated). docker compose itself works as well (from docker/: COMPOSE_FILE is in .env).
-#Run as a user of the docker group (or root):
-#   docker.sh install [setup's options]                    docker/ downloaded (when not there), setup (asks), build, start
-#   docker.sh update                                       docker/ downloaded again (.env kept), the branch's new head built, the containers recreated
-#   docker.sh setup [--dev] [--no-browser] [--mail]        .env written (random passwords, the folder owner's uid / gid); an existing .env: its values kept,
-#                                                          the passwords never changed
-#the web browser (playwright) by default (--no-browser leaves it out); the outgoing mail to mailpit (http://127.0.0.1:8025) unless --mail: the host's Haraka
-#(the operator's, README.md: compose.mail.yaml publishes the database and the daemon on 127.0.0.1 for it). HTTPS is the operator's: the site on 127.0.0.1:8080
-#for the host's reverse proxy (README.md). Setup asks (on a terminal) what an option did not say; the defaults are an existing .env's values.
-#   docker.sh build [service...]                           the images (all of the setup's, or the ones named)
-#   docker.sh start | stop | restart [service...]
-#   docker.sh status                                       the containers, the settings in use
-#   docker.sh logs [service...]                            followed (ctrl-c ends)
-#   docker.sh check                                        the check suite in the app container
-#   docker.sh uninstall                                    the containers removed, the data (DATA_DIR: database, config) kept
-#   docker.sh purge                                        the containers and the data (DATA_DIR) removed: all data gone (asks first)
-#--dev (the working tree only): compose.dev.yaml (the working tree mounted over the image's code, the site on 127.0.0.1 only)
+#CLD: 2026-11-16T23:00:00+02:00: at the repository's root; downloaded alone, it fetches docker/ and scripts/mongo_users.js from GitHub (in a clone: the clone's, never downloaded),
+#the app image clones the code (QFLOWS_REPO at QFLOWS_COMMIT: QFLOWS_BRANCH's head when installed or updated); the outgoing mail to mailpit by default;
+#the options as name=value, saying what they choose (--mail=mailpit|host-haraka, --browser=yes|no, --code=image|working-tree); docker.sh help lists the commands and options.
+#docker compose itself works as well (from docker/: COMPOSE_FILE is in .env). Run as a user of the docker group (or root).
 
 set -euo pipefail
 
@@ -40,27 +23,63 @@ CHECKOUT=0
 [ -d "$SELF_DIR/.git" ] && [ -d "$SELF_DIR/app" ] && CHECKOUT=1
 
 usage() {
-    echo "usage: $0 {install | setup [--[no-]dev] [--browser | --no-browser] [--mail | --no-mail] | update | build [service...] | start | stop | restart [service...] | status | logs [service...] | check | uninstall | purge}"
+    cat <<EOF
+qflows with Docker Compose.  Usage: $(basename "$0") <command> [options]
+
+Commands:
+  install [options]    download docker/ (when it is not here), ask the settings, build the images, start
+  update               download docker/ again (the settings kept), build the newest code, restart the containers
+  setup [options]      ask the settings and write docker/.env; nothing is built or started
+  build [service...]   build the images (all, or the ones named)
+  start | stop | restart [service...]
+  status               the settings in use and the containers
+  logs [service...]    follow the logs (ctrl-c ends)
+  check                run the check suite in the app container
+  uninstall            remove the containers; the data (database, settings, logs, mail) is kept
+  purge                remove the containers and all the data (asks first)
+  help                 this text
+
+Options (install, setup): what is not given is asked; the defaults are the current settings, else the first value:
+  --mail=mailpit            the outgoing mail is caught by Mailpit (its page: http://127.0.0.1:8025), nothing is delivered
+  --mail=host-haraka        your Haraka on this host sends the mail and receives the inbound mail (README.md: Inbound mail)
+  --browser=yes|no          the web browser for the AI steps (playwright)
+  --code=image              the app's code as cloned in the image
+  --code=working-tree       development, in a clone of the repository only: its working tree mounted over the image's code
+
+HTTPS is yours: the site is on 127.0.0.1:8080 for your reverse proxy (README.md: Reverse proxy).
+EOF
     exit "${1:-1}"
+}
+
+#option $1's value ($2) checked against the allowed ones ($3: a|b), printed as 1 (the second) / 0 (the first)
+option_value() {
+    local first=${3%%|*} second=${3#*|}
+    case "$2" in
+        "$first") echo 0 ;;
+        "$second") echo 1 ;;
+        *) echo "--$1: $2 is not one of: ${3//|/, }" >&2; exit 1 ;;
+    esac
 }
 
 command="${1:-}"
 [ -n "$command" ] && shift || true
-# empty: not given, setup asks (or takes .env's value, or the default)
+# empty: not given, setup asks (or takes .env's value, or the default); 1 / 0 otherwise
 DEV=
 BROWSER=
 MAIL=
 SERVICES=()
 while [ "$#" -gt 0 ]; do
     case $1 in
-        --dev) DEV=1 ;;
-        --no-dev) DEV=0 ;;
-        --browser) BROWSER=1 ;;
-        --mail) MAIL=1 ;;
-        --no-browser) BROWSER=0 ;;
-        --no-mail) MAIL=0 ;;
+        # --name value as --name=value
+        --mail|--browser|--code)
+            [ "$#" -ge 2 ] || { echo "$1 needs a value (docker.sh help)"; exit 1; }
+            set -- "$1=$2" "${@:3}"
+            continue ;;
+        --mail=*) MAIL=$(option_value mail "${1#*=}" "mailpit|host-haraka") ;;
+        --browser=*) BROWSER=$(option_value browser "${1#*=}" "no|yes") ;;
+        --code=*) DEV=$(option_value code "${1#*=}" "image|working-tree") ;;
         -h|--help) usage 0 ;;
-        -*) echo "unknown option: $1"; usage 1 ;;
+        -*) echo "unknown option: $1 (docker.sh help)"; exit 1 ;;
         *) SERVICES+=("$1") ;;
     esac
     shift
@@ -245,12 +264,12 @@ setup() {
 
     # development: the working tree's code mounted (compose.dev.yaml); downloaded alone there is none
     if [ "$CHECKOUT" -eq 0 ]; then
-        [ "${DEV:-0}" -eq 0 ] || echo "  --dev needs the repository's working tree: left out"
+        [ "${DEV:-0}" -eq 0 ] || echo "  --code=working-tree needs a clone of the repository: the image's code"
         DEV=0
     fi
-    pick_yn DEV "$d_dev" "Development (the working tree mounted, local ports only)?"
-    pick_yn BROWSER "$d_browser" "Web browser for the AI steps (playwright)?"
-    pick_yn MAIL "$d_mail" "Haraka on this host for the mail (yours, README.md: the database and the daemon published on 127.0.0.1 for it; no: mailpit catches the outgoing mail)?"
+    pick_yn DEV "$d_dev" "Development: mount this clone's working tree over the image's code (--code=working-tree)?"
+    pick_yn BROWSER "$d_browser" "The web browser for the AI steps (--browser=yes)?"
+    pick_yn MAIL "$d_mail" "Mail through your Haraka on this host (--mail=host-haraka, README.md; no: Mailpit catches the outgoing mail)?"
 
     files="compose.yaml"
     [ "$DEV" -eq 0 ] || files="$files:compose.dev.yaml"
@@ -355,7 +374,7 @@ show_status() {
 # the commands but install and setup need docker/ (and run in it)
 case "$command" in
     install|setup|"") ;;
-    -h|--help) usage 0 ;;
+    help|-h|--help) usage 0 ;;
     *) [ -f "$DOCKER_DIR/compose.yaml" ] || { echo "no docker/ next to $0: run $0 install first"; exit 1; }
        cd "$DOCKER_DIR" ;;
 esac
@@ -443,6 +462,7 @@ case "$command" in
         fi
         ;;
     *)
+        [ -z "$command" ] || echo "unknown command: $command"
         usage 1
         ;;
 esac

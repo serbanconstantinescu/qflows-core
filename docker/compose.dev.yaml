@@ -1,6 +1,6 @@
 # development: docker compose -f compose.yaml -f compose.dev.yaml up -d
 #   the working tree's code mounted over the image's (a change is live without a build; NFN_UID / NFN_GID in .env: your user's, so the files stay readable),
-#   the site on http://127.0.0.1:8080 (a server's nginx keeps 80 / 443); only in the repository's working tree (docker.sh setup --dev).
+#   the site on http://127.0.0.1:8080 (a server's nginx keeps 80 / 443); only in the repository's working tree (docker.sh setup --code=working-tree).
 #   The database is the mongo container's own (not a server's: its daemon would run these jobs)
 services:
   app:

@@ -105,17 +105,17 @@ curl -fsSLO https://raw.githubusercontent.com/serbanconstantinescu/qflows-core/m
 bash docker.sh install                             # docker/ downloaded, asks (browser, host's Haraka, ports, ...), docker/.env, build, start
 ```
 
-As n8n's: compose runs the app, its database, the browser and mailpit, which catches the outgoing mail (`http://127.0.0.1:8025`); **HTTPS is the operator's**, and so is real mail. The site is published on `127.0.0.1:8080` for your reverse proxy; inbound mail and real outgoing mail are your Haraka on the host (below, `--mail`). Then open the site (through the proxy): `/setup`.
+As n8n's: compose runs the app, its database, the browser and mailpit, which catches the outgoing mail (`http://127.0.0.1:8025`); **HTTPS is the operator's**, and so is real mail. The site is published on `127.0.0.1:8080` for your reverse proxy; inbound mail and real outgoing mail are your Haraka on the host (below, `--mail=host-haraka`). Then open the site (through the proxy): `/setup`.
 
 In a clone of the repository `docker.sh` uses its `docker/` (never downloaded). The image clones `QFLOWS_REPO` at `QFLOWS_COMMIT`: the head of `QFLOWS_BRANCH` (`main`) when installed or updated.
 
-Or step by step: `docker.sh setup [--[no-]dev] [--[no-]browser] [--[no-]mail]` asks what the options do not say and writes `docker/.env` (an existing one gives the defaults and keeps its passwords; the compose files go in `COMPOSE_FILE`, so plain `docker compose` in `docker/` uses the same ones), then `build`, `start`; also `update` (`docker/` again, `.env` kept; the branch's new head built, the containers recreated), `stop`, `restart`, `status`, `logs`, `check`, `uninstall` (data kept), `purge` (all data). By hand: `cd docker && cp env.example .env`, fill it in, make `DATA_DIR`'s folders, `docker compose build && docker compose up -d`.
+Or step by step: `docker.sh setup [--mail=mailpit|host-haraka] [--browser=yes|no] [--code=image|working-tree]` asks what the options do not say (`docker.sh help` lists the commands and options) and writes `docker/.env` (an existing one gives the defaults and keeps its passwords; the compose files go in `COMPOSE_FILE`, so plain `docker compose` in `docker/` uses the same ones), then `build`, `start`; also `update` (`docker/` again, `.env` kept; the branch's new head built, the containers recreated), `stop`, `restart`, `status`, `logs`, `check`, `uninstall` (data kept), `purge` (all data). By hand: `cd docker && cp env.example .env`, fill it in, make `DATA_DIR`'s folders, `docker compose build && docker compose up -d`.
 
-- Containers: `mongo` (8.3, sign-in required; its users from `scripts/mongo_users.js`, which `docker.sh` downloads next to `docker/`), `app` (PHP-FPM, AlmaLinux 9 + Remi, the installer's packages, the code cloned at build), `daemon`, `web` (nginx: the static files, from the app image, and PHP, plain HTTP on `HTTP_BIND:HTTP_PORT`, `127.0.0.1:8080`); profiles `browser` (`playwright`: the AI steps' web browser, with its own firewall table) and `mailpit` (the outgoing mail, its page on `127.0.0.1:MAILPIT_PORT`, `8025`; off with `--mail`), on by default
+- Containers: `mongo` (8.3, sign-in required; its users from `scripts/mongo_users.js`, which `docker.sh` downloads next to `docker/`), `app` (PHP-FPM, AlmaLinux 9 + Remi, the installer's packages, the code cloned at build), `daemon`, `web` (nginx: the static files, from the app image, and PHP, plain HTTP on `HTTP_BIND:HTTP_PORT`, `127.0.0.1:8080`); profiles `browser` (`playwright`: the AI steps' web browser, with its own firewall table) and `mailpit` (the outgoing mail, its page on `127.0.0.1:MAILPIT_PORT`, `8025`; off with `--mail=host-haraka`), on by default
 - The data is in folders of `DATA_DIR` (setup: `docker-volumes` in the user's home, made with their owners): `config` (`app.env`, `plugins.json`, `mcp.json`; keep a copy of `app.env`: `APP_SECRET`), `logs`, `var`, `tmp`, `bounces`, `mongo-data`, `mailpit`
 - The Services page is read-only there: `docker compose restart daemon`; the console: `docker compose exec app app/v <command>`
 - Upgrade: `bash docker.sh update` (the app adds the new indexes at its start)
-- Development, in a clone only: `docker.sh setup --dev`, `-f compose.dev.yaml` (the working tree mounted over the image's code, the site on `127.0.0.1` only)
+- Development, in a clone only: `docker.sh setup --code=working-tree` (`compose.dev.yaml`: the working tree mounted over the image's code, the site on `127.0.0.1` only)
 - Files: `docker.sh`, and all the others in `docker/` (`compose*.yaml`, the images and their `Dockerfile.dockerignore`, `env.example`, `.env`); `docker compose` commands run there. More: the docs, Self-hosting > Docker Compose
 
 #### Reverse proxy (HTTPS)
@@ -159,7 +159,7 @@ On RHEL with SELinux, nginx may connect to the port only after `setsebool -P htt
 
 The Email (inbound) trigger needs Haraka with qflows's plugin (`scripts/haraka/`): it stores the mail in MongoDB (user `nfn_haraka`) and tells the daemon (`NEWJOB`). The same Haraka relays and DKIM-signs the app's outgoing mail. The DKIM keys, the DNS records and port 25 are yours, so Haraka runs on the host, not in compose.
 
-1. `docker.sh setup --mail`: mailpit off, adds `compose.mail.yaml`, which publishes the database (`MONGO_HOST_PORT`, 27017) and the daemon (`DAEMON_HOST_PORT`, 9000) on the host's `127.0.0.1` for Haraka, and gives the app `host.docker.internal` (`HARAKA_HOST`; the setup's SMTP server, port 25). Start (or `docker compose up -d` again).
+1. `docker.sh setup --mail=host-haraka`: mailpit off, adds `compose.mail.yaml`, which publishes the database (`MONGO_HOST_PORT`, 27017) and the daemon (`DAEMON_HOST_PORT`, 9000) on the host's `127.0.0.1` for Haraka, and gives the app `host.docker.internal` (`HARAKA_HOST`; the setup's SMTP server, port 25). Start (or `docker compose up -d` again).
 2. Haraka (Node.js 20 or later), as root, from a clone of the repository (`git clone https://github.com/serbanconstantinescu/qflows-core.git`, its folder); `.env`'s values: `NFN_HARAKA_PW`, `MONGO_DB`, `MONGO_HOST_PORT`, `DAEMON_HOST_PORT`, `DATA_DIR`:
 
    ```bash
