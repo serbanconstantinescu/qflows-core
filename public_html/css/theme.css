@@ -12155,14 +12155,18 @@ body {
   pointer-events: none;
 }
 
+.sidebar a:not(.btn) {
+  color: var(--bs-emphasis-color);
+}
+
 .sidebar .nav .nav-link:hover {
   background: rgba(var(--bs-emphasis-color-rgb), 0.05);
-  color: var(--text-dark);
+  color: var(--bs-emphasis-color);
 }
 
 .sidebar .nav .nav-link.active {
   background: rgba(var(--bs-emphasis-color-rgb), 0.05);
-  font-weight: 500;
+  font-weight: 700;
 }
 
 /* CLD: 2026-10-17T21:40:00+03:00: the menu (three dots) of a sidebar item shows on hover, while focused or open; always on touch screens (no hover) */
