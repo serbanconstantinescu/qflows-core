@@ -125,7 +125,8 @@ $dd_items = implode('', $dd_items);
 	<!-- scrollable menu -->
 	<div class="d-flex flex-column flex-fill min-height-0">
 	    <ul class="nav overflow-y-auto min-height-0">
-		<div class="nav-item w-100 px-2 py-1">
+		<?php //CLD: 2026-11-16T13:00:00+02:00: the section labels (Project workspace, Workflows, Shared workflows) are medium (fw-medium, 500) over the light (300) links ?>
+		<div class="nav-item w-100 px-2 py-1 fw-medium">
 		    Project workspace
 		</div>
 
@@ -184,7 +185,7 @@ $dd_items = implode('', $dd_items);
 		$canReadWf = \V::app()->user->can('Workflow::read');
 		if ($canReadWf || $wfCreateUrl !== '') {
 		    echo "
-		    <div class='nav-item w-100 ps-2 py-1 pe-2'>
+		    <div class='nav-item w-100 ps-2 py-1 pe-2 fw-medium'>
 			<span>Workflows</span>
 			<span class='float-end'>{$wfCreateUrl}</span>
 		    </div>
@@ -255,7 +256,7 @@ $dd_items = implode('', $dd_items);
 		$sharedWfs = array_filter(iterator_to_array(\V::app()->om->find('Workflow', [ 'aid' => $crtProject->aid, 'shares.project' => $crtProject->_id ], [ 'sort' => [ 'name' => 1 ] ]), false),
 		    fn($w) => \V::app()->user->can('Workflow::viewShared', [ 'object' => $w ]));
 		if ($sharedWfs)
-		    echo '<div class="nav-item w-100 ps-2 py-1 pe-2"><span>Shared workflows</span></div>';
+		    echo '<div class="nav-item w-100 ps-2 py-1 pe-2 fw-medium"><span>Shared workflows</span></div>';
 		foreach($sharedWfs as $wf)
 		    echo \util\VString::insert('<li class="nav-item w-100"><a href="{:href}" class="nav-link py-1 text-truncate" title="{:title}"><i class="bi bi-share me-1"></i>{:name}</a></li>', [
 			'href' => \V::app()->createUrl('/workflow/shared', [ 'id' => $wf->_id ]),
