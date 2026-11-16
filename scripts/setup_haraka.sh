@@ -12,13 +12,13 @@
 #services are installed (scripts/daemon.sh rule: the Services page controls it). uninstall removes the unit only: the files stay.
 # commands, as scripts/playwright-mcp.sh
 #Run as root:
-#   sudo scripts/haraka.sh install [--version=<vX.Y.Z>] [--domain=<inbound domain>] [--dir=<folder>] [--dry-run]   install / update, start at boot, start now
-#   sudo scripts/haraka.sh start | stop | restart | status | uninstall
+#   sudo scripts/setup_haraka.sh install [--version=<vX.Y.Z>] [--domain=<inbound domain>] [--dir=<folder>] [--dry-run]   install / update, start at boot, start now
+#   sudo scripts/setup_haraka.sh start | stop | restart | status | uninstall
 #     --version   the Haraka release (a tag of github.com/haraka/Haraka; default: the latest release)
 #     --domain    the inbound mail domain (default: MAIL_INBOUND_DOMAIN of app.env)
 #     --dir       where to install (default: HARAKA_DIR of app.env, else <app>/haraka)
 #     --dry-run   print what install would do (the files; no unit)
-#Then: the MongoDB user's password (sudo scripts/mongo.sh users, or uri in config/nfn.ini), the DKIM keys (config/dkim/<domain>/)
+#Then: the MongoDB user's password (sudo scripts/setup_mongo.sh users, or uri in config/nfn.ini), the DKIM keys (config/dkim/<domain>/)
 
 set -euo pipefail
 
@@ -153,7 +153,7 @@ install_files() {
     ENV_HARAKA_DIR=$(set +u; . "$BASE/app.env" >/dev/null 2>&1; echo "${HARAKA_DIR:-}")
     ENV_DOMAIN=$(set +u; . "$BASE/app.env" >/dev/null 2>&1; echo "${MAIL_INBOUND_DOMAIN:-}")
     ENV_MONGO_DB=$(set +u; . "$BASE/app.env" >/dev/null 2>&1; echo "${MONGO_DB:-}")
-    #Haraka's MongoDB user, when scripts/mongo.sh users has made it (HARAKA_MONGO_URI): written into a new config/nfn.ini
+    #Haraka's MongoDB user, when scripts/setup_mongo.sh users has made it (HARAKA_MONGO_URI): written into a new config/nfn.ini
     ENV_HARAKA_URI=$(set +u; . "$BASE/app.env" >/dev/null 2>&1; echo "${HARAKA_MONGO_URI:-}")
     #the daemon's port (DAEMON_PORT, default 9000): nfn.ini job_port
     DAEMON_PORT=$(set +u; . "$BASE/app.env" >/dev/null 2>&1; echo "${DAEMON_PORT:-9000}")
@@ -199,7 +199,7 @@ install_files() {
             cat > "$DIR/package.json" <<EOF
 {
   "name": "haraka_local",
-  "description": "qflows's inbound mail (Haraka; scripts/haraka.sh)",
+  "description": "qflows's inbound mail (Haraka; scripts/setup_haraka.sh)",
   "version": "0.0.1",
   "private": true,
   "dependencies": {
@@ -374,7 +374,7 @@ case "$command" in
         echo
         echo "Done: Haraka listens on port 25 (open it in the firewall). Next:"
         if grep -q 'CHANGE_ME' "$dir/config/nfn.ini" 2>/dev/null; then
-            echo "  - the MongoDB user nfn_haraka: sudo scripts/mongo.sh users (writes its password into config/nfn.ini, restarts Haraka), or set uri there"
+            echo "  - the MongoDB user nfn_haraka: sudo scripts/setup_mongo.sh users (writes its password into config/nfn.ini, restarts Haraka), or set uri there"
         fi
         echo "  - DKIM keys for the domains mail is sent from: cd $dir/config/dkim && ../../dkim/dkim_key_gen.sh <domain> (then publish the record of <domain>/dns; restart Haraka)"
         ;;
@@ -393,7 +393,7 @@ case "$command" in
         else
             echo "Haraka $(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' "$dir/node_modules/haraka/package.json" | head -1)"
             if [ -r "$dir/config/nfn.ini" ]; then
-                if grep -q 'CHANGE_ME' "$dir/config/nfn.ini"; then echo "! nfn.ini: no MongoDB password yet (sudo scripts/mongo.sh users)"; fi
+                if grep -q 'CHANGE_ME' "$dir/config/nfn.ini"; then echo "! nfn.ini: no MongoDB password yet (sudo scripts/setup_mongo.sh users)"; fi
                 echo "inbound domain: $(sed -n 's/^domain=//p' "$dir/config/nfn.ini" | head -1)"
             fi
             keys=$(ls "$dir/config/dkim" 2>/dev/null | tr '\n' ' ' || true)

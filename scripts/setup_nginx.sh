@@ -6,9 +6,9 @@
 # commands, as scripts/playwright-mcp.sh: install (nginx too), setup (the site only), start / stop / restart /
 #reload / status / test / uninstall (the site out); the template inline. nginx is the server's: start / stop / restart apply to every site on it (other installations' too)
 #Run as root:
-#   sudo scripts/nginx.sh install [--server-name=<host>]              nginx (when missing), the site, nginx started at boot and now
-#   sudo scripts/nginx.sh setup [--server-name=<host>] [--dry-run]    the site written again (after a change of the template or of BASE_URL)
-#   sudo scripts/nginx.sh start | stop | restart | reload | status | test | uninstall
+#   sudo scripts/setup_nginx.sh install [--server-name=<host>]              nginx (when missing), the site, nginx started at boot and now
+#   sudo scripts/setup_nginx.sh setup [--server-name=<host>] [--dry-run]    the site written again (after a change of the template or of BASE_URL)
+#   sudo scripts/setup_nginx.sh start | stop | restart | reload | status | test | uninstall
 #     --server-name   the site's host name (default: the host of BASE_URL in app.env)
 #     --dry-run       show the changes only
 
@@ -79,7 +79,7 @@ server_name() {
 template() {
     cat <<'NGINX'
 #the app's nginx site;
-#written by scripts/nginx.sh, which fills in the app's folder and the host of BASE_URL
+#written by scripts/setup_nginx.sh, which fills in the app's folder and the host of BASE_URL
 # ---------------------------------------------------------------------------------
 
 #main server on http://, redirect to https://

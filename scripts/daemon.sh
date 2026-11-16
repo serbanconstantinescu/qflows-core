@@ -4,7 +4,7 @@
 #logging to logs/daemon.log; one per installation (several on one server: e.g. /home/app live, /home/dev development).
 #the polkit rule of the installation, 49-qflows-services-<user>.rules: the app's user (the web server's PHP: the Services page) may start / stop / restart
 #its units, nfn-<name>-<user>.service (the daemon, the web browser's nfn-playwright-<user>, ...), and nfn-haraka.service when the installation has it.
-#The other services write their own units (scripts/haraka.sh, scripts/playwright-mcp.sh install) and the rule again (rule).
+#The other services write their own units (scripts/setup_haraka.sh, scripts/playwright-mcp.sh install) and the rule again (rule).
 # commands, as the other scripts
 #Run as root:
 #   sudo scripts/daemon.sh install                          the unit and the rule, start at boot, start now (a daemon started by hand: stopped first)
@@ -191,7 +191,7 @@ case "$command" in
         systemctl daemon-reload
         systemctl try-reload-or-restart polkit.service || true
         for u in $(other_units); do
-            echo "- $u: left (its own script removes it: scripts/haraka.sh / playwright-mcp.sh uninstall); without the rule the Services page no longer controls it"
+            echo "- $u: left (its own script removes it: scripts/setup_haraka.sh / playwright-mcp.sh uninstall); without the rule the Services page no longer controls it"
         done
         echo "Removed the daemon's unit and the rule"
         ;;

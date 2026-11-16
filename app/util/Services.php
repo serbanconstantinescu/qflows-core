@@ -76,7 +76,7 @@ class Services {
     }
 
     //unit $unit was written by one of this installation's scripts (its first line: #written by <app>/scripts/...), or is not there yet: a server's Haraka is one installation's
-    //any script of the installation (Haraka's unit: scripts/haraka.sh)
+    //any script of the installation (Haraka's unit: scripts/setup_haraka.sh)
     public static function ownUnit($unit) {
 	$file = '/etc/systemd/system/' . $unit;
 	if (!is_file($file))
@@ -148,7 +148,7 @@ class Services {
 	$unit = (string)($s['unit'] ?? '');
 	if ($unit === '' || !self::status([ 'unit' => $unit ])['unit'])
 	    //the service's own script
-	    return [ false, 'not a system service yet: run its script as root first (scripts/daemon.sh, haraka.sh or playwright-mcp.sh install)' ];
+	    return [ false, 'not a system service yet: run its script as root first (scripts/daemon.sh, setup_haraka.sh or playwright-mcp.sh install)' ];
 	[ $code, $out ] = self::run([ 'systemctl', '--no-ask-password', $verb, $unit ], 60);
 	if ($code !== 0)
 	    return [ false, trim($out) ?: "systemctl {$verb} failed ({$code})" ];

@@ -10,9 +10,9 @@
 #  secure  users, then auth, then the app's services restarted (they reconnect with their users)
 #  start | stop | restart   mongod: the server's, every database on it (other installations' too)
 #  status  mongod, sign-in on or off, whether the app signs in with its user
-# commands, as scripts/nginx.sh and playwright-mcp.sh
+# commands, as scripts/setup_nginx.sh and playwright-mcp.sh
 #Run as root:
-#   sudo scripts/mongo.sh secure | users | auth | start | stop | restart | status
+#   sudo scripts/setup_mongo.sh secure | users | auth | start | stop | restart | status
 #mm (/mm/index.php) signs in as nfn_admin, with the password in <app>/.mongodb-admin (the database field empty).
 
 set -euo pipefail
@@ -121,9 +121,9 @@ EOF
     put app.env '^MONGO_URI=' \
         "#MongoDB user nfn_app (readWrite on the app's database only)" \
         "MONGO_URI='${app_uri}'"
-    #Haraka's URI in app.env too, for a Haraka installed later (scripts/haraka.sh install writes it into its nfn.ini)
+    #Haraka's URI in app.env too, for a Haraka installed later (scripts/setup_haraka.sh install writes it into its nfn.ini)
     haraka_uri="mongodb://nfn_haraka:${NFN_HARAKA_PW}@127.0.0.1:27017/?authSource=${NFN_DB}"
-    haraka_comment="#MongoDB user nfn_haraka (role nfnHaraka), for Haraka's haraka/config/nfn.ini (scripts/haraka.sh install writes it there)"
+    haraka_comment="#MongoDB user nfn_haraka (role nfnHaraka), for Haraka's haraka/config/nfn.ini (scripts/setup_haraka.sh install writes it there)"
     grep -q '^HARAKA_MONGO_URI=' app.env || printf '\n%s\nHARAKA_MONGO_URI=\n' "$haraka_comment" >> app.env
     put app.env '^HARAKA_MONGO_URI=' "$haraka_comment" "HARAKA_MONGO_URI='${haraka_uri}'"
     chmod 600 app.env

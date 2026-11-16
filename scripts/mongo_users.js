@@ -1,5 +1,5 @@
 // creates the qflows MongoDB users; passwords come from the environment (NFN_ADMIN_PW, NFN_APP_PW, NFN_HARAKA_PW), the database from NFN_DB (MONGO_DB of app.env)
-// used by scripts/mongo.sh users, and by the Docker mongo container at its first start (compose.yaml)
+// used by scripts/setup_mongo.sh users, and by the Docker mongo container at its first start (compose.yaml)
 const DB = process.env.NFN_DB || 'qflows-db';
 const app = db.getSiblingDB(DB);
 const admin = db.getSiblingDB('admin');

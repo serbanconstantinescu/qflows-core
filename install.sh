@@ -4,10 +4,10 @@
 # It asks the initial data (the public address, the database, the outgoing email, the first account)
 # the options (nginx, the web browser of the AI steps, inbound email, MongoDB's users and sign-in),
 # checks everything it needs first, then runs the parts in order:
-#  - the nginx site (nginx.sh; a self-signed certificate when there is none),
+#  - the nginx site (setup_nginx.sh; a self-signed certificate when there is none),
 #  - the app's setup (app/v sys::install as the app's user: the account, its owner, app.env),
-#  - Haraka (haraka.sh install),
-#  - MongoDB's users and authorization (mongo.sh secure),
+#  - Haraka (setup_haraka.sh install),
+#  - MongoDB's users and authorization (setup_mongo.sh secure),
 #  - the background services (daemon.sh install)
 #  - the web browser of the AI steps after the background services:
 #    scripts/playwright-mcp.sh install (its Chromium, its service, its server in mcp.json), which also adds it later;
@@ -651,7 +651,7 @@ if [ ! -e "$BASE/ssl/ssl.crt" ]; then
     echo "+ a self-signed certificate for $DOMAIN"
 fi
 # its install command: the site, nginx started at boot and now
-"$SCRIPTS/nginx.sh" install --server-name="$DOMAIN"
+"$SCRIPTS/setup_nginx.sh" install --server-name="$DOMAIN"
 if [ "$OPT_LE" -eq 1 ]; then
     #http-01 through the site (port 80 redirects to https, which serves .well-known/acme-challenge from the web root)
     if certbot certonly --webroot -w "$BASE/public_html" -d "$DOMAIN" --non-interactive --agree-tos \
@@ -764,21 +764,21 @@ fi
 
 if [ "$OPT_MAIL" -eq 1 ]; then
     step "Inbound email (Haraka)"
-    # scripts/haraka.sh install: the files and its unit, started
-    "$SCRIPTS/haraka.sh" install --domain="$MAIL_DOMAIN"
+    # scripts/setup_haraka.sh install: the files and its unit, started
+    "$SCRIPTS/setup_haraka.sh" install --domain="$MAIL_DOMAIN"
 fi
 
 MONGO_CHANGED=0
 if [ "$OPT_MONGO" -eq 1 ] && mongo_auth_off; then
     step "MongoDB: users and sign-in"
-    # scripts/mongo.sh secure: the users, authorization in mongod.conf, mongod restarted and checked
-    "$SCRIPTS/mongo.sh" secure || echo "! MongoDB was not secured (above): sudo $SCRIPTS/mongo.sh status, then secure (or users, auth) once fixed"
+    # scripts/setup_mongo.sh secure: the users, authorization in mongod.conf, mongod restarted and checked
+    "$SCRIPTS/setup_mongo.sh" secure || echo "! MongoDB was not secured (above): sudo $SCRIPTS/setup_mongo.sh status, then secure (or users, auth) once fixed"
     MONGO_CHANGED=1
 fi
 
 step "The background services"
 # the daemon's unit (nfn-daemon-<user>) and the polkit rule: scripts/daemon.sh install; Haraka's unit is
-#haraka.sh's (above), the web browser's playwright-mcp.sh's (below)
+#setup_haraka.sh's (above), the web browser's playwright-mcp.sh's (below)
 "$SCRIPTS/daemon.sh" install
 #the services running before reconnect with the new MongoDB users
 [ "$MONGO_CHANGED" -eq 0 ] || systemctl try-restart "nfn-daemon-$APP_USER.service" $([ "$OPT_MAIL" -eq 1 ] && echo nfn-haraka.service) || true

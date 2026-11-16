@@ -68,22 +68,22 @@ The setup in the browser (every address of the site while `app.env` is missing) 
 
 | Script | Does | Needs |
 |--------|------|-------|
-| `sudo scripts/nginx.sh install` | nginx (when missing) and the app's site (the template in the script, filled in) over `<app>/etc/nginx.conf` (`/etc/nginx/conf.d/<user>.conf`); checked with `nginx -t`, then nginx reloaded. Also `setup` (the site only, `--dry-run`), `start`, `stop`, `restart`, `reload`, `status`, `test`, `uninstall` (the site out) | nginx; `BASE_URL` in `app.env` (or `--server-name=`); the certificate in `<app>/ssl/` |
+| `sudo scripts/setup_nginx.sh install` | nginx (when missing) and the app's site (the template in the script, filled in) over `<app>/etc/nginx.conf` (`/etc/nginx/conf.d/<user>.conf`); checked with `nginx -t`, then nginx reloaded. Also `setup` (the site only, `--dry-run`), `start`, `stop`, `restart`, `reload`, `status`, `test`, `uninstall` (the site out) | nginx; `BASE_URL` in `app.env` (or `--server-name=`); the certificate in `<app>/ssl/` |
 | `app/v sys::install` (as the app's user) | The app: the database indexes, the first account and its owner, `app.env` (the answers as JSON on stdin) | no `app.env` yet |
-| `sudo scripts/haraka.sh install` | Haraka, for inbound mail, into `<app>/haraka` (its files stay the app's user's), and its unit `nfn-haraka` (one per server: port 25), started. Also `start`, `stop`, `restart`, `status`, `uninstall` (the unit; the files stay) | `app.env`; `MAIL_INBOUND_DOMAIN` there (or `--domain=`); system-wide Node.js |
-| `sudo scripts/mongo.sh secure` | MongoDB users `nfn_admin`, `nfn_app`, `nfn_haraka`; their passwords into `app.env` (`MONGO_URI`, `HARAKA_MONGO_URI`) and, with Haraka, `haraka/config/nfn.ini`; then sign-in required (`/etc/mongod.conf`, mongod restarted) and the app's services restarted. Also `users`, `auth` (the two halves), `start`, `stop`, `restart`, `status` | `app.env`; MongoDB on this machine with authorization still off |
+| `sudo scripts/setup_haraka.sh install` | Haraka, for inbound mail, into `<app>/haraka` (its files stay the app's user's), and its unit `nfn-haraka` (one per server: port 25), started. Also `start`, `stop`, `restart`, `status`, `uninstall` (the unit; the files stay) | `app.env`; `MAIL_INBOUND_DOMAIN` there (or `--domain=`); system-wide Node.js |
+| `sudo scripts/setup_mongo.sh secure` | MongoDB users `nfn_admin`, `nfn_app`, `nfn_haraka`; their passwords into `app.env` (`MONGO_URI`, `HARAKA_MONGO_URI`) and, with Haraka, `haraka/config/nfn.ini`; then sign-in required (`/etc/mongod.conf`, mongod restarted) and the app's services restarted. Also `users`, `auth` (the two halves), `start`, `stop`, `restart`, `status` | `app.env`; MongoDB on this machine with authorization still off |
 | `sudo scripts/daemon.sh install` | The workflow daemon's unit `nfn-daemon-<user>`, started, and the polkit rule that lets the Services page start / stop / restart the installation's units (`nfn-<name>-<user>`, and `nfn-haraka` when the installation has it). Also `start`, `stop`, `restart`, `status` (all the installation's services), `rule`, `uninstall` | polkit |
 | `sudo scripts/playwright-mcp.sh install` | The AI steps' web browser (Playwright MCP, its Chromium) as the unit `nfn-playwright-<user>`, and its entry in `mcp.json`. Also `start`, `stop`, `restart`, `status`, `uninstall` | system-wide Node.js |
 
-They can be run again: nothing already installed is overwritten (`haraka.sh` updates qflows's plugin). `mongo.sh secure` too, while MongoDB does not require sign-in: it creates its users again with new passwords; once authorization is on, it stops.
+They can be run again: nothing already installed is overwritten (`setup_haraka.sh` updates qflows's plugin). `setup_mongo.sh secure` too, while MongoDB does not require sign-in: it creates its users again with new passwords; once authorization is on, it stops.
 The operators' MongoDB password is left in `<app>/.mongodb-admin` (root's): move it to a password manager and delete the file.
 
-Options: `--dry-run` (`nginx.sh setup`, `haraka.sh install`) prints what would be done; `--help` lists the others.
+Options: `--dry-run` (`setup_nginx.sh setup`, `setup_haraka.sh install`) prints what would be done; `--help` lists the others.
 Check the services with `scripts/daemon.sh status`.
 
 ### Web server (nginx)
 
-The app's nginx site is a template inside `scripts/nginx.sh`: it fills in the app's folder (`@BASE@`) and the host of `BASE_URL` (`@SERVER_NAME@`) and writes it where `<app>/etc/nginx.conf` points (`/etc/nginx/conf.d/<user>.conf`; the link is made when missing).
+The app's nginx site is a template inside `scripts/setup_nginx.sh`: it fills in the app's folder (`@BASE@`) and the host of `BASE_URL` (`@SERVER_NAME@`) and writes it where `<app>/etc/nginx.conf` points (`/etc/nginx/conf.d/<user>.conf`; the link is made when missing).
 It shows the changes first (`--dry-run`: only that), keeps the old file as `<user>.conf.bak-<time>`, and puts it back when `nginx -t` fails.
 `/etc/nginx/nginx.conf` stays as the system installed it (it loads `conf.d/*.conf`). The certificate goes in `<app>/ssl/ssl.crt` and `ssl.key`.
 
@@ -91,8 +91,8 @@ It shows the changes first (`--dry-run`: only that), keeps the old file as `<use
 
 - `playwright/`: the web browser's entry in `mcp.json` (`mcp-server.json`; the tool servers, next to `app.env`: `./v mcpserver::list`)
 
-- `mongo_users.js`: the users and roles created by `mongo.sh users`, and by the Docker `mongo` container at its first start
-- `haraka/`: qflows's Haraka plugin and configuration, copied by `haraka.sh install` into `<app>/haraka` (`dkim/dkim_key_gen.sh`: DKIM keys)
+- `mongo_users.js`: the users and roles created by `setup_mongo.sh users`, and by the Docker `mongo` container at its first start
+- `haraka/`: qflows's Haraka plugin and configuration, copied by `setup_haraka.sh install` into `<app>/haraka` (`dkim/dkim_key_gen.sh`: DKIM keys)
 - `system/`: `php.ini`, the PHP-FPM pool (`fpm-pool.conf`) and `logrotate.conf`, written by `install.sh`
 
 ### With Docker Compose
@@ -199,7 +199,7 @@ Install PHP, its extensions, MongoDB, nginx with a PHP-FPM pool running as the a
 
 ```sh
 git clone --recurse-submodules https://github.com/serbanconstantinescu/qflows-core.git /home/app
-sudo /home/app/scripts/nginx.sh install --server-name=flows.example.com
+sudo /home/app/scripts/setup_nginx.sh install --server-name=flows.example.com
 ```
 
 Open the site. While there is no `app.env`, every address shows the setup wizard. It checks the prerequisites, then asks for the server settings (public address, MongoDB, outgoing email) and the first account with its owner. After that, install the options and the services with the scripts in `scripts/` (see *The parts* above).

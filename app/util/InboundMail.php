@@ -18,7 +18,7 @@ class InboundMail {
     //the Haraka plugin of qflows (plugins/nfn.js, config/nfn.ini)
     const HARAKA_PLUGIN = 'nfn';
 
-    //where Haraka is installed: app.env HARAKA_DIR, else <app>/haraka (as scripts/haraka.sh installs it)
+    //where Haraka is installed: app.env HARAKA_DIR, else <app>/haraka (as scripts/setup_haraka.sh installs it)
     public static function dir() {
 	return defined('HARAKA_DIR') && HARAKA_DIR !== '' ? rtrim(HARAKA_DIR, '/') : BASE . '/haraka';
     }
