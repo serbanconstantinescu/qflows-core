@@ -22,7 +22,8 @@ x-app: &app
       QFLOWS_REPO: ${QFLOWS_REPO:-https://github.com/serbanconstantinescu/qflows-core.git}
       QFLOWS_BRANCH: ${QFLOWS_BRANCH:-main}
       QFLOWS_COMMIT: ${QFLOWS_COMMIT:-}
-      QFLOWS_PLUGINS: ${QFLOWS_PLUGINS:-}
+      # not set: RegionalRO and RegionalEU (docker.sh --plugins: their default); set empty: none
+      QFLOWS_PLUGINS: ${QFLOWS_PLUGINS-RegionalRO=https://github.com/serbanconstantinescu/qflows-regional-ro.git RegionalEU=https://github.com/serbanconstantinescu/qflows-regional-eu.git}
       NFN_UID: ${NFN_UID:-1000}
       NFN_GID: ${NFN_GID:-1000}
       TZ: ${TZ:-UTC}
@@ -31,7 +32,7 @@ x-app: &app
     NFN_RUNTIME: docker
     NFN_CONFIG_DIR: /srv/qflows/config
     # the image's plugins (QFLOWS_PLUGINS), turned on in plugins.json at the start (entrypoint.sh)
-    NFN_PLUGINS: ${NFN_PLUGINS:-}
+    NFN_PLUGINS: ${NFN_PLUGINS-RegionalRO,RegionalEU}
     DAEMON_LISTEN: 0.0.0.0
     DAEMON_HOST: daemon
     DAEMON_PORT: ${DAEMON_PORT:-9000}

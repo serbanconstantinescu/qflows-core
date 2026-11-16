@@ -24,6 +24,9 @@ declare -A PLUGINS=(
     [regional-ro]="RegionalRO https://github.com/serbanconstantinescu/qflows-regional-ro.git"
     [regional-eu]="RegionalEU https://github.com/serbanconstantinescu/qflows-regional-eu.git"
 )
+#CLD: 2026-11-17T01:30:00+02:00: on by default (a new .env, or one from before the plugins' setting); their order (the associative array has none)
+PLUGINS_DEFAULT=regional-ro,regional-eu
+PLUGINS_ORDER=(regional-ro regional-eu)
 BRANCH_DEFAULT="main"
 # the repository's working tree (docker/ is its own, never downloaded)
 CHECKOUT=0
@@ -57,8 +60,8 @@ Options (install, setup): what is not given is asked; the defaults are the curre
   --browser=yes|no          the web browser for the AI steps (playwright)
   --code=image              the app's code as cloned in the image
   --code=working-tree       development, in a clone of the repository only: its working tree mounted over the image's code
-  --plugins=<list>|none     plugins cloned into the image, separated by commas: regional-ro (Romania: ANAF, BNR, e-Factura, couriers, ...),
-                            regional-eu (VIES, ECB rates, TED tenders); the demo's Romanian and EU workflows need them. A change needs a build
+  --plugins=<list>|none     plugins cloned into the image, separated by commas (default: both): regional-ro (Romania: ANAF, BNR, e-Factura,
+                            couriers, ...), regional-eu (VIES, ECB rates, TED tenders); the demo's Romanian and EU workflows need them. A change needs a build
 
 HTTPS is yours: the site is on 127.0.0.1:8080 for your reverse proxy (README.md: Reverse proxy).
 EOF
@@ -353,11 +356,13 @@ setup() {
     port_warn "$(get_env HTTP_PORT)" "the site"
     pick_env BASE_URL "" "The public address, the reverse proxy's (e.g. https://flows.example.com; empty: asked by /setup)"
 
-    #the plugins: the option's, else asked (the current ones the default), else the current ones; their names and repositories for the image
+    #the plugins: the option's, else asked (the current ones the default), else the current ones; their names and repositories for the image.
+    #.env without the setting (made before it): the default ones
     local current="" opt name url build="" names=""
-    for opt in "${!PLUGINS[@]}"; do
+    for opt in "${PLUGINS_ORDER[@]}"; do
         ! in_list "${PLUGINS[$opt]%% *}" "$(get_env NFN_PLUGINS)" || current="${current:+$current,}$opt"
     done
+    grep -q '^NFN_PLUGINS=' "$ENV_FILE" || current=$PLUGINS_DEFAULT
     if [ -z "$PLUGIN_LIST" ] && [ "$INTERACTIVE" -eq 1 ]; then
         local answer
         read -r -p "Plugins to add, separated by commas: regional-ro (Romania: ANAF, BNR, e-Factura), regional-eu (VIES, ECB, TED); none [${current:-none}] " answer
