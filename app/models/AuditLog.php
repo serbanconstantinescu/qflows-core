@@ -206,6 +206,16 @@ class AuditLog extends \sys\BaseModel {
 	]);
     }
 
+    //CLD: 2026-11-17T00:30:00+02:00: an action of user $user that a console command does for them (demo::create: its users' sign-ins, publishing, task decisions), recorded as the web
+    //would: $before = [ key => value before ] of an update's changed keys; from $ip with $userAgent; sealed as every entry (dated now)
+    public static function recordAs($user, $action, $o = null, array $before = [], $details = null, $ip = null, $userAgent = '') {
+	$changes = [];
+	foreach($o ? $before : [] as $key => $value)
+	    $changes[] = static::change($o, $key, $value, $o->data()[$key] ?? null, true, true);
+	static::write($action, $o, null, [ 'aid' => $user->aid, 'user' => $user->_id, 'user_name' => (string)$user, 'ip' => $ip, 'user_agent' => mb_substr((string)$userAgent, 0, 300),
+	    'changes' => $changes, 'details' => $details ]);
+    }
+
     //a tool call of the agent of step $stepTitle ($wfid) in execution $exec: what it called, with which arguments (secrets removed), read or write, how it ended
     //($status), who approved it ($by: a user). Not a person's action (the daemon runs it, record() would not write it): user_name names the step
     public static function agentCall($exec, $stepTitle, $wfid, $tool, $args, $access, $status, $by = null) {

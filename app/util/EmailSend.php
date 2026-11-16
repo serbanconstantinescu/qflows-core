@@ -283,9 +283,9 @@ class EmailSend {
 	return [ implode("\r\n", $headers), $body . "--{$mix}--\r\n" ];
     }
 
-    //the job of a queued email (the Send Email step): { aid, from_name, to, cc, bcc, reply_to, subject, html, text, images: [ cid => file id ] }; sent from
+    //the job of a queued email (the Send Email step): { aid, from_name, to, cc, bcc, reply_to, subject, html, text, images: [ cid => file id ], attachments: [ file id ] }; sent from
     //the app's address (config mail.from);
-    //an image file gone is left out;
+    //an image file gone is left out; CLD: 2026-11-16T23:30:00+02:00: so is an attachment's (the account's files only)
     //throws when the SMTP server does not take it (the daemon tries again)
     public static function deliver($data) {
 	$data = (array)$data;
@@ -304,8 +304,16 @@ class EmailSend {
 	    if ($file)
 		$images[$cid] = $file;
 	}
+	$attachments = [];
+	foreach((array)($data['attachments'] ?? []) as $fid) {
+	    $file = \V::app()->om->findOne('File', [ '_id' => (string)$fid, 'aid' => $data['aid'] ?? null ]);
+	    if ($file) {
+		$ext = strtolower(pathinfo((string)$file->filename, PATHINFO_EXTENSION));
+		$attachments[] = [ 'name' => (string)$file->filename, 'type' => \models\File::CONTENT_TYPES[$ext] ?? 'application/octet-stream', 'content' => (string)$file->getContents() ];
+	    }
+	}
 	$from = (string)\V::app()->config('mail.from');
-	[ $headers, $body ] = self::compose([ 'from' => $from, 'images' => $images ] + $data);
+	[ $headers, $body ] = self::compose([ 'from' => $from, 'images' => $images, 'attachments' => $attachments ] + $data);
 	$result = self::send([ 'sender' => $from, 'to' => array_fill_keys(array_values(array_filter((array)($data['to'] ?? []))), ''), 'cc' => array_fill_keys(array_values(array_filter((array)($data['cc'] ?? []))), ''), 'bcc' => array_fill_keys(array_values(array_filter((array)($data['bcc'] ?? []))), ''), 'headers' => $headers, 'body' => $body ]);
 	if ($result !== true)
 	    throw new \ErrorException('the email "' . ($data['subject'] ?? '') . '" was not accepted by the SMTP server');

@@ -454,6 +454,11 @@ class SysObjects {
 		'class' => 'models\node\NodeAppDownload',
 		'wfNode' => true,
 	    ],
+	    //CLD: 2026-11-16T23:30:00+02:00: Spreadsheet file (rows written as .xlsx or .csv in the project's Files; no credential)
+	    'NodeAppSpreadsheet' => [
+		'class' => 'models\node\NodeAppSpreadsheet',
+		'wfNode' => true,
+	    ],
 	    //Read a web page (the basic HTTP Request: a GET, the page's text or HTML)
 	    'NodeAppWebPage' => [
 		'class' => 'models\node\NodeAppWebPage',

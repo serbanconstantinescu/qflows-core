@@ -7,6 +7,8 @@
 #the app image clones the code (QFLOWS_REPO at QFLOWS_COMMIT: QFLOWS_BRANCH's head when installed or updated); the outgoing mail to mailpit by default;
 #the options as name=value, saying what they choose (--mail=mailpit|host-haraka, --browser=yes|no, --code=image|working-tree); docker.sh help lists the commands and options.
 #docker compose itself works as well (from docker/: COMPOSE_FILE is in .env). Run as a user of the docker group (or root).
+#CLD: 2026-11-17T00:30:00+02:00: --plugins=<list> clones plugins kept in their own (public) repositories into the image (PLUGINS: their names, repositories); demo / demo-delete
+#run demo::create / demo::delete in the app container, their options passed on (with Mailpit: its emails kept, --keep-emails)
 
 set -euo pipefail
 
@@ -17,6 +19,11 @@ trap 'rm -rf "${FETCH_TMP:-}"' EXIT
 DOCKER_DIR="$SELF_DIR/docker"
 ENV_FILE="$DOCKER_DIR/.env"
 REPO_DEFAULT="https://github.com/serbanconstantinescu/qflows-core.git"
+# the plugins --plugins can add: option name => the plugin's name, its repository
+declare -A PLUGINS=(
+    [regional-ro]="RegionalRO https://github.com/serbanconstantinescu/qflows-regional-ro.git"
+    [regional-eu]="RegionalEU https://github.com/serbanconstantinescu/qflows-regional-eu.git"
+)
 BRANCH_DEFAULT="main"
 # the repository's working tree (docker/ is its own, never downloaded)
 CHECKOUT=0
@@ -35,6 +42,11 @@ Commands:
   status               the settings in use and the containers
   logs [service...]    follow the logs (ctrl-c ends)
   check                run the check suite in the app container
+  demo [--name=..] [--password=..]
+                       make a demo account (demo::create: 4 projects, published workflows with past runs, open tasks, filled tables; no credential needed);
+                       prints the account id and its users. With Mailpit its emails are kept: read them there
+  demo-delete --account=<id>
+                       delete a demo account and everything in it
   uninstall            remove the containers; the data (database, settings, logs, mail) is kept
   purge                remove the containers and all the data (asks first)
   help                 this text
@@ -45,6 +57,8 @@ Options (install, setup): what is not given is asked; the defaults are the curre
   --browser=yes|no          the web browser for the AI steps (playwright)
   --code=image              the app's code as cloned in the image
   --code=working-tree       development, in a clone of the repository only: its working tree mounted over the image's code
+  --plugins=<list>|none     plugins cloned into the image, separated by commas: regional-ro (Romania: ANAF, BNR, e-Factura, couriers, ...),
+                            regional-eu (VIES, ECB rates, TED tenders); the demo's Romanian and EU workflows need them. A change needs a build
 
 HTTPS is yours: the site is on 127.0.0.1:8080 for your reverse proxy (README.md: Reverse proxy).
 EOF
@@ -61,23 +75,44 @@ option_value() {
     esac
 }
 
+#--plugins' value checked: its names (regional-ro,...) without repeats, or none
+plugin_list() {
+    local out=() p
+    [ "$1" != "none" ] || { echo none; return; }
+    for p in ${1//,/ }; do
+        [ -n "${PLUGINS[$p]:-}" ] || { echo "--plugins: $p is not one of: ${!PLUGINS[*]} (or none)" >&2; exit 1; }
+        [[ " ${out[*]:-} " == *" $p "* ]] || out+=("$p")
+    done
+    [ "${#out[@]}" -gt 0 ] || { echo "--plugins: no plugin named (or none)" >&2; exit 1; }
+    (IFS=,; echo "${out[*]}")
+}
+
 command="${1:-}"
 [ -n "$command" ] && shift || true
+# demo, demo-delete: their options are demo::create's / demo::delete's (passed on as they are)
+DEMO_ARGS=()
+if [ "$command" = "demo" ] || [ "$command" = "demo-delete" ]; then
+    DEMO_ARGS=("$@")
+    set --
+fi
 # empty: not given, setup asks (or takes .env's value, or the default); 1 / 0 otherwise
 DEV=
 BROWSER=
 MAIL=
+# the --plugins option's names (regional-ro,...), "none", or empty: not given
+PLUGIN_LIST=
 SERVICES=()
 while [ "$#" -gt 0 ]; do
     case $1 in
         # --name value as --name=value
-        --mail|--browser|--code)
+        --mail|--browser|--code|--plugins)
             [ "$#" -ge 2 ] || { echo "$1 needs a value (docker.sh help)"; exit 1; }
             set -- "$1=$2" "${@:3}"
             continue ;;
         --mail=*) MAIL=$(option_value mail "${1#*=}" "mailpit|host-haraka") ;;
         --browser=*) BROWSER=$(option_value browser "${1#*=}" "no|yes") ;;
         --code=*) DEV=$(option_value code "${1#*=}" "image|working-tree") ;;
+        --plugins=*) PLUGIN_LIST=$(plugin_list "${1#*=}") ;;
         -h|--help) usage 0 ;;
         -*) echo "unknown option: $1 (docker.sh help)"; exit 1 ;;
         *) SERVICES+=("$1") ;;
@@ -318,6 +353,27 @@ setup() {
     port_warn "$(get_env HTTP_PORT)" "the site"
     pick_env BASE_URL "" "The public address, the reverse proxy's (e.g. https://flows.example.com; empty: asked by /setup)"
 
+    #the plugins: the option's, else asked (the current ones the default), else the current ones; their names and repositories for the image
+    local current="" opt name url build="" names=""
+    for opt in "${!PLUGINS[@]}"; do
+        ! in_list "${PLUGINS[$opt]%% *}" "$(get_env NFN_PLUGINS)" || current="${current:+$current,}$opt"
+    done
+    if [ -z "$PLUGIN_LIST" ] && [ "$INTERACTIVE" -eq 1 ]; then
+        local answer
+        read -r -p "Plugins to add, separated by commas: regional-ro (Romania: ANAF, BNR, e-Factura), regional-eu (VIES, ECB, TED); none [${current:-none}] " answer
+        PLUGIN_LIST=$(plugin_list "${answer:-${current:-none}}")
+    fi
+    PLUGIN_LIST=${PLUGIN_LIST:-${current:-none}}
+    if [ "$PLUGIN_LIST" != "none" ]; then
+        for opt in ${PLUGIN_LIST//,/ }; do
+            read -r name url <<< "${PLUGINS[$opt]}"
+            build="${build:+$build }$name=$url"
+            names="${names:+$names,}$name"
+        done
+    fi
+    set_env QFLOWS_PLUGINS "\"$build\""
+    set_env NFN_PLUGINS "$names"
+
     if in_list browser "$profiles"; then
         set_env NFN_BROWSER_URL "http://playwright:8931/mcp"
     else
@@ -349,6 +405,7 @@ setup() {
     echo "  project: $(get_env COMPOSE_PROJECT_NAME)"
     echo "  files: $files"
     echo "  profiles: ${profiles:-(none)}"
+    echo "  plugins: ${PLUGIN_LIST/none/(none)}"
     echo "  site: $(get_env HTTP_BIND):$(get_env HTTP_PORT) (HTTPS: your reverse proxy in front, README.md); containers' user $(get_env NFN_UID):$(get_env NFN_GID)"
     if [ "$MAIL" -eq 1 ]; then
         echo "  mail: your Haraka on this host (README.md, Inbound mail): database 127.0.0.1:$(get_env MONGO_HOST_PORT), daemon 127.0.0.1:$(get_env DAEMON_HOST_PORT), bounces $(get_env DATA_DIR)/bounces"
@@ -440,6 +497,21 @@ case "$command" in
         need_docker
         need_env
         docker compose exec app app/v check::run
+        ;;
+    demo)
+        need_docker
+        need_env
+        # Mailpit catches the demo's emails: kept for it to show
+        keep=()
+        ! in_list mailpit "$(get_env COMPOSE_PROFILES)" || keep=(--keep-emails)
+        docker compose exec app app/v demo::create "${DEMO_ARGS[@]}" "${keep[@]}"
+        ! in_list mailpit "$(get_env COMPOSE_PROFILES)" || echo "the demo's emails: http://127.0.0.1:$(get_env MAILPIT_PORT)/ (Mailpit)"
+        ;;
+    demo-delete)
+        [[ " ${DEMO_ARGS[*]:-} " == *" --account="* ]] || { echo "usage: $0 demo-delete --account=<id> (the id demo printed)"; exit 1; }
+        need_docker
+        need_env
+        docker compose exec app app/v demo::delete "${DEMO_ARGS[@]}"
         ;;
     uninstall)
         need_docker

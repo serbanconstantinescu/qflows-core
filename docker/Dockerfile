@@ -13,6 +13,8 @@ ARG QFLOWS_REPO=https://github.com/serbanconstantinescu/qflows-core.git
 ARG QFLOWS_BRANCH=main
 # docker.sh sets it to the branch's head: a new commit rebuilds from the clone on (the layers above stay cached)
 ARG QFLOWS_COMMIT=
+#CLD: 2026-11-17T00:30:00+02:00: plugins kept in their own repositories, cloned into app/plugins/ (docker.sh setup --plugins: "<Name>=<git URL> ..."; turned on by the entrypoint, NFN_PLUGINS)
+ARG QFLOWS_PLUGINS=
 
 ENV BASE=/srv/qflows \
     NFN_RUNTIME=docker \
@@ -45,6 +47,13 @@ RUN git init -q /tmp/src && cd /tmp/src \
  && mkdir -p ${BASE} && mv app public_html scripts ${BASE}/ \
  && find ${BASE} -name .git -prune -exec rm -rf {} + \
  && cd / && rm -rf /tmp/src
+
+# the plugins (public repositories), without git's folders; rebuilt with each new commit too (the ARGs above)
+RUN for p in ${QFLOWS_PLUGINS}; do \
+      name="${p%%=*}"; url="${p#*=}"; \
+      case "$name" in *[!A-Za-z0-9]*|"") echo "QFLOWS_PLUGINS: \`$p\` is not <Name>=<git URL>"; exit 1 ;; esac; \
+      git clone -q --depth 1 "$url" "${BASE}/app/plugins/${name}" && rm -rf "${BASE}/app/plugins/${name}/.git" && echo "plugin ${name}: ${url}" || exit 1; \
+    done
 
 # php.ini: qflows's (scripts/system/php.ini) with the image's time zone and the app's tmp/; the pool: docker/fpm-pool.conf (TCP :9000, the user nfn)
 RUN cp ${BASE}/scripts/system/php.ini ${PHP_ETC}/php.ini

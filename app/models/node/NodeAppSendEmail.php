@@ -6,6 +6,8 @@
 	The step fills the {{ }} with the run's variables and renders the email
 	    (util\EmailHtml: responsive, inline styles, Outlook-safe, a text version, the images embedded),
 	    then queues it: the daemon sends it (util\EmailSend::deliver); the run goes on.
+	CLD: 2026-11-16T23:30:00+02:00: Attachments: project files (ids, a list, {{ file }} of Download File / Spreadsheet file), checked here (the project's, MAX_ATTACHMENTS in all);
+	    the job keeps their ids, deliver() reads them (a file deleted before is left out)
 
     From: the app's address (config mail.from), the step's sender name and Reply-To
 */
@@ -22,6 +24,8 @@ class NodeAppSendEmail extends \models\wf\WfNode {
     public static $outputs = 1;
 
     const MAX_RECIPIENTS = 50;
+    //the attachments of an email, in all (as the email services' steps: NodeAppEmailService)
+    const MAX_ATTACHMENTS = NodeAppEmailService::MAX_ATTACHMENTS;
 
     public static function configSchema() {
 	return [
@@ -68,6 +72,13 @@ class NodeAppSendEmail extends \models\wf\WfNode {
 		'ui' => [ 'expression' => true, 'width' => 6 ],
 	    ],
 	    \models\EmailBlocks::schema(),
+	    [
+		'key' => 'attachments',
+		'type' => 'text',
+		'label' => 'Attachments',
+		'help' => 'Project files: an id, ids separated by commas, or a list ({{ file.id }}, {{ files }}); at most ' . (self::MAX_ATTACHMENTS >> 20) . ' MB in all',
+		'ui' => [ 'expression' => true ],
+	    ],
 	];
     }
 
@@ -97,6 +108,25 @@ class NodeAppSendEmail extends \models\wf\WfNode {
 	return $list;
     }
 
+    //the files to attach: [ id => name ], the project's own, MAX_ATTACHMENTS in all
+    private function attachments(array $vars) {
+	$raw = trim((string)$this->cfg('attachments', ''));
+	if ($raw === '')
+	    return [];
+	$out = [];
+	$total = 0;
+	foreach(\models\File::idsOf(\util\Expression::render($raw, $vars)) as $id) {
+	    $file = \util\Validator::rule('oid', $id) ? \V::app()->om->findOne('File', [ '_id' => $id, 'metadata.aid' => $this->exec->aid, 'metadata.project' => $this->exec->project ]) : null;
+	    if (empty($file))
+		throw new \ErrorException('Send email: Attachments: no project file `' . mb_substr($id, 0, 60) . '`');
+	    $total += (int)$file->length;
+	    if ($total > self::MAX_ATTACHMENTS)
+		throw new \ErrorException('Send email: Attachments: larger than ' . (self::MAX_ATTACHMENTS >> 20) . ' MB in all');
+	    $out[(string)$file->_id] = (string)$file->filename;
+	}
+	return $out;
+    }
+
     public function execute($edgeId = null) {
 	$vars = $this->exec->expressionVariables();
 	$to = $this->addresses('to', $vars);
@@ -111,14 +141,16 @@ class NodeAppSendEmail extends \models\wf\WfNode {
 	    throw new \ErrorException("Send email: `{$replyTo}` (Reply to) is not an e-mail address");
 	$subject = mb_substr(\util\EmailHtml::fillText($this->cfg('subject', ''), $vars), 0, 300);
 
+	$attachments = $this->attachments($vars);
 	$r = \util\EmailHtml::render(is_array($this->cfg('email')) ? $this->cfg('email') : [], $vars, $subject);
 	$job = \models\Job::submit('\util\EmailSend::deliver', [
 	    'aid' => (string)$this->exec->aid,
 	    'from_name' => mb_substr(\util\EmailHtml::fillText($this->cfg('fromName', ''), $vars), 0, 100),
 	    'to' => $to, 'cc' => $cc, 'bcc' => $bcc, 'reply_to' => $replyTo,
-	    'subject' => $subject, 'html' => $r['html'], 'text' => $r['text'], 'images' => $r['images'],
+	    'subject' => $subject, 'html' => $r['html'], 'text' => $r['text'], 'images' => $r['images'], 'attachments' => array_keys($attachments),
 	], [ 'aid' => $this->exec->aid, 'project' => $this->exec->project, 'delete_on_done' => true ]);
-	$this->exec->log($this->wfid, 'email "' . mb_substr($subject, 0, 80) . '" queued for ' . implode(', ', array_slice($to, 0, 5)) . (count($to) > 5 ? ', ...' : '') . " (job {$job})");
+	$this->exec->log($this->wfid, 'email "' . mb_substr($subject, 0, 80) . '" queued for ' . implode(', ', array_slice($to, 0, 5)) . (count($to) > 5 ? ', ...' : '')
+	    . ($attachments ? ', attached ' . implode(', ', array_slice($attachments, 0, 5)) . (count($attachments) > 5 ? ', ...' : '') : '') . " (job {$job})");
 	return [ 0 ];
     }
 }

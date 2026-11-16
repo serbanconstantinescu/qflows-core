@@ -2,14 +2,17 @@
 
 namespace util;
 
-//writes a table as an Excel (.xlsx) file, one sheet (the data table export, DatatableController::export; the reverse of util\TableImport):
+//writes a table as an Excel (.xlsx) file, one sheet (the data table export, DatatableController::export; the reverse of util\TableImport), or as a CSV file:
 //
-//    $x = new \util\TableExport('customers', [ [ 'label' => 'Name' ], [ 'label' => 'Born', 'format' => 'date' ] ]);
+//    $x = new \util\TableExport('customers', [ [ 'label' => 'Name' ], [ 'label' => 'Born', 'format' => 'date' ] ]);   //, 'csv' for a CSV file
 //    $x->addRow([ 'Ann', new \DateTimeImmutable('2001-02-03') ]);
 //    $path = $x->finish();    //a temporary file, for the caller to send and remove
 //
 //Cells by PHP type: bool, int / float, \DateTimeInterface (the column's `format`: date | datetime, as shown in Excel by the user's locale), everything else text; null is an empty cell.
 //The header row is frozen, with the filter buttons. Text cells are inline strings, never formulas: a value that starts with = stays text.
+//CLD: 2026-11-17T01:00:00+02:00: CSV (format `csv`; the Spreadsheet file step): UTF-8, comma-separated, a header line; the same cells as text: true / false, numbers as JSON writes them,
+//dates as YYYY-MM-DD or YYYY-MM-DD HH:MM:SS (the column's format; their own time zone), lists / objects as JSON; text that a spreadsheet would read as a formula (= + - @, not a
+//number) starts with ' (CSV injection). No sheet name, widths or styles.
 //The rows go to a temporary file as they come, so the size of the table does not matter for memory.
 class TableExport {
 
@@ -30,14 +33,20 @@ class TableExport {
 
     const MAX_WIDTH = 60;
 
+    const FORMATS = [ 'xlsx', 'csv' ];
+
     private string $sheet;
     private array $columns;
     private array $widths = [];
     private string $dataPath;
     private $data;
     private int $nRows = 0;
+    private string $format;
 
-    public function __construct($sheet, array $columns) {
+    public function __construct($sheet, array $columns, $format = 'xlsx') {
+	if (!in_array($format, self::FORMATS, true))
+	    throw new \InvalidArgumentException("TableExport: format `{$format}` is not xlsx or csv");
+	$this->format = $format;
 	$this->sheet = self::sheetName($sheet);
 	$this->columns = array_values($columns);
 	$this->dataPath = tempnam(sys_get_temp_dir(), 'nfx');
@@ -62,6 +71,12 @@ class TableExport {
     //the path of the finished file (a temporary one: the caller removes it)
     public function finish() {
 	fclose($this->data);
+	//CSV: the rows' file is the file
+	if ($this->format === 'csv') {
+	    $path = $this->dataPath;
+	    $this->dataPath = '';
+	    return $path;
+	}
 
 	$sheetPath = tempnam(sys_get_temp_dir(), 'nfx');
 	$out = fopen($sheetPath, 'wb');
@@ -112,6 +127,11 @@ class TableExport {
     const XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' . "\n";
 
     private function writeRow(array $cells, $style = 0) {
+	if ($this->format === 'csv') {
+	    $this->nRows++;
+	    fputcsv($this->data, array_map(fn($i, $v) => $this->csvCell($i, $v), array_keys($cells), $cells), ',', '"', '');
+	    return;
+	}
 	$this->nRows++;
 	$r = $this->nRows;
 	$xml = '<row r="' . $r . '">';
@@ -153,6 +173,20 @@ class TableExport {
 	foreach(explode("\n", $t) as $line)
 	    $this->fit($i, mb_strlen($line));
 	return '<c r="' . $ref . '"' . $s . ' t="inlineStr"><is><t xml:space="preserve">' . self::escape($t) . '</t></is></c>';
+    }
+
+    //a CSV cell: the text of $v (as cell() writes it); a formula's start escaped
+    private function csvCell($i, $v) {
+	if ($v === null)
+	    return '';
+	if (is_bool($v))
+	    return $v ? 'true' : 'false';
+	if ((is_int($v) && abs($v) < 1e15) || (is_float($v) && is_finite($v)))
+	    return json_encode($v);
+	if ($v instanceof \DateTimeInterface)
+	    return $v->format(($this->columns[$i]['format'] ?? '') === 'date' ? 'Y-m-d' : 'Y-m-d H:i:s');
+	$t = self::text(is_scalar($v) ? (string)$v : \util\JSON::encode($v));
+	return $t !== '' && strpbrk($t[0], "=+-@\t\r") !== false && !is_numeric($t) ? "'" . $t : $t;
     }
 
     //the column's width: its longest value so far
@@ -233,7 +267,7 @@ class TableExport {
     public function __destruct() {
 	if (is_resource($this->data))
 	    fclose($this->data);
-	if (is_file($this->dataPath))
+	if ($this->dataPath !== '' && is_file($this->dataPath))
 	    @unlink($this->dataPath);
     }
 }

@@ -6,7 +6,8 @@
 	Workflows needed are created in a project, run, and deleted with their executions (through ObjectManager)
 
     ../v check::run                        all suites except the slow one
-    ../v check::run --only=loop,if         some suites: j, expr, types, if, switch, loop, mcp, vars, code, forms, email, urls, steps (slow: big loops and endless cycles, ~1 min)
+    ../v check::run --only=loop,if         some suites: j, expr, types, if, switch, loop, mcp, vars, code, forms, email, urls, steps (slow: big loops and endless cycles, ~1 min),
+					   demo (CLD: 2026-11-17T00:30:00+02:00: only when named: demo::create's account made, counted and deleted; calls ANAF, BNR, VIES, TED and 4 hosts)
     ../v check::run --project=<id>         where the workflows are created (default: the first project of the first account)
     ../v check::run --verbose              also the passed checks
 */
@@ -14,9 +15,9 @@
 namespace commands;
 
 class CheckCommand extends \sys\BaseController {
-    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move' ];
-    //not run unless named in --only
-    const SLOW = [ 'steps' ];
+    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'demo' ];
+    //not run unless named in --only (demo: an account made and deleted, public services called)
+    const SLOW = [ 'steps', 'demo' ];
 
     private $passed = 0;
     private $failed = 0;
@@ -9834,6 +9835,161 @@ class CheckCommand extends \sys\BaseController {
     }
 
     //a data table and a credential moved to another project (models\share\MovableTrait): what goes with them, what the old project loses
+    //CLD: 2026-11-17T00:30:00+02:00: the Spreadsheet file step (rows to .xlsx / .csv in the project's Files) and Send email's attachments (the job keeps the file ids, deliver() reads them)
+    private function suiteSpreadsheet() {
+	$n = [ self::class, 'node' ];
+	$e = [ self::class, 'edge' ];
+	$rows = [ [ 'name' => 'Ann', 'amount' => 12.5, 'when' => '2026-11-16T08:00:00+02:00', 'note' => '=1+1' ], [ 'name' => 'Bob', 'amount' => 3, 'extra' => true ] ];
+	$exe = $this->runFlow('spreadsheet', [ $n('m', 'trigger::manual'),
+	    $n('x', 'app::spreadsheet', [ 'rows' => '{{ rows }}', 'format' => 'xlsx', 'filename' => 'check-{{ rows.length }}', 'sheet' => 'Rows', 'variable' => 'file', 'onError' => 'fail' ]),
+	    $n('c', 'app::spreadsheet', [ 'rows' => '{{ rows }}', 'format' => 'csv', 'filename' => 'check.csv', 'variable' => 'csv', 'onError' => 'fail',
+		'columns' => [ [ 'key' => 'name', 'label' => 'Name' ], [ 'key' => 'note', 'label' => 'Note' ] ] ]),
+	    $n('bad', 'app::spreadsheet', [ 'rows' => '{{ rows[0] }}', 'format' => 'csv', 'variable' => 'none', 'onError' => 'output' ]),
+	    $n('s', 'app::send-email', [ 'to' => 'check@example.com', 'subject' => 'Spreadsheet', 'attachments' => '{{ [ file, csv ] }}',
+		'email' => [ 'preheader' => '', 'blocks' => [ [ 'type' => 'html', 'html' => '<p>Attached</p>' ] ] ] ]),
+	    $e('e1', 'm', 'x'), $e('e2', 'x', 'c'), $e('e3', 'c', 'bad'), $e('e4', 'bad', 's', 1) ], [ 'rows' => $rows ]);
+	$file = $exe?->getVariable('file');
+	$csv = $exe?->getVariable('csv');
+	$this->check('spreadsheet: the run ends (the error output of a non-list goes on)', [ 'end', null ], [ $exe?->state, $exe?->getVariable('none') ]);
+	$this->check('spreadsheet: the xlsx file', [ 'check-2.xlsx', 2, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ], [ $file['filename'] ?? null, $file['rows'] ?? null, $file['contentType'] ?? null ]);
+	$f = !empty($file['id']) ? \V::app()->om->findOne('File', [ '_id' => $file['id'], 'aid' => $this->account->_id ]) : null;
+	$sheet = '';
+	if ($f) {
+	    $tmp = tempnam(sys_get_temp_dir(), 'nfc');
+	    file_put_contents($tmp, $f->getContents());
+	    $z = new \ZipArchive();
+	    if ($z->open($tmp) === true) {
+		$sheet = (string)$z->getFromName('xl/worksheets/sheet1.xml') . (string)$z->getFromName('xl/workbook.xml');
+		$z->close();
+	    }
+	    unlink($tmp);
+	}
+	$this->check('spreadsheet: xlsx: the sheet name, the headers of all the rows\' fields, a date cell, no formula',
+	    [ true, true, true, false ], [ str_contains($sheet, 'name="Rows"'), str_contains($sheet, '>extra<'), (bool)preg_match('/ s="3"><v>4\d{4}\./', $sheet), str_contains($sheet, '<f>') ]);
+	$fc = !empty($csv['id']) ? \V::app()->om->findOne('File', [ '_id' => $csv['id'], 'aid' => $this->account->_id ]) : null;
+	$this->check('spreadsheet: csv: the columns chosen, a formula as text', "Name,Note\nAnn,'=1+1\nBob,\n", $fc ? (string)$fc->getContents() : null);
+	$job = \V::app()->om->findOne('Job', [ 'job_spec' => '\util\EmailSend::deliver', 'job_data.subject' => 'Spreadsheet' ], [ 'sort' => [ '_id' => -1 ] ]);
+	$data = $job ? json_decode(\util\JSON::encode($job->job_data), true) : [];
+	$this->check('send email: the job keeps the attachments\' ids', [ (string)($file['id'] ?? ''), (string)($csv['id'] ?? '') ], array_map('strval', (array)($data['attachments'] ?? [])));
+	if ($job)
+	    $job->delete();
+	//an attachment of another project's (or an unknown id) is refused
+	$exe = $this->runFlow('spreadsheet attach unknown', [ $n('m', 'trigger::manual'), $n('s', 'app::send-email', [ 'to' => 'check@example.com', 'subject' => 'x', 'attachments' => '0123456789abcdef01234567',
+	    'email' => [ 'preheader' => '', 'blocks' => [ [ 'type' => 'html', 'html' => '<p>x</p>' ] ] ] ]), $e('e1', 'm', 's') ]);
+	$this->check('send email: an unknown attachment fails the step', [ 'error', true ], [ $exe?->state, str_contains((string)$exe?->error, 'no project file') ]);
+	//the MIME message: multipart/mixed with the file
+	[ $headers, $body ] = \util\EmailSend::compose([ 'from' => 'a@example.com', 'to' => [ 'b@example.com' ], 'subject' => 's', 'html' => '<p>x</p>', 'text' => 'x',
+	    'attachments' => [ [ 'name' => 'check.csv', 'type' => 'text/csv', 'content' => "a,b\n" ] ] ]);
+	$this->check('send email: the attachment in the message', [ true, true ], [ str_contains($headers, 'multipart/mixed'), str_contains($body, 'filename="check.csv"') ]);
+	foreach([ $f, $fc ] as $x) {
+	    if ($x)
+		$x->delete();
+	}
+    }
+
+    //CLD: 2026-11-17T00:30:00+02:00: demo::create (DemoCommand::build, its users chk-demo.*) counted, then demo::delete leaves nothing of the account; the plugins' workflows only when
+    //they are on; the runs of the public services (ANAF, BNR, VIES, TED, the certificates' hosts) counted only when they answer
+    private function suiteDemo() {
+	$om = \V::app()->om;
+	$db = \V::app()->mongo->selectDatabase(MONGO_DB);
+	$prefix = 'chk-demo.';
+	//an account left by an earlier check that stopped
+	foreach($om->find('User', [ 'username' => "{$prefix}maria" ]) as $old)
+	    \commands\DemoCommand::remove((string)$old->aid);
+	$reach = function($host) {
+	    $s = @stream_socket_client("ssl://{$host}:443", $no, $msg, 5, STREAM_CLIENT_CONNECT, stream_context_create([ 'ssl' => [ 'verify_peer' => false, 'verify_peer_name' => false ] ]));
+	    if ($s)
+		fclose($s);
+	    return (bool)$s;
+	};
+	$net = [ 'anaf' => $reach('webservicesp.anaf.ro'), 'bnr' => $reach('www.bnr.ro'), 'vies' => $reach('ec.europa.eu'), 'ted' => $reach('api.ted.europa.eu'), 'certs' => $reach('expired.badssl.com') ];
+	foreach(array_keys(array_filter($net, fn($ok) => !$ok)) as $k)
+	    echo "  skip  {$k}: no answer from the network, its runs not counted\n";
+	$ro = in_array('RegionalRO', (array)\V::app()->config('modules'), true);
+	$eu = in_array('RegionalEU', (array)\V::app()->config('modules'), true);
+	if (!$ro || !$eu)
+	    echo '  skip  ' . implode(', ', array_merge($ro ? [] : [ 'RegionalRO' ], $eu ? [] : [ 'RegionalEU' ])) . " off: its workflows not checked\n";
+
+	$account = $this->account;
+	$crt = \V::app()->user->crtProject;
+	$aid = null;
+	try {
+	    $r = (new \commands\DemoCommand())->build([ 'name' => 'Check demo', 'password' => bin2hex(random_bytes(12)), 'prefix' => $prefix, 'quiet' => true ]);
+	    $aid = $r['account']->_id;
+	    $wf = $r['workflows'];
+	    $count = fn($model, array $q) => $om->count($model, [ 'aid' => $aid ] + $q);
+	    $runs = fn($name, $state = null) => isset($wf[$name]) ? $count('WfExecution', [ 'wf' => $wf[$name]->_id ] + ($state ? [ 'state' => $state ] : [])) : null;
+	    $open = fn($name) => isset($wf[$name]) ? $count('WfTask', [ 'wf' => $wf[$name]->_id, 'state' => 'open' ]) : null;
+	    $rows = fn($table) => isset($r['tables'][$table]) ? $om->count((string)$r['tables'][$table]->iname, [ 'aid' => $aid ]) : null;
+
+	    $projects = [ 'Finance', 'IT Operations' ];
+	    $names = [ 'Expense approval', 'Weekly pending expenses report', 'New hire onboarding', 'Security alert playbook (simulated)', 'Certificate expiry watch' ];
+	    if ($ro && $eu)
+		$names[] = 'Supplier check';
+	    if ($ro) {
+		$projects[] = 'Romania';
+		$names[] = 'Foreign-currency invoice';
+	    }
+	    if ($eu) {
+		$projects[] = 'EU tenders';
+		$names[] = 'EU tender alerts';
+	    }
+	    sort($names);
+	    $got = array_keys($wf);
+	    sort($got);
+	    $this->check('demo: the projects', $projects, array_keys($r['projects']));
+	    $this->check('demo: the workflows', $names, $got);
+	    $this->check('demo: no credential, all published, their versions', [ 0, count($names), count($names) + 2 ],
+		[ $count('Credential', []), $count('Workflow', [ 'status' => \models\Workflow::PUBLISHED, 'version' => [ '$ne' => null ] ]), $count('WfVersion', []) ]);
+	    $this->check('demo: users and the On call role', [ 5, 1 ], [ $count('User', []), $count('Role', [ 'iname' => 'oncall' ]) ]);
+
+	    //the runs without the network: their counts, states and open tasks
+	    $this->check('demo: expense approval: 5 runs, 4 ended, 1 task open', [ 5, 4, 1 ], [ $runs('Expense approval'), $runs('Expense approval', 'end'), $open('Expense approval') ]);
+	    $this->check('demo: weekly report: 2 runs ended, 2 Excel files', [ 2, 2 ],
+		[ $runs('Weekly pending expenses report', 'end'), $om->count('File', [ 'aid' => $aid, 'metadata.source' => 'spreadsheet' ]) ]);
+	    $this->check('demo: onboarding: 3 runs, 1 ended, 4 tasks open', [ 3, 1, 4 ], [ $runs('New hire onboarding'), $runs('New hire onboarding', 'end'), $open('New hire onboarding') ]);
+	    $this->check('demo: security playbook: 4 runs, 3 ended, 1 task open', [ 4, 3, 1 ],
+		[ $runs('Security alert playbook (simulated)'), $runs('Security alert playbook (simulated)', 'end'), $open('Security alert playbook (simulated)') ]);
+	    $this->check('demo: tables: expenses, hires, alerts, blocklist, hosts', [ 15, 3, 2, 1, 4 ], [ $rows('expenses'), $rows('hires'), $rows('alerts'), $rows('blocklist'), $rows('hosts') ]);
+	    $this->check('demo: the hires: one ready, two onboarding', [ 1, 2 ],
+		[ $om->count((string)$r['tables']['hires']->iname, [ 'aid' => $aid, 'status' => 'ready' ]), $om->count((string)$r['tables']['hires']->iname, [ 'aid' => $aid, 'status' => 'onboarding' ]) ]);
+	    $this->check('demo: the users\' actions in the audit log, sealed', [ true, 0 ], [ $count('AuditLog', []) >= 5 + count($names), $count('AuditLog', [ 'mac' => null ]) ]);
+
+	    //the runs of the public services
+	    if ($net['certs'])
+		$this->check('demo: certificates: 2 runs ended / waiting, today\'s task open, the hosts checked', [ 2, 1, 4 ],
+		    [ $runs('Certificate expiry watch'), $open('Certificate expiry watch'), $om->count((string)$r['tables']['hosts']->iname, [ 'aid' => $aid, 'checked_at' => [ '$nin' => [ null, '' ] ] ]) ]);
+	    if ($ro && $eu && $net['anaf'] && $net['vies'])
+		$this->check('demo: supplier check: 3 runs, 1 task open, 9 suppliers', [ 3, 1, 9 ], [ $runs('Supplier check'), $open('Supplier check'), $rows('suppliers') ]);
+	    if ($ro && $net['anaf'] && $net['bnr'])
+		$this->check('demo: invoices: 3 runs, 2 valid with their PDF, 1 task open', [ 3, 2, 2, 1 ],
+		    [ $runs('Foreign-currency invoice'), $rows('invoices'), $om->count('File', [ 'aid' => $aid, 'metadata.source' => 'regional-ro' ]), $open('Foreign-currency invoice') ]);
+	    if ($eu && $net['ted']) {
+		$n = (int)$runs('EU tender alerts');
+		$this->check('demo: tenders: a row per run, two decided', [ true, $n, min(2, $n) ],
+		    [ $n > 0, $rows('tenders'), $om->count((string)$r['tables']['tenders']->iname, [ 'aid' => $aid, 'decision' => [ '$in' => [ 'go', 'no-go' ] ] ]) ]);
+	    }
+	} finally {
+	    \V::app()->var('rt.account', $account);
+	    \V::app()->user->crtProject = $crt;
+	    $tables = $aid ? array_map(fn($t) => (string)$t->iname, iterator_to_array($om->find('DataTableDef', [ 'aid' => $aid ]), false)) : [];
+	    $removed = $aid ? \commands\DemoCommand::remove((string)$aid) : null;
+	}
+	if (!$aid)
+	    return;
+	$left = [];
+	foreach(iterator_to_array($db->listCollectionNames(), false) as $c) {
+	    if ($db->selectCollection($c)->countDocuments([ '$or' => [ [ 'aid' => $aid ], [ 'metadata.aid' => $aid ] ] ]))
+		$left[] = $c;
+	    foreach($tables as $t) {
+		if ($c === $t || str_starts_with($c, $t . '.'))
+		    $left[] = $c;
+	    }
+	}
+	$this->check('demo: delete: nothing of the account left', [ true, [], 0 ],
+	    [ $removed > 0, $left, $db->selectCollection(\models\Account::_collection())->countDocuments([ '_id' => $aid ]) ]);
+    }
+
     private function suiteMove() {
 	$om = \V::app()->om;
 	$aid = $this->account->_id;
