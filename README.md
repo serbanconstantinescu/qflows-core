@@ -48,17 +48,17 @@ sudo bash install.sh
 It asks first:
 
 - **the server**: the site's domain (its DNS record points to the server), the system user qflows runs as (its home holds the app), the repository and branch to install from
-- **options**: MongoDB on this server (else the connection string of yours), a Let's Encrypt certificate (when the domain points here; else a self-signed one), the web browser for the AI steps, inbound email (and its domain), securing MongoDB (its own users, sign-in required), SELinux permissive (when it is enforcing)
+- **options**: MongoDB on this server (else the connection string of yours), a Let's Encrypt certificate (when the domain points here; else a self-signed one), the Romanian and EU public-registry steps (the plugins RegionalRO and RegionalEU; yes by default), the web browser for the AI steps, inbound email (and its domain), securing MongoDB (its own users, sign-in required), SELinux permissive (when it is enforcing)
 
 Then it shows what it will do, asks to go on, and:
 
 1. installs the packages that are missing: EPEL, Remi's PHP 8.5 with the app's extensions, nginx, MongoDB 8.3, Redis, certbot, Node.js (the newest stream of the distribution; for the web browser and inbound email)
-2. creates the user and its home, and clones the repository there (with its submodules)
+2. creates the user and its home, and clones the repository there (with its submodules); with the option, clones RegionalRO and RegionalEU (their own public repositories) into `app/plugins/` and turns them on in `plugins.json` (one set to `"enabled": false` there stays off); ITOps is part of the repository
 3. writes php.ini, the app's PHP-FPM pool and logrotate (`scripts/system/`), the certificate and the nginx site
 4. sets up the app: it asks the database, the outgoing email and the first account (company or team, its owner); the app checks the answers itself (`app/v sys::validate`) and asks again when one is wrong
 5. installs the options and the background services (the parts below)
 
-The firewall is not changed: open 80 and 443 (and 25 for inbound email). Run it again, e.g. `sudo bash /home/<user>/install.sh`, to add an option later or to update: the app's settings and account are kept, and what is done is left as it is. It first offers to update the app's code from git (`<n> new commits`), when its working tree has no local changes and its branch can fast-forward, then starts again from the new code; the parts below then update what they install.
+The firewall is not changed: open 80 and 443 (and 25 for inbound email). Run it again, e.g. `sudo bash /home/<user>/install.sh`, to add an option later or to update: the app's settings and account are kept, and what is done is left as it is. It first offers to update the app's code from git (`<n> new commits`), when its working tree has no local changes and its branch can fast-forward, then starts again from the new code; it offers the same for each plugin it cloned; the parts below then update what they install.
 
 The setup in the browser (every address of the site while `app.env` is missing) does step 4 instead; run `install.sh` after it for the options and the services.
 

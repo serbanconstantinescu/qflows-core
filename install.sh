@@ -11,6 +11,8 @@
 #  - the background services (daemon.sh install)
 #  - the web browser of the AI steps after the background services:
 #    scripts/playwright-mcp.sh install (its Chromium, its service, its server in mcp.json), which also adds it later;
+#  CLD: 2026-11-17T02:00:00+02:00: the plugins kept in their own repositories (PLUGIN_REPOS: RegionalRO, RegionalEU; asked, on by default) cloned into app/plugins/ with the
+#  app's files and turned on in plugins.json (an entry set to "enabled": false stays off); run again, those behind their origin are updated when asked (as the app's code)
 #
 # Run again: an app already set up keeps its settings and account (only the options are asked);
 #   what is already done is left as it is. Its code is updated from git first, when asked (only a clean working tree on its branch, fast-forward),
@@ -31,6 +33,11 @@
 set -euo pipefail
 
 REPO_DEFAULT="https://github.com/serbanconstantinescu/qflows-core.git"
+#the plugins in their own (public) repositories: <name> <repository>, cloned into app/plugins/<name>
+PLUGIN_REPOS=(
+    "RegionalRO https://github.com/serbanconstantinescu/qflows-regional-ro.git"
+    "RegionalEU https://github.com/serbanconstantinescu/qflows-regional-eu.git"
+)
 BRANCH_DEFAULT="main"
 PHPV="85"
 PHP_ETC="/etc/opt/remi/php$PHPV"
@@ -233,6 +240,69 @@ update_app() {
     exec env NFN_INSTALL_UPDATED=1 NFN_INSTALL_DOMAIN="$DOMAIN" NFN_INSTALL_USER="$APP_USER" bash "$BASE/install.sh"
 }
 
+# the plugins already cloned that are behind their origin (clean, fast-forward): their update asked; the names to update in PLUGINS_UPDATE
+PLUGINS_UPDATE=()
+check_plugins() {
+    local entry name dir branch behind
+    for entry in "${PLUGIN_REPOS[@]}"; do
+        name=${entry%% *}
+        dir="$BASE/app/plugins/$name"
+        [ -d "$dir/.git" ] || continue
+        branch=$(cd "$dir" && runuser -u "$APP_USER" -- git symbolic-ref -q --short HEAD || true)
+        if [ -z "$branch" ] || [ -n "$(cd "$dir" && runuser -u "$APP_USER" -- git status --porcelain --untracked-files=no)" ]; then
+            echo "  The plugin $name has local changes or is not on a branch: not updated"
+            continue
+        fi
+        if ! (cd "$dir" && runuser -u "$APP_USER" -- git fetch -q origin "$branch"); then
+            echo "  The plugin $name: origin/$branch could not be fetched (above): not updated"
+            continue
+        fi
+        behind=$(cd "$dir" && runuser -u "$APP_USER" -- git rev-list --count "HEAD..origin/$branch")
+        [ "$behind" -gt 0 ] || continue
+        if ! (cd "$dir" && runuser -u "$APP_USER" -- git merge-base --is-ancestor HEAD "origin/$branch"); then
+            echo "  The plugin $name has commits that are not on origin/$branch: not updated (git pull in $dir)"
+            continue
+        fi
+        #not `answer`: ask_yes's own local
+        local update_it
+        ask_yes update_it "Update the plugin $name: $behind new commit(s) on $branch" y
+        [ "$update_it" -eq 0 ] || PLUGINS_UPDATE+=("$name")
+    done
+}
+
+# the plugins cloned (missing ones) or updated (PLUGINS_UPDATE), then turned on in plugins.json when it does not name them; PLUGINS_CHANGED=1 when one was
+PLUGINS_CHANGED=0
+install_plugins() {
+    local entry name url dir branch names=()
+    for entry in "${PLUGIN_REPOS[@]}"; do
+        read -r name url <<< "$entry"
+        dir="$BASE/app/plugins/$name"
+        names+=("$name")
+        if [ ! -e "$dir" ]; then
+            if as_user git clone -q "$url" "app/plugins/$name"; then
+                echo "+ the plugin $name ($url) in $dir"
+                PLUGINS_CHANGED=1
+            else
+                echo "! the plugin $name was not cloned (above): run this again once $url can be reached"
+            fi
+        elif [[ " ${PLUGINS_UPDATE[*]:-} " == *" $name "* ]]; then
+            branch=$(cd "$dir" && runuser -u "$APP_USER" -- git symbolic-ref -q --short HEAD)
+            (cd "$dir" && runuser -u "$APP_USER" -- git merge -q --ff-only "origin/$branch") && PLUGINS_CHANGED=1 \
+                && echo "+ the plugin $name at $(cd "$dir" && runuser -u "$APP_USER" -- git log -1 --format='%h %s' | cut -c1-100)"
+        fi
+    done
+    #plugins.json (the app's folder): the plugins there added, the file written whole (a rename), as the app's user
+    as_user /usr/bin/php -r '$f = $argv[1] . "/plugins.json";
+        $j = is_file($f) ? json_decode((string)file_get_contents($f), true) : [];
+        if (!is_array($j)) { fwrite(STDERR, "! $f is not JSON: the plugins were not turned on\n"); exit(0); }
+        $added = [];
+        foreach (array_slice($argv, 2) as $p) {
+            if (!isset($j[$p]) && is_file($argv[1] . "/app/plugins/$p/Plugin.php")) { $j[$p] = [ "enabled" => true ]; $added[] = $p; }
+        }
+        if ($added) { file_put_contents("$f.tmp", json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"); rename("$f.tmp", $f); echo "+ plugins.json: " . implode(", ", $added) . " turned on\n"; }' \
+        "$BASE" "${names[@]}" || echo "! the plugins were not turned on in plugins.json (above)"
+}
+
 # ---------------------------------------------------------------------------------------------------------------
 . /etc/os-release
 if ! command -v dnf >/dev/null 2>&1 || [ "${VERSION_ID%%.*}" != "9" ] || ! [[ " ${ID:-} ${ID_LIKE:-} " == *" rhel "* || " ${ID:-} ${ID_LIKE:-} " == *" centos "* ]]; then
@@ -358,6 +428,10 @@ if [ ! -e "$BASE/ssl/ssl.crt" ] || [ "$(readlink "$BASE/ssl/ssl.crt" 2>/dev/null
     [ "$OPT_LE" -eq 0 ] || ask LE_EMAIL "Email for Let's Encrypt's notices" ""
 fi
 
+# the plugins of their own repositories: on by default; those there already are kept either way (and updated when asked)
+ask_yes OPT_PLUGINS "The Romanian and EU public-registry steps (the plugins RegionalRO and RegionalEU: ANAF, BNR, e-Factura, VIES, ECB, TED)" y
+[ "$OPT_PLUGINS" -eq 0 ] || [ ! -d "$BASE/app" ] || check_plugins
+
 # one question; scripts/playwright-mcp.sh install updates it when it is there
 ask_yes OPT_BROWSER "The web browser for the AI steps (Playwright MCP and its Chromium, about 500 MB)" y
 
@@ -458,6 +532,12 @@ done
 [ "$OPT_SELINUX" -eq 1 ] && echo "  - set SELinux to permissive"
 id "$APP_USER" >/dev/null 2>&1 || echo "  - create the user $APP_USER (home $BASE)"
 [ "$CLONE" -eq 1 ] && echo "  - clone $REPO ($BRANCH) into $BASE"
+if [ "$OPT_PLUGINS" -eq 1 ]; then
+    missing_plugins=()
+    for entry in "${PLUGIN_REPOS[@]}"; do [ -e "$BASE/app/plugins/${entry%% *}" ] || missing_plugins+=("${entry%% *}"); done
+    [ "${#missing_plugins[@]}" -eq 0 ] || echo "  - clone the plugins $(IFS=,; echo "${missing_plugins[*]}" | sed 's/,/, /g') into $BASE/app/plugins"
+    [ "${#PLUGINS_UPDATE[@]}" -eq 0 ] || echo "  - update the plugins $(IFS=,; echo "${PLUGINS_UPDATE[*]}" | sed 's/,/, /g')"
+fi
 echo "  - set up PHP-FPM, nginx and the certificate for $DOMAIN$([ "$OPT_LE" -eq 1 ] && echo " (Let's Encrypt)")"
 [ "$SET_UP" -eq 0 ] && echo "  - set up the app (it asks the database, the outgoing email and the first account)$([ "$RESETUP" -eq 1 ] && echo "; app.env kept as app.env.bak-<time>")"
 [ "$MONGO_REAUTH" -eq 1 ] && echo "  - turn MongoDB's sign-in off until its users are made again"
@@ -612,6 +692,7 @@ fi
 for d in logs tmp run var var/php/session var/php/wsdlcache var/php/opcache etc ssl; do
     [ -d "$BASE/$d" ] || install -d -o "$APP_USER" -g "$APP_USER" -m 750 "$BASE/$d"
 done
+[ "$OPT_PLUGINS" -eq 0 ] || install_plugins
 
 step "PHP-FPM"
 #php.ini: qflows's (the package's kept as php.ini.installer_save), with the server's time zone
@@ -780,6 +861,8 @@ step "The background services"
 # the daemon's unit (nfn-daemon-<user>) and the polkit rule: scripts/daemon.sh install; Haraka's unit is
 #setup_haraka.sh's (above), the web browser's playwright-mcp.sh's (below)
 "$SCRIPTS/daemon.sh" install
+#a plugin added or updated: the daemon running before loads it
+[ "$PLUGINS_CHANGED" -eq 0 ] || [ "$MONGO_CHANGED" -eq 1 ] || systemctl try-restart "nfn-daemon-$APP_USER.service" || true
 #the services running before reconnect with the new MongoDB users
 [ "$MONGO_CHANGED" -eq 0 ] || systemctl try-restart "nfn-daemon-$APP_USER.service" $([ "$OPT_MAIL" -eq 1 ] && echo nfn-haraka.service) || true
 
