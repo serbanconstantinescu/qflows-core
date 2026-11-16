@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
  && rm -rf /var/lib/apt/lists/* \
  && useradd -m -d /home/pwmcp -s /usr/sbin/nologin pwmcp
 
-COPY docker/playwright/entrypoint.sh /usr/local/bin/playwright-entrypoint
+COPY playwright/entrypoint.sh /usr/local/bin/playwright-entrypoint
 RUN chmod 755 /usr/local/bin/playwright-entrypoint
 
 EXPOSE 8931

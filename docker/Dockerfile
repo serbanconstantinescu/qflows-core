@@ -1,5 +1,7 @@
 # qflows's image: the app's code, PHP 8.5 (Remi, the packages of install.sh), PHP-FPM and the console; compose.yaml runs it as `app` (PHP-FPM on :9000)
-# and as `daemon` (app/v daemon::run). Built locally: docker compose build (the build context is the repository's folder, Dockerfile.dockerignore keeps only the app's files)
+# and as `daemon` (app/v daemon::run). Built locally: docker compose build (docker.sh build).
+#CLD: 2026-11-16T22:30:00+02:00: the app's code cloned from GitHub (QFLOWS_REPO at QFLOWS_COMMIT, else QFLOWS_BRANCH's head, with the submodules), not copied from the host:
+# the host needs only docker/ (docker.sh downloads it); the build context is docker/ (Dockerfile.dockerignore: the entrypoint and the pool only, never .env)
 FROM almalinux:9
 
 ARG PHPV=85
@@ -7,6 +9,10 @@ ARG PHPV=85
 ARG NFN_UID=1000
 ARG NFN_GID=1000
 ARG TZ=UTC
+ARG QFLOWS_REPO=https://github.com/serbanconstantinescu/qflows-core.git
+ARG QFLOWS_BRANCH=main
+# docker.sh sets it to the branch's head: a new commit rebuilds from the clone on (the layers above stay cached)
+ARG QFLOWS_COMMIT=
 
 ENV BASE=/srv/qflows \
     NFN_RUNTIME=docker \
@@ -30,18 +36,25 @@ RUN dnf -y install epel-release dnf-plugins-core \
 
 RUN groupadd -g ${NFN_GID} nfn && useradd -u ${NFN_UID} -g nfn -d ${BASE} -M -s /sbin/nologin nfn
 
+# the code, root's (the app cannot change it): app, public_html and scripts of the clone, without git's folders
+RUN git init -q /tmp/src && cd /tmp/src \
+ && git remote add origin "${QFLOWS_REPO}" \
+ && git fetch -q --depth 1 origin "${QFLOWS_COMMIT:-${QFLOWS_BRANCH}}" && git checkout -q FETCH_HEAD \
+ && git submodule -q update --init --depth 1 \
+ && echo "qflows: $(git rev-parse HEAD)" \
+ && mkdir -p ${BASE} && mv app public_html scripts ${BASE}/ \
+ && find ${BASE} -name .git -prune -exec rm -rf {} + \
+ && cd / && rm -rf /tmp/src
+
 # php.ini: qflows's (scripts/system/php.ini) with the image's time zone and the app's tmp/; the pool: docker/fpm-pool.conf (TCP :9000, the user nfn)
-COPY scripts/system/php.ini ${PHP_ETC}/php.ini
-COPY docker/fpm-pool.conf ${PHP_ETC}/php-fpm.d/nfn.conf
+RUN cp ${BASE}/scripts/system/php.ini ${PHP_ETC}/php.ini
+COPY fpm-pool.conf ${PHP_ETC}/php-fpm.d/nfn.conf
 RUN sed -i -e "s|^date.timezone = .*|date.timezone = ${TZ}|" -e "s|^upload_tmp_dir = .*|upload_tmp_dir = ${BASE}/tmp|" -e "s|^session.save_path = .*|session.save_path = ${BASE}/var/php/session|" ${PHP_ETC}/php.ini \
  && rm -f ${PHP_ETC}/php-fpm.d/www.conf \
  && sed -i -e "s|^pid = .*|pid = ${BASE}/run/php-fpm.pid|" -e 's|^error_log = .*|error_log = /proc/self/fd/2|' -e 's|^daemonize = .*|daemonize = no|' ${PHP_ETC}/php-fpm.conf
 
-# the code, root's (the app cannot change it; app/pkgs: the submodules as they are in the working tree), then the folders the app writes, nfn's (volumes in compose.yaml)
-COPY app ${BASE}/app
-COPY public_html ${BASE}/public_html
-COPY scripts ${BASE}/scripts
-COPY docker/entrypoint.sh /usr/local/bin/nfn-entrypoint
+# the folders the app writes, nfn's (volumes in compose.yaml)
+COPY entrypoint.sh /usr/local/bin/nfn-entrypoint
 RUN mkdir -p ${BASE}/config ${BASE}/logs ${BASE}/tmp ${BASE}/run ${BASE}/bounces ${BASE}/var/php/session ${BASE}/var/php/wsdlcache ${BASE}/var/php/opcache \
  && chown -R nfn:nfn ${BASE}/config ${BASE}/logs ${BASE}/tmp ${BASE}/run ${BASE}/bounces ${BASE}/var \
  && chmod 755 /usr/local/bin/nfn-entrypoint

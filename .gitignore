@@ -9,6 +9,7 @@
 !/scripts/
 !/app.env.example
 !/install.sh
+!/docker.sh
 !/README.md
 !/LICENSE
 # Docker Compose: all its files in docker/

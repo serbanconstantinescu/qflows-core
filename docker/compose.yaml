@@ -1,10 +1,12 @@
-# qflows with Docker Compose (next to install.sh, the servers' way). From docker/: settings in .env (docker.sh setup, or copy env.example); then
-#   docker compose build && docker compose up -d       and open the site (/setup, unless NFN_SETUP_JSON set it up)
-# The site on HTTP_BIND:HTTP_PORT (127.0.0.1:8080): HTTPS by the operator's reverse proxy in front (README.md: nginx, Caddy); no mail server here:
-# the operator's Haraka on the host (compose.mail.yaml publishes the database and the daemon for it; README.md: Inbound mail).
-# Profile (COMPOSE_PROFILES in .env; on in env.example and docker.sh setup): browser (the AI steps' web browser).
-# Upgrade: git pull && docker compose build && docker compose up -d (the app adds the new indexes at its start).
-# Development (the working tree mounted, mailpit, a database of its own): docker compose -f compose.yaml -f compose.dev.yaml up -d
+# qflows with Docker Compose (next to install.sh, the servers' way): docker.sh install (the repository's root, or downloaded alone: it fetches docker/), or
+# from docker/: settings in .env (docker.sh setup, or copy env.example); then docker compose build && docker compose up -d, and open the site (/setup, unless NFN_SETUP_JSON set it up)
+#CLD: 2026-11-16T22:30:00+02:00: the images built from docker/ (the app's code cloned from GitHub, QFLOWS_* in .env); the outgoing mail to mailpit by default (profile mailpit)
+# The site on HTTP_BIND:HTTP_PORT (127.0.0.1:8080): HTTPS by the operator's reverse proxy in front (README.md: nginx, Caddy); the outgoing mail caught by mailpit,
+# or the operator's Haraka on the host (compose.mail.yaml publishes the database and the daemon for it; README.md: Inbound mail).
+# Profiles (COMPOSE_PROFILES in .env; on in env.example and docker.sh setup): browser (the AI steps' web browser), mailpit (catches the outgoing mail: http://127.0.0.1:8025;
+# off with the host's Haraka).
+# Upgrade: docker.sh update (docker/ downloaded again, the branch's new head built).
+# Development (the working tree mounted over the image's code, a database of its own): docker compose -f compose.yaml -f compose.dev.yaml up -d
 # The host's Haraka (inbound mail, the app's outgoing mail DKIM-signed): -f compose.mail.yaml
 
 name: ${COMPOSE_PROJECT_NAME:-qflows}
@@ -14,9 +16,12 @@ name: ${COMPOSE_PROJECT_NAME:-qflows}
 x-app: &app
   image: ${COMPOSE_PROJECT_NAME:-qflows}-app:local
   build:
-    context: ..
-    dockerfile: docker/Dockerfile
+    context: .
+    dockerfile: Dockerfile
     args:
+      QFLOWS_REPO: ${QFLOWS_REPO:-https://github.com/serbanconstantinescu/qflows-core.git}
+      QFLOWS_BRANCH: ${QFLOWS_BRANCH:-main}
+      QFLOWS_COMMIT: ${QFLOWS_COMMIT:-}
       NFN_UID: ${NFN_UID:-1000}
       NFN_GID: ${NFN_GID:-1000}
       TZ: ${TZ:-UTC}
@@ -100,8 +105,11 @@ services:
   web:
     image: ${COMPOSE_PROJECT_NAME:-qflows}-web:local
     build:
-      context: ..
-      dockerfile: docker/nginx/Dockerfile
+      context: .
+      dockerfile: nginx/Dockerfile
+      # public_html from the app's image
+      additional_contexts:
+        app: service:app
     restart: unless-stopped
     environment:
       NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-_}
@@ -115,8 +123,8 @@ services:
     profiles: [ browser ]
     image: ${COMPOSE_PROJECT_NAME:-qflows}-playwright:local
     build:
-      context: ..
-      dockerfile: docker/playwright/Dockerfile
+      context: .
+      dockerfile: playwright/Dockerfile
     restart: unless-stopped
     environment:
       PLAYWRIGHT_MCP_PORT: 8931
@@ -126,8 +134,22 @@ services:
     shm_size: 1gb
     networks: [ browser ]
 
+  # the outgoing mail caught (the setup's SMTP server: mailpit, port 1025), read at http://127.0.0.1:MAILPIT_PORT; kept in DATA_DIR/mailpit
+  mailpit:
+    profiles: [ mailpit ]
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    environment:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: ${MAILPIT_MAX_MESSAGES:-5000}
+    volumes:
+      - ${DATA_DIR:?DATA_DIR is not set (.env)}/mailpit:/data
+    ports:
+      - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"
+    networks: [ backend ]
+
 networks:
-  # the database, the app, the daemon, nginx
+  # the database, the app, the daemon, nginx, mailpit
   backend:
   # the app and the daemon reach the browser; the browser's own firewall refuses every private address (the containers too)
   browser:

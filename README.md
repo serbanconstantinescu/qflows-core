@@ -97,23 +97,26 @@ It shows the changes first (`--dry-run`: only that), keeps the old file as `<use
 
 ### With Docker Compose
 
-On any Linux host with Docker Engine and its Compose plugin (2.24 or later); the images are built locally from the repository:
+On any Linux host with Docker Engine and its Compose plugin (2.24 or later). `docker.sh` (next to `install.sh`) is all you download: it fetches `docker/` from GitHub, and the app image clones the code itself, so no clone of the repository is needed:
 
 ```bash
-git clone --recurse-submodules https://github.com/serbanconstantinescu/qflows-core.git && cd qflows-core
-docker/docker.sh install                          # asks (browser, host's Haraka, ports, ...), docker/.env, build, start
+mkdir qflows && cd qflows
+curl -fsSLO https://raw.githubusercontent.com/serbanconstantinescu/qflows-core/main/docker.sh
+bash docker.sh install                             # docker/ downloaded, asks (browser, host's Haraka, ports, ...), docker/.env, build, start
 ```
 
-As n8n's: compose runs the app, its database and the browser; **HTTPS and mail are the operator's**. The site is published on `127.0.0.1:8080` for your reverse proxy, and inbound mail is your Haraka on the host (below). Then open the site (through the proxy): `/setup`.
+As n8n's: compose runs the app, its database, the browser and mailpit, which catches the outgoing mail (`http://127.0.0.1:8025`); **HTTPS is the operator's**, and so is real mail. The site is published on `127.0.0.1:8080` for your reverse proxy; inbound mail and real outgoing mail are your Haraka on the host (below, `--mail`). Then open the site (through the proxy): `/setup`.
 
-Or step by step: `docker/docker.sh setup [--[no-]dev] [--[no-]browser] [--[no-]mail]` asks what the options do not say and writes `docker/.env` (an existing one gives the defaults and keeps its passwords; the compose files go in `COMPOSE_FILE`, so plain `docker compose` in `docker/` uses the same ones), then `build`, `start`; also `stop`, `restart`, `status`, `logs`, `check`, `uninstall` (data kept), `purge` (all data). By hand: `cd docker && cp env.example .env`, fill it in, make `DATA_DIR`'s folders, `docker compose build && docker compose up -d`.
+In a clone of the repository `docker.sh` uses its `docker/` (never downloaded). The image clones `QFLOWS_REPO` at `QFLOWS_COMMIT`: the head of `QFLOWS_BRANCH` (`main`) when installed or updated.
 
-- Containers: `mongo` (8.3, sign-in required; its users from `scripts/mongo_users.js`), `app` (PHP-FPM, AlmaLinux 9 + Remi, the installer's packages), `daemon`, `web` (nginx: the static files and PHP, plain HTTP on `HTTP_BIND:HTTP_PORT`, `127.0.0.1:8080`); profile `browser` (`playwright`: the AI steps' web browser, with its own firewall table), on by default
-- The data is in folders of `DATA_DIR` (setup: `docker-volumes` in the user's home, made with their owners): `config` (`app.env`, `plugins.json`, `mcp.json`; keep a copy of `app.env`: `APP_SECRET`), `logs`, `var`, `tmp`, `assets`, `bounces`, `mongo-data`
+Or step by step: `docker.sh setup [--[no-]dev] [--[no-]browser] [--[no-]mail]` asks what the options do not say and writes `docker/.env` (an existing one gives the defaults and keeps its passwords; the compose files go in `COMPOSE_FILE`, so plain `docker compose` in `docker/` uses the same ones), then `build`, `start`; also `update` (`docker/` again, `.env` kept; the branch's new head built, the containers recreated), `stop`, `restart`, `status`, `logs`, `check`, `uninstall` (data kept), `purge` (all data). By hand: `cd docker && cp env.example .env`, fill it in, make `DATA_DIR`'s folders, `docker compose build && docker compose up -d`.
+
+- Containers: `mongo` (8.3, sign-in required; its users from `scripts/mongo_users.js`, which `docker.sh` downloads next to `docker/`), `app` (PHP-FPM, AlmaLinux 9 + Remi, the installer's packages, the code cloned at build), `daemon`, `web` (nginx: the static files, from the app image, and PHP, plain HTTP on `HTTP_BIND:HTTP_PORT`, `127.0.0.1:8080`); profiles `browser` (`playwright`: the AI steps' web browser, with its own firewall table) and `mailpit` (the outgoing mail, its page on `127.0.0.1:MAILPIT_PORT`, `8025`; off with `--mail`), on by default
+- The data is in folders of `DATA_DIR` (setup: `docker-volumes` in the user's home, made with their owners): `config` (`app.env`, `plugins.json`, `mcp.json`; keep a copy of `app.env`: `APP_SECRET`), `logs`, `var`, `tmp`, `bounces`, `mongo-data`, `mailpit`
 - The Services page is read-only there: `docker compose restart daemon`; the console: `docker compose exec app app/v <command>`
-- Upgrade: `git pull && git submodule update --init && docker compose build && docker compose up -d` (the app adds the new indexes at its start)
-- Development: `-f compose.dev.yaml` (the working tree mounted, mailpit on `127.0.0.1:8025`, the site on `127.0.0.1` only)
-- Files: all in `docker/` (`compose*.yaml`, the images and their `Dockerfile.dockerignore`, `env.example`, `.env`, `docker.sh`); `docker compose` commands run there. More: the docs, Self-hosting > Docker Compose
+- Upgrade: `bash docker.sh update` (the app adds the new indexes at its start)
+- Development, in a clone only: `docker.sh setup --dev`, `-f compose.dev.yaml` (the working tree mounted over the image's code, the site on `127.0.0.1` only)
+- Files: `docker.sh`, and all the others in `docker/` (`compose*.yaml`, the images and their `Dockerfile.dockerignore`, `env.example`, `.env`); `docker compose` commands run there. More: the docs, Self-hosting > Docker Compose
 
 #### Reverse proxy (HTTPS)
 
@@ -156,8 +159,8 @@ On RHEL with SELinux, nginx may connect to the port only after `setsebool -P htt
 
 The Email (inbound) trigger needs Haraka with qflows's plugin (`scripts/haraka/`): it stores the mail in MongoDB (user `nfn_haraka`) and tells the daemon (`NEWJOB`). The same Haraka relays and DKIM-signs the app's outgoing mail. The DKIM keys, the DNS records and port 25 are yours, so Haraka runs on the host, not in compose.
 
-1. `docker/docker.sh setup --mail`: adds `compose.mail.yaml`, which publishes the database (`MONGO_HOST_PORT`, 27017) and the daemon (`DAEMON_HOST_PORT`, 9000) on the host's `127.0.0.1` for Haraka, and gives the app `host.docker.internal` (`HARAKA_HOST`; the setup's SMTP server, port 25). Start (or `docker compose up -d` again).
-2. Haraka (Node.js 20 or later), as root, from the repository's folder; `.env`'s values: `NFN_HARAKA_PW`, `MONGO_DB`, `MONGO_HOST_PORT`, `DAEMON_HOST_PORT`, `DATA_DIR`:
+1. `docker.sh setup --mail`: mailpit off, adds `compose.mail.yaml`, which publishes the database (`MONGO_HOST_PORT`, 27017) and the daemon (`DAEMON_HOST_PORT`, 9000) on the host's `127.0.0.1` for Haraka, and gives the app `host.docker.internal` (`HARAKA_HOST`; the setup's SMTP server, port 25). Start (or `docker compose up -d` again).
+2. Haraka (Node.js 20 or later), as root, from a clone of the repository (`git clone https://github.com/serbanconstantinescu/qflows-core.git`, its folder); `.env`'s values: `NFN_HARAKA_PW`, `MONGO_DB`, `MONGO_HOST_PORT`, `DAEMON_HOST_PORT`, `DATA_DIR`:
 
    ```bash
    R=$PWD H=/opt/qflows-haraka DOMAIN=mail.example.com
