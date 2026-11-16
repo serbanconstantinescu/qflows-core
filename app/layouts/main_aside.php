@@ -91,23 +91,23 @@ $dd_items = implode('', $dd_items);
     <div class="sidebar-view sidebar-view-primary">
 
 	<!-- top menu -->
-	<div class="flex-shrink-0">
+	<div class="flex-shrink-0 px-2">
 	    <nav class="nav flex-column d-flex min-height-0 overflow-hidden flex-fill">
 		<?php
 		echo \V::app()->html->link(
 		    '<i class="bi bi-speedometer"></i> ' . \V::t('Overview'),
 		    '/site/index',
-		    [ 'class' => 'nav-link py-1', 'escape' => false ]
+		    [ 'class' => 'nav-link', 'escape' => false ]
 		);
 		echo \V::app()->html->link(
 		    '<i class="bi bi-ui-checks"></i> Forms',
 		    '/form/list',
-		    [ 'class' => 'nav-link py-1', 'escape' => false ]
+		    [ 'class' => 'nav-link', 'escape' => false ]
 		);
 		echo \V::app()->html->link(
 		    '<i class="bi bi-chat-dots"></i> Agents',
 		    '/agent/list',
-		    [ 'class' => 'nav-link py-1', 'escape' => false ]
+		    [ 'class' => 'nav-link', 'escape' => false ]
 		);
 		$openTasks = count(\models\wf\WfTask::openFor(\V::app()->user, $crtProject->aid, null));
 		$badge = $openTasks ? \util\VString::insert('<span class="badge rounded-pill text-bg-primary ms-1">{:n}</span>', [ 'n' => $openTasks ]) : '';
@@ -116,7 +116,7 @@ $dd_items = implode('', $dd_items);
 			'badge' => $badge,
 		    ]),
 		    '/task/list',
-		    [ 'class' => 'nav-link py-1', 'escape' => false ]
+		    [ 'class' => 'nav-link', 'escape' => false ]
 		);
 		?>
 	    </nav>
@@ -124,18 +124,17 @@ $dd_items = implode('', $dd_items);
 
 	<!-- scrollable menu -->
 	<div class="d-flex flex-column flex-fill min-height-0">
-	    <ul class="nav overflow-y-auto min-height-0">
-		<?php //CLD: 2026-11-16T13:00:00+02:00: the section labels (Project workspace, Workflows, Shared workflows) are medium (fw-medium, 500) over the light (300) links ?>
-		<div class="nav-item w-100 px-2 py-1 fw-medium">
-		    Project workspace
-		</div>
+	    <?php //CLD: 2026-11-16T16:00:00+02:00: as the docs' sidebar: each heading (.sidebar-heading, with an icon) over its links (.sidebar-group: indented, a line on their left) ?>
+	    <div class="overflow-y-auto min-height-0 px-2">
+		<div class="sidebar-heading"><i class="bi bi-briefcase"></i><span>Project workspace</span></div>
+		<ul class="nav flex-column sidebar-group">
 
 		<?php
 		if (\V::app()->user->can('Credential::list')) {
 		    echo \V::app()->html->link(
 			'<i class="bi bi-key"></i> Credentials & variables',
 			'/credential/list',
-			[ 'class' => 'nav-link py-1 w-100', 'escape' => false ]
+			[ 'class' => 'nav-link', 'escape' => false ]
 		    );
 		}
 
@@ -143,7 +142,7 @@ $dd_items = implode('', $dd_items);
 		    echo \V::app()->html->link(
 			'<i class="bi bi-table"></i> Data Tables',
 			'/datatable/list',
-			[ 'class' => 'nav-link py-1 w-100', 'escape' => false ]
+			[ 'class' => 'nav-link', 'escape' => false ]
 		    );
 		}
 
@@ -151,7 +150,7 @@ $dd_items = implode('', $dd_items);
 		    echo \V::app()->html->link(
 			'<i class="bi bi-journal-bookmark"></i> Knowledge bases',
 			'/knowledge/list',
-			[ 'class' => 'nav-link py-1 w-100', 'escape' => false ]
+			[ 'class' => 'nav-link', 'escape' => false ]
 		    );
 		}
 
@@ -159,7 +158,7 @@ $dd_items = implode('', $dd_items);
 		    echo \V::app()->html->link(
 			'<i class="bi bi-files"></i> Files',
 			'/file/list',
-			[ 'class' => 'nav-link py-1 w-100', 'escape' => false ]
+			[ 'class' => 'nav-link', 'escape' => false ]
 		    );
 		}
 
@@ -168,29 +167,28 @@ $dd_items = implode('', $dd_items);
 		    echo \V::app()->html->link(
 			'<i class="bi bi-plug"></i> MCP server',
 			'/token/list',
-			[ 'class' => 'nav-link py-1 w-100', 'escape' => false ]
+			[ 'class' => 'nav-link', 'escape' => false ]
 		    );
 		}
 
 		\V::app()->hooks->applyHook('layout:aside-project-menu', [ $crtProject ]);
+		echo '</ul>';
 
 		$wfCreateUrl = '';
 		if (\V::app()->user->can('Workflow::create')) {
 		    $wfCreateUrl = \V::app()->html->link(
 			'<i class="bi bi-plus-lg"></i>',
 			'/workflow/create',
-			[ 'escape' => false, 'data-method' => 'post' ]
+			[ 'class' => 'ms-auto', 'title' => 'New workflow', 'escape' => false, 'data-method' => 'post' ]
 		    );
 		}
 		$canReadWf = \V::app()->user->can('Workflow::read');
 		if ($canReadWf || $wfCreateUrl !== '') {
 		    echo "
-		    <div class='nav-item w-100 ps-2 py-1 pe-2 fw-medium'>
-			<span>Workflows</span>
-			<span class='float-end'>{$wfCreateUrl}</span>
-		    </div>
+		    <div class='sidebar-heading'><i class='bi bi-diagram-3'></i><span>Workflows</span>{$wfCreateUrl}</div>
 		    ";
 		}
+		echo '<ul class="nav flex-column sidebar-group">';
 
 		$wfs = $canReadWf ? \V::app()->om->find('Workflow', [ 'project' => $crtProject->_id]) : [];
 		//CLD: 2026-11-11T12:00:00+02:00: Duplicate in each workflow's menu: Workflow::create in this project, as the designer's $canDuplicate
@@ -246,8 +244,8 @@ $dd_items = implode('', $dd_items);
 			    <ul class='dropdown-menu dropdown-menu-end py-0 bg-white'>{$items}</ul>
 			</div>";
 		    echo "
-		    <li class='nav-item w-100 d-flex align-items-center'>
-			<a href='{$url}' class='nav-link py-1 flex-fill text-truncate'>{$name}</a>{$menu}
+		    <li class='nav-item d-flex align-items-center'>
+			<a href='{$url}' class='nav-link flex-fill text-truncate'>{$name}</a>{$menu}
 		    </li>
 		    ";
 		}
@@ -255,16 +253,19 @@ $dd_items = implode('', $dd_items);
 		//the workflows other projects share with this one: what they offer, in a dialog (WorkflowController::shared)
 		$sharedWfs = array_filter(iterator_to_array(\V::app()->om->find('Workflow', [ 'aid' => $crtProject->aid, 'shares.project' => $crtProject->_id ], [ 'sort' => [ 'name' => 1 ] ]), false),
 		    fn($w) => \V::app()->user->can('Workflow::viewShared', [ 'object' => $w ]));
+		echo '</ul>';
 		if ($sharedWfs)
-		    echo '<div class="nav-item w-100 ps-2 py-1 pe-2 fw-medium"><span>Shared workflows</span></div>';
+		    echo '<div class="sidebar-heading"><i class="bi bi-share"></i><span>Shared workflows</span></div><ul class="nav flex-column sidebar-group">';
 		foreach($sharedWfs as $wf)
-		    echo \util\VString::insert('<li class="nav-item w-100"><a href="{:href}" class="nav-link py-1 text-truncate" title="{:title}"><i class="bi bi-share me-1"></i>{:name}</a></li>', [
+		    echo \util\VString::insert('<li class="nav-item"><a href="{:href}" class="nav-link text-truncate" title="{:title}"><i class="bi bi-share me-1"></i>{:name}</a></li>', [
 			'href' => \V::app()->createUrl('/workflow/shared', [ 'id' => $wf->_id ]),
 			'title' => \V::app()->html->escape('From project ' . \V::app()->om->findById('Project', $wf->project)),
 			'name' => \V::app()->html->escape((string)$wf->name),
 		    ]);
+		if ($sharedWfs)
+		    echo '</ul>';
 		?>
-	    </ul>
+	    </div>
 	</div>
 
 	<!-- two-level menu, pinned to the bottom of the sidebar -->
@@ -285,7 +286,7 @@ $dd_items = implode('', $dd_items);
 
     <!-- SECONDARY VIEW -->
     <div class="sidebar-view sidebar-view-secondary d-none">
-	<nav class="nav flex-column">
+	<nav class="nav flex-column px-2">
 	    <a href="#" class="nav-link close-secondary-menu" style="border-bottom: var(--bs-border-width) solid var(--bs-border-color)">
 		<i class="bi bi-arrow-left"></i> <b>Settings</b>
 	    </a>
