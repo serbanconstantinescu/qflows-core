@@ -2,7 +2,7 @@
 
 /*
     the changes of the stored data that a version of the app needs (a function renamed in the expressions, a setting moved, ...), run once per
-    database by `../v sys::migrate` (SysCommand::migrate; scripts/deploy.sh runs it after the indexes, before the restart). Each migration has an id, the app's version that needs
+    database by `../v sys::migrate` (SysCommand::migrate; deploy.sh runs it after the indexes, before the restart). Each migration has an id, the app's version that needs
     it and a method of this class; one is run when the app's version (data\Version::NUMBER) has reached its version and the database has no record of it (models\Migration),
     oldest version first; a failure stops the ones after it. A migration can be run again (it only changes what still needs it), so a failure is fixed and the command run again.
     A new database (sys::install) has nothing to migrate: the migrations run there change nothing and are recorded.

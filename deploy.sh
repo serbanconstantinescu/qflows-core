@@ -6,13 +6,13 @@
 #Every step can be run again: after a failure, fix it and run it again.
 # new
 #As root (PHP-FPM can only be restarted by root; the git and the indexes steps run as the app's user):
-#   sudo scripts/deploy.sh run
-#   scripts/deploy.sh status       the commits here and on the remote; changes nothing here
+#   sudo ./deploy.sh run
+#   ./deploy.sh status       the commits here and on the remote; changes nothing here
 
 set -euo pipefail
 
 SELF_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-BASE=$(dirname "$SELF_DIR")
+BASE=$SELF_DIR
 APP_USER=$(stat -c %U "$BASE/app")
 PLUGIN="$BASE/app/plugins/MultiTenant"
 DAEMON=nfn-daemon-$APP_USER

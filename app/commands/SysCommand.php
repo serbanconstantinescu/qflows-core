@@ -25,7 +25,7 @@ namespace commands;
 	../v sys::migrate [--dry-run] [--list]     the data migrations this version needs and this database has not had (util\Migrations: those of
 			      versions up to data\Version::NUMBER, without a record in models\Migration), oldest first, each recorded once done; --dry-run says what each
 			      would change and records nothing; --list shows every migration and when it ran. Stops at the first that fails (exit 1); run it again once
-			      fixed. scripts/deploy.sh runs it after sys::indexes
+			      fixed. deploy.sh runs it after sys::indexes
 	../v sys::audit [--account=<id>]     checks the audit log's seal (models\AuditLog::verify): changed or forged entries, missing ones, entries without a MAC; every account,
 			      or one; exits with 1 when a problem is found
 	../v sys::run --id=<workflow id>     starts an execution of the workflow (its draft) and runs it; not when its connections or steps' settings have errors
