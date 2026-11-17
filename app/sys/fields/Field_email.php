@@ -12,9 +12,7 @@ class Field_email extends Field_text {
 	'set' => [ 'set' => 'Set' ],
     ];
 
-    public function cast($value) {
-	return $this->__cast_string($value);
-    }
+    //CLD: 2026-11-17T22:30:00+02:00: no cast() of its own: Field_text's, so the field's `transform` applies (the users' emails: 'tolower')
 
     public function bindTo(&$object) {
 	parent::bindTo($object);

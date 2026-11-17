@@ -65,11 +65,12 @@ class Identity {
 	//the password is checked against every active user of that name
 	//One match signs in;
 	//several (the same name and password in several accounts) are left in $choices for the user to pick (SiteController::choose_account), after the password was checked
+	//CLD: 2026-11-17T22:30:00+02:00: the emails are stored in lower case (User: 'transform' => 'tolower'): the name typed is matched as an email in lower case
 	$matched = [];
 	foreach(\V::app()->om->acrossAccounts(fn() => iterator_to_array(\V::app()->om->find('User', [
 	    '$or' => [
 		[ 'username' => $username ],
-		[ 'email' => $username ],
+		[ 'email' => mb_strtolower(trim((string)$username)) ],
 	    ],
 	    'state' => 'active',
 	]), false)) as $user) {

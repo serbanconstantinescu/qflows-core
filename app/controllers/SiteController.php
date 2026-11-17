@@ -41,8 +41,9 @@ class SiteController extends \sys\BaseController {
 		    $resp->redirect('/site/choose_account');
 		} else {
 		    $form->errors('password', $identity->reason);
+		    //CLD: 2026-11-17T22:30:00+02:00: the email in lower case, as stored
 		    //audit log: a failed login of an existing user (the entry belongs to the user's account; unknown names are not recorded)
-		    $failed = \V::app()->om->findOne('User', [ '$or' => [ [ 'username' => (string)$form->username ], [ 'email' => (string)$form->username ] ] ]);
+		    $failed = \V::app()->om->findOne('User', [ '$or' => [ [ 'username' => (string)$form->username ], [ 'email' => mb_strtolower(trim((string)$form->username)) ] ] ]);
 		    if (!empty($failed))
 			\models\AuditLog::record('login.failed', $failed, 'wrong password, or the user is not active', [], null, $failed);
 		    //counted for the name and the address; a new lock is recorded

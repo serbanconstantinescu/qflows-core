@@ -233,7 +233,8 @@ class NodeAppTask extends \models\wf\WfNode {
 	$also = $this->textSetting($vars, 'assignTo');
 	if ($also !== '') {
 	    $u = \util\Validator::rule('oid', $also) ? \V::app()->om->findOne('User', [ '_id' => $also, 'aid' => $this->exec->aid ]) : null;
-	    $u = $u ?: \V::app()->om->findOne('User', [ 'aid' => $this->exec->aid, '$or' => [ [ 'username' => $also ], [ 'email' => $also ] ] ]);
+	    //CLD: 2026-11-17T22:30:00+02:00: an email matched in lower case, as the users' emails are stored
+	    $u = $u ?: \V::app()->om->findOne('User', [ 'aid' => $this->exec->aid, '$or' => [ [ 'username' => $also ], [ 'email' => mb_strtolower(trim($also)) ] ] ]);
 	    if (!$u)
 		throw new \ErrorException("Human task: no user `{$also}` (Also assigned to)");
 	    $users[] = (string)$u->_id;

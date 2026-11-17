@@ -66,22 +66,17 @@ class User extends \sys\BaseObject {
 	}
     }
 
-    // Redirects the user browser to the login page.
-    // Before the redirection, the current URL (if it's not an AJAX url) will be
-    // kept in {@link returnUrl} so that the user browser may be redirected back
-    // to the current page after successful login. Make sure you set {@link loginUrl}
-    // so that the user browser can be redirected to the specified login URL after
-    // calling this method.
+    //CLD: 2026-11-17T22:30:00+02:00: redirects to the sign-in page (login.url), else a 403; the page asked (its path and query, not for an ajax / pjax request) is kept as
+    //the return URL (getReturnUrl() after the sign-in; only a path of this site: not `//host`). Response::redirect answers ajax and pjax requests in their own way (X-Redirect / X-Pjax-Redirect)
     public function loginRequired() {
-	if(!\V::app()->request->isAjax)
-	    $this->return_url = str_replace(\V::app()->request->baseUrl, '', \V::app()->request->url);
+	$request = \V::app()->request;
+	$uri = (string)$request->requestUri;
+	if (!$request->is('ajax') && !$request->is('pjax') && str_starts_with($uri, '/') && !str_starts_with($uri, '//') && !str_starts_with($uri, '/\\'))
+	    $this->return_url = $uri;
 
     	$url = $this->_config['login.url'];
-	if(!empty($url)) {
-	    \V::app()->request->isPjax = false;
-	    \V::app()->request->isAjax = false;
+	if (!empty($url))
 	    \V::app()->response->redirect($url);
-	}
 
 	\V::app()->error(403, \V::t('Login Required'));
     }
