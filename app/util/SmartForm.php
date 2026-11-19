@@ -428,7 +428,8 @@ class SmartForm {
 	    }
 	    //a stored encrypted value is kept when its input stays empty (BaseModel::assign skips it): not required then
 	    //`stored` makes the password field say so (its placeholder)
-	    if ($writeOnly && !in_array($model->$key, [ null, '' ], true)) {
+	    //CLD: 2026-11-19T12:00:00+02:00: only of a saved model: a new one shown again with its errors holds the typed value, but nothing is kept (it stays required)
+	    if ($writeOnly && !in_array($model->$key, [ null, '' ], true) && !($model instanceof \sys\BaseModel && !$model->exists())) {
 		unset($sf['required'], $sf['requiredIf']);
 		$sf['stored'] = true;
 	    }

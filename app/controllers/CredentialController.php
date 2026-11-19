@@ -11,6 +11,8 @@ class CredentialController extends \sys\BaseController {
     const OAUTH_TTL = 600;
 
     public $project = null;
+    //CLD: 2026-11-19T12:00:00+02:00: the OAuth consent was started from a popup (Connect of app.credentialDialog): back() answers the opener and closes it
+    private $popup = false;
 
     public function _init() {
 	parent::_init();
@@ -86,13 +88,17 @@ class CredentialController extends \sys\BaseController {
 	if (!\V::app()->user->can('Credential::create', [ 'object' => $cred ]))
 	    \V::app()->error(403, 'Unauthorized');
 
+	//CLD: 2026-11-19T12:00:00+02:00: ?inline=1: created from a step's dialog (app.credentialDialog), answered { id, label, oauth, testable } (the step's new choice)
+	$inline = !empty($req->query['inline']);
 	if ($req->is('post') && $this->saveForm($cred, $req->data)) {
+	    if ($inline)
+		$resp->sendJSON([ 'id' => (string)$cred->_id, 'label' => $cred->choiceLabel($this->project->_id), 'oauth' => $cred::isOAuth(), 'testable' => (bool)$cred::$testable ]);
 	    $this->addToast('success', 'OK', $cred::isOAuth() ? 'Credential created: use Connect to sign in at the provider' : 'Credential created');
 	    $this->addEvent('object::created', [ 'object' => 'Credential', 'oid' => (string)$cred->_id ]);
 	    $this->sendEvents();
 	}
 
-	$this->render('form', compact('cred'));
+	$this->render('form', compact('cred', 'inline'));
     }
 
     public function update($req, $resp) {
@@ -156,17 +162,23 @@ class CredentialController extends \sys\BaseController {
 	if (!$req->is('post'))
 	    \V::app()->error(405, 'Method not allowed');
 
+	//CLD: 2026-11-19T12:00:00+02:00: ?inline=1 (app.credentialDialog: Create and test): answered { ok, message }, no toast
+	$inline = !empty($req->query['inline']);
 	try {
 	    if (!$cred::$testable)
 		throw new \Exception('this credential type has no connection test');
 	    $message = $cred->test();
 	    $cred->setStatus('ok', $message);
 	    \models\AuditLog::record('credential.test', $cred, 'passed: ' . $message);
+	    if ($inline)
+		$resp->sendJSON([ 'ok' => true, 'message' => (string)$message ]);
 	    $this->addToast('success', 'Test passed', \V::app()->html->escape($message));
 	} catch (\Exception $e) {
 	    if ($cred::$testable)
 		$cred->setStatus('error', $e->getMessage());
 	    \models\AuditLog::record('credential.test', $cred, 'failed: ' . $e->getMessage());
+	    if ($inline)
+		$resp->sendJSON([ 'ok' => false, 'message' => $e->getMessage() ]);
 	    $this->addToast('danger', 'Test failed', \V::app()->html->escape($e->getMessage()));
 	}
 	$this->addEvent('object::updated', [ 'object' => 'Credential', 'oid' => (string)$cred->_id ]);
@@ -174,7 +186,9 @@ class CredentialController extends \sys\BaseController {
     }
 
     //OAuth: go to the provider's consent page
+    //CLD: 2026-11-19T12:00:00+02:00: ?popup=1: opened in a popup by app.credentialDialog; the callback answers the opener (back()) instead of going to the list
     public function connect($req, $resp) {
+	$this->popup = !empty($req->query['popup']);
 	$cred = $this->findOrError('Credential::update');
 	$this->requireFeatureOf($cred);
 	if (!$cred::isOAuth())
@@ -186,6 +200,7 @@ class CredentialController extends \sys\BaseController {
 	    'state' => $state,
 	    'verifier' => $verifier,
 	    'credential' => (string)$cred->_id,
+	    'popup' => $this->popup,
 	    'expires' => time() + self::OAUTH_TTL,
 	]);
 
@@ -196,6 +211,7 @@ class CredentialController extends \sys\BaseController {
     public function oauth_callback($req, $resp) {
 	$pending = \V::app()->session->getState(self::OAUTH_STATE);
 	\V::app()->session->setState(self::OAUTH_STATE, null);
+	$this->popup = is_array($pending) && !empty($pending['popup']);
 
 	$state = (string)($req->query['state'] ?? '');
 	if (!is_array($pending) || $state === '' || !hash_equals((string)$pending['state'], $state) || $pending['expires'] < time()) {
@@ -223,12 +239,21 @@ class CredentialController extends \sys\BaseController {
 	    $cred->setStatus('error', $e->getMessage());
 	    $this->back('danger', 'Not connected', 'Sign-in failed: ' . $e->getMessage());
 	}
-	$this->back('success', 'Connected', 'Connected ' . ($cred->email ?: $cred->name));
+	$this->back('success', 'Connected', 'Connected ' . ($cred->email ?: $cred->name), $cred);
     }
 
     //back to the list with a toast
     //a toast (addToast, kept across the redirect by BaseController::redirect) and redirect()
-    private function back($type, $title, $message) {
+    //CLD: 2026-11-19T12:00:00+02:00: from a popup (Connect of app.credentialDialog): a page that sends the opener { ok, message, id, label } (the connected
+    //credential's new label) and closes
+    private function back($type, $title, $message, $cred = null) {
+	if ($this->popup) {
+	    $result = [ 'ok' => $type === 'success', 'message' => $message ]
+		+ ($cred ? [ 'id' => (string)$cred->_id, 'label' => $cred->choiceLabel($this->project->_id) ] : []);
+	    $this->layout = 'bare';
+	    $this->render('oauth_popup', compact('result'));
+	    \V::app()->end();
+	}
 	$this->addToast($type, $title, \V::app()->html->escape($message));
 	$this->redirect('/credential/list');
     }

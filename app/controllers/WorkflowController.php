@@ -109,7 +109,20 @@ class WorkflowController extends \sys\BaseController {
 	$def = \models\wf\WfNode::getAll()[(string)($req->query['fqname'] ?? '')] ?? null;
 	if (empty($def))
 	    \V::app()->error(404, 'Unknown step type');
-	$resp->sendJSON([ 'configSchema' => \models\wf\WfNode::schemaOf(\V::app()->om->getObjectClass($def['objectName'])) ]);
+	//CLD: 2026-11-19T12:00:00+02:00: the step's credential field gets `createTypes`, the types of the credential it asks for (the first capability asked while the
+	//form is built: Credential::$asked) the user can create on the spot (app.smartform: "+" next to the select, app.credentialDialog)
+	\models\Credential::$asked = [];
+	$schema = \models\wf\WfNode::schemaOf(\V::app()->om->getObjectClass($def['objectName']));
+	$capability = \models\Credential::$asked[0] ?? null;
+	\models\Credential::$asked = null;
+	if ($capability !== null)
+	    foreach($schema as &$f)
+		if (($f['key'] ?? '') === 'credential' && ($f['type'] ?? '') === 'select') {
+		    $f['createTypes'] = \models\Credential::creatableTypes($capability, $this->account);
+		    break;
+		}
+	unset($f);
+	$resp->sendJSON([ 'configSchema' => $schema ]);
     }
 
     public function update_name($req, $resp) {

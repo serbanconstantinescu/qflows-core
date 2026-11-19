@@ -56,6 +56,8 @@ if (!window.app)
  *                   e.g. by setData, is kept and listed);
  *                   `empty`: the placeholder when that value has no choices
  *   allowCustom   - (select) a value that is not among the choices can be typed in (app.SelectPlus `create`)
+ *   createTypes   - (select) a step's credential field: the credential types that can be created on the spot, [ { type, label, icon, group } ]
+ *                   (WorkflowController::node_schema); a "New" link above the select (a menu of the types when there are several), app.credentialDialog
  *   pattern       - regular expression (string) a non-empty string value must match, as a whole (anchored, as the HTML pattern attribute)
  *   patternMessage- error shown when `pattern` does not match
  *   stored        - (password) a value is stored on the server: the input stays empty and an empty input keeps it
@@ -872,7 +874,98 @@ window.app.smartform = (function() {
 	render() {
     	    const el = super.render();
     	    this._enhance();
+	    this._addCreate();
     	    return el;
+	}
+
+	//CLD: 2026-11-19T12:00:00+02:00: createTypes: "New" at the right of the label, a menu of the types (grouped; a search box when there are many) when there are
+	//several; the new credential becomes a choice and the value (app.credentialDialog onChoice: again with its label once connected)
+	_addCreate() {
+	    const types = this.schema.createTypes;
+	    if (!Array.isArray(types) || !types.length || this.schema.multiple || !window.app.credentialDialog || !this.labelEl || !this.labelEl.parentNode)
+		return;
+	    const onChoice = (c) => {
+		let option = Array.from(this.inputEl.options).find((o) => o.value === c.value);
+		if (!option) {
+		    option = document.createElement('option');
+		    option.value = c.value;
+		    this.inputEl.appendChild(option);
+		}
+		option.textContent = c.label;
+		this.setValue(c.value);
+		this.clearInvalid();
+	    };
+	    const openType = (type) => window.app.credentialDialog.open(type, { onChoice: onChoice });
+
+	    const row = document.createElement('div');
+	    row.className = 'd-flex align-items-baseline gap-2';
+	    this.labelEl.replaceWith(row);
+	    row.appendChild(this.labelEl);
+	    const holder = document.createElement('div');
+	    holder.className = 'ms-auto dropdown';
+	    row.appendChild(holder);
+	    const btn = document.createElement('button');
+	    btn.type = 'button';
+	    btn.className = 'btn btn-link btn-sm p-0 text-decoration-none';
+	    btn.innerHTML = "<i class='bi bi-plus-lg me-1'></i>New";
+	    btn.title = types.length === 1 ? 'New credential: ' + types[0].label : 'New credential';
+	    holder.appendChild(btn);
+	    this._createBtn = btn;
+	    this._applyEditableState();
+
+	    if (types.length === 1) {
+		btn.addEventListener('click', () => openType(types[0].type));
+		return;
+	    }
+	    const esc = (s) => window.app.utils.escapeHtml(String(s ?? ''));
+	    const menu = document.createElement('ul');
+	    menu.className = 'dropdown-menu dropdown-menu-end pt-0 overflow-y-auto';
+	    menu.style.maxHeight = '60vh';
+	    menu.style.minWidth = '16rem';
+	    let html = types.length > 8 ? `<li class="sticky-top bg-body px-2 pt-1 pb-2 border-bottom"><input type="search" class="form-control form-control-sm" placeholder="Search types..." autocomplete="off" aria-label="Search credential types"></li>` : '';
+	    let group = null;
+	    types.forEach((t) => {
+		if (t.group !== group) {
+		    group = t.group;
+		    html += `<li data-group="${esc(group)}"><h6 class="dropdown-header">${esc(group)}</h6></li>`;
+		}
+		html += `<li data-type-group="${esc(group)}" data-search="${esc((t.label + ' ' + t.group).toLowerCase())}"><a class="dropdown-item" href="#" no-pjax data-type="${esc(t.type)}"><i class="bi ${esc(t.icon)} me-2"></i>${esc(t.label)}</a></li>`;
+	    });
+	    menu.innerHTML = html;
+	    holder.appendChild(menu);
+	    //fixed: not cut by the dialog's scrolling body
+	    btn.setAttribute('data-bs-toggle', 'dropdown');
+	    new bootstrap.Dropdown(btn, { popperConfig: (d) => Object.assign({}, d, { strategy: 'fixed' }) });
+	    menu.addEventListener('click', (e) => {
+		const a = e.target.closest('a[data-type]');
+		if (!a)
+		    return;
+		e.preventDefault();
+		bootstrap.Dropdown.getOrCreateInstance(btn).hide();
+		openType(a.dataset.type);
+	    });
+	    const search = menu.querySelector('input[type=search]');
+	    if (search) {
+		btn.addEventListener('shown.bs.dropdown', () => search.focus());
+		search.addEventListener('input', () => {
+		    const term = search.value.trim().toLowerCase();
+		    const shown = new Set();
+		    menu.querySelectorAll('li[data-search]').forEach((li) => {
+			const on = !term || li.dataset.search.includes(term);
+			li.classList.toggle('d-none', !on);
+			if (on)
+			    shown.add(li.dataset.typeGroup);
+		    });
+		    menu.querySelectorAll('li[data-group]').forEach((li) => li.classList.toggle('d-none', !shown.has(li.dataset.group)));
+		});
+	    }
+	}
+
+	_applyEditableState() {
+	    super._applyEditableState();
+	    //not offered in a read-only form (a designer opened to view)
+	    if (this._createBtn)
+		this._createBtn.parentNode.classList.toggle('d-none', !this.isEditable());
 	}
 
 	renderBare() {

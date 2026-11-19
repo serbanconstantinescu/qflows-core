@@ -310,24 +310,45 @@ class Credential extends \sys\BaseModel {
 		[ '$set' => [ 'status' => $this->status, 'status_message' => $this->status_message, 'checked_at' => $this->checked_at ] ]);
     }
 
+    //CLD: 2026-11-19T12:00:00+02:00: the capabilities choicesFor() was asked for, in their order, while one step's form is built (WorkflowController::node_schema
+    //sets it to [] and reads the first: the step's own credential field); null: not recorded
+    public static $asked = null;
+
     //credentials of project $projectId that provide $capability, and those shared with it, named with their project (only its name and type): app.smartform choices for node configs
     public static function choicesFor($capability, $aid, $projectId) {
+	if (self::$asked !== null)
+	    self::$asked[] = $capability;
 	$variants = static::variantsProviding($capability);
 	if (empty($variants) || empty($projectId))
 	    return [];
 	//read once per request (each AI step's form asks the same ones)
 	return \models\wf\WfNode::rememberedChoices("credentials:{$aid}:{$projectId}:{$capability}", function() use ($variants, $aid, $projectId) {
 	    $choices = [];
-	    foreach(\V::app()->om->find(self::FAMILY, [ 'aid' => $aid, '__variant' => [ '$in' => $variants ] ] + self::visibleInQuery($projectId)) as $c) {
-		if (!$c->isHome($projectId)) {
-		    $choices[] = [ 'value' => (string)$c->_id, 'label' => (string)$c->name . ' (' . $c::$label . ', shared from ' . \V::app()->om->findById('Project', $c->project) . ')' ];
-		    continue;
-		}
-		$account = (string)($c->email ?? '');
-		$choices[] = [ 'value' => (string)$c->_id, 'label' => (string)$c->name . ' (' . $c::$label . ($account !== '' ? ', ' . $account : '') . ')' ];
-	    }
+	    foreach(\V::app()->om->find(self::FAMILY, [ 'aid' => $aid, '__variant' => [ '$in' => $variants ] ] + self::visibleInQuery($projectId)) as $c)
+		$choices[] = [ 'value' => (string)$c->_id, 'label' => $c->choiceLabel($projectId) ];
 	    return $choices;
 	});
+    }
+
+    //the credential as a choice of the steps of project $projectId: name (type, signed-in account), or (type, shared from <its project>)
+    public function choiceLabel($projectId) {
+	if (!$this->isHome($projectId))
+	    return (string)$this->name . ' (' . static::$label . ', shared from ' . \V::app()->om->findById('Project', $this->project) . ')';
+	$account = (string)($this->email ?? '');
+	return (string)$this->name . ' (' . static::$label . ($account !== '' ? ', ' . $account : '') . ')';
+    }
+
+    //CLD: 2026-11-19T12:00:00+02:00: the types providing $capability that the user can create on the spot (the "+" of a step's credential field): of the
+    //account's tier, available on this PHP, with Credential::create; [ { type, label, icon, group } ] by group and label
+    public static function creatableTypes($capability, $account) {
+	if (!\V::app()->user->can('Credential::create'))
+	    return [];
+	$types = [];
+	foreach(\V::app()->om->getVariants(self::FAMILY) as $name => $class)
+	    if (in_array($capability, $class::$provides, true) && \util\Tiers::allows($account, $name) && $class::available())
+		$types[] = [ 'type' => $name, 'label' => $class::$label, 'icon' => $class::$icon, 'group' => $class::$group ];
+	usort($types, fn($a, $b) => [ $a['group'], $a['label'] ] <=> [ $b['group'], $b['label'] ]);
+	return $types;
     }
 
     //credential $id of the workflow's project, if it provides $capability

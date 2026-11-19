@@ -12,6 +12,8 @@ $js_assets = [
     'app.viewer.js',
     'app.overview.js',
     'app.smartform.js',
+    //CLD: 2026-11-19T12:00:00+02:00: a new credential from a step's credential field (app.smartform `createTypes`)
+    'app.credentialdialog.js',
     'app.workflow.js',
     'app.wfexecutions.js',
     'app.wfdebug.js',
