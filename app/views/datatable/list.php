@@ -3,11 +3,11 @@
 $this->pageTitle = 'Data Tables - list';
 
 //CLD: 2026-11-21T11:00:00+02:00: Create is a menu: an empty table (its name asked first: DatatableController::create) or one from a CSV / Excel file (the import dialog, was a
-//button in the header); one line, no single quote: it goes into the script's '...' string
+//button in the header); one line, no single quote: it goes into the script's '...' string; the menu above the grid's sticky header row (sticky-top, z-index 1020), which hid its first item
 $createBtn = '';
 if (\V::app()->user->can('DataTable::create'))
     $createBtn = \util\VString::insert('<div class="dropdown"><button type="button" class="btn btn-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Create</button>'
-	. '<ul class="dropdown-menu dropdown-menu-end"><li><a class="dropdown-item" href="{:empty}"><i class="bi bi-table me-2"></i>Empty table&hellip;</a></li>'
+	. '<ul class="dropdown-menu dropdown-menu-end" style="z-index: 1030"><li><a class="dropdown-item" href="{:empty}"><i class="bi bi-table me-2"></i>Empty table&hellip;</a></li>'
 	. '<li><a class="dropdown-item" href="{:import}"><i class="bi bi-upload me-2"></i>From a CSV or Excel file&hellip;</a></li></ul></div>', [
 	'empty' => \V::app()->createUrl('/datatable/create'),
 	'import' => \V::app()->createUrl('/datatable/import'),
