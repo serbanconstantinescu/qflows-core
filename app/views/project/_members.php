@@ -1,5 +1,5 @@
 <?php
-//members can be managed (Project::update): add a user of the account with a role, change a member's role (the select saves it), remove a member
+//members can be managed (Project::update): add a user of the account or invite an email address, with a role, change a member's role (the select saves it), remove a member
 //(ProjectController::member_add / member_role / member_remove); read-only without the permission; a personal project says why it has no members
 if ($project->personal) {
     echo "<div class='alert alert-info mt-4 mb-0'><i class='bi bi-person-lock me-2'></i>This is your personal project: it has no other members. "
@@ -19,28 +19,35 @@ $roleOptionTpl = '<option value="{:value}"{:selected}>{:label}</option>';
 echo '<div class="w-100 mt-4"></div>';
 
 if ($canManage) {
+    //CLD: 2026-11-20T15:00:00+02:00: one form adds people (ProjectController::member_add): a user of the account, picked by name or email, is added now; a new email
+    //address typed in (app.SelectPlus create, canCreate: a valid address, not a user or member) is invited (a link to join, needs User::create); the button follows (Add / Invite)
     $candidates = [];
+    $memberEmails = [];
     foreach(\V::app()->om->find('User', [ 'aid' => $project->aid ], [ 'sort' => [ 'firstname' => 1 ] ]) as $u) {
 	if (!isset($members[(string)$u->_id]))
 	    $candidates[(string)$u->_id] = (string)$u . ($u->email ? ' <' . $u->email . '>' : '');
+	elseif ($u->email)
+	    $memberEmails[] = strtolower((string)$u->email);
     }
+    $canInvite = \V::app()->user->can('User::create');
     $memberRole = (string)(\V::app()->om->findOne('Role', [ 'aid' => $project->aid, 'iname' => 'member' ])->_id ?? '');
     //the role of who is added or invited: Member at first
     $roleOptions = '';
     foreach($roles as $id => $label)
 	$roleOptions .= \util\VString::insert($roleOptionTpl, [ 'value' => \V::app()->html->escape($id), 'selected' => $id === $memberRole ? ' selected' : '', 'label' => \V::app()->html->escape($label) ]);
-    $memberRoleSelect = \util\VString::insert($roleSelectTpl, [ 'attrs' => '', 'options' => $roleOptions ]);
     $addTpl = '
-<form method="post" action="{:action}" class="d-flex flex-wrap gap-2 align-items-end mb-3">
-    <div>
-	<label class="form-label small mb-1">Add a member</label>
-	<select name="user" class="form-select form-select-sm" required style="min-width: 16rem"{:disabled}>{:options}</select>
+<form method="post" action="{:action}" class="d-flex flex-wrap gap-2 align-items-end mb-1">
+    <div style="min-width: 22rem">
+	<label class="form-label small mb-1" for="member-add-user">Add people</label>
+	<select id="member-add-user" name="user" class="form-select form-select-sm"{:disabled}>{:options}</select>
     </div>
     <div><label class="form-label small mb-1">Role</label>{:role}</div>
-    <button type="submit" class="btn btn-sm btn-primary"{:disabled}><i class="bi bi-person-plus me-1"></i>Add</button>
+    <button type="submit" class="btn btn-sm btn-primary member-add-btn"{:disabled}><i class="bi bi-person-plus me-1"></i>Add</button>
 </form>
+<div class="form-text mb-3">{:help}</div>
 ';
-    $options = $candidates ? '<option value="">Choose a user...</option>' : '<option>All the account\'s users are members</option>';
+    $closed = !$candidates && !$canInvite;
+    $options = \util\VString::insert('<option value="">{:label}</option>', [ 'label' => $closed ? 'All the account\'s users are members' : 'Type a name or an email address&hellip;' ]);
     foreach($candidates as $id => $label)
 	$options .= \util\VString::insert('<option value="{:value}">{:label}</option>', [
 	    'value' => \V::app()->html->escape($id),
@@ -48,30 +55,48 @@ if ($canManage) {
 	]);
     echo \util\VString::insert($addTpl, [
 	'action' => \V::app()->createUrl('/project/member_add', [ 'id' => $project->_id ]),
-	'disabled' => $candidates ? '' : ' disabled',
+	'disabled' => $closed ? ' disabled' : '',
 	'options' => $options,
-	'role' => $memberRoleSelect,
-    ]);
-
-    //invite by email (ProjectController::member_invite): a user of the account is added; another address gets a link to join (needs User::create)
-    $canInvite = \V::app()->user->can('User::create');
-    $inviteTpl = '
-<form method="post" action="{:action}" class="d-flex flex-wrap gap-2 align-items-end mb-1">
-    <div>
-	<label class="form-label small mb-1">Invite by email</label>
-	<input type="email" name="email" class="form-control form-control-sm" required style="min-width: 16rem" placeholder="name@example.com" autocomplete="off">
-    </div>
-    <div><label class="form-label small mb-1">Role</label>{:role}</div>
-    <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-envelope-plus me-1"></i>Invite</button>
-</form>
-<div class="form-text mb-3">{:help}</div>
-';
-    echo \util\VString::insert($inviteTpl, [
-	'action' => \V::app()->createUrl('/project/member_invite', [ 'id' => $project->_id ]),
-	'role' => $memberRoleSelect,
-	'help' => $canInvite ? 'A user of the account is added now; anyone else gets an email with a link to join, valid 7 days.'
+	'role' => \util\VString::insert($roleSelectTpl, [ 'attrs' => '', 'options' => $roleOptions ]),
+	'help' => $canInvite ? 'Users of the account are added now; anyone else gets an email with a link to join, valid 7 days.'
 	    : 'Users of the account are added now; only who may add users can invite new people.',
     ]);
+
+    $membersJs = json_encode($memberEmails);
+    $canInviteJs = $canInvite ? 'true' : 'false';
+    \V::app()->cs->addPageScript(<<<JS
+(function() {
+    const select = document.getElementById('member-add-user');
+    if (!select || select.disabled || !window.app.SelectPlus)
+	return;
+    const members = {$membersJs};
+    const users = new Set([...select.options].map((o) => o.value).filter(Boolean));
+    const isEmail = (t) => /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(t);
+    new app.SelectPlus(select, {
+	searchPlaceholder: 'A name or an email address',
+	create: true,
+	createLabel: (t) => 'Invite ' + t + ' by email',
+	//an email address: not when it is a listed user's (pick them); a member's or (without User::create) a new one: greyed out, why
+	canCreate: (t, sp) => {
+	    t = t.toLowerCase();
+	    if (!isEmail(t) || sp.items.some((i) => i.text.toLowerCase().includes('<' + t + '>')))
+		return false;
+	    if (members.includes(t))
+		return t + ' is a member already';
+	    return {$canInviteJs} || (t + ' is not a user of the account: only who may add users can invite new people');
+	},
+    });
+    //the button: disabled until someone is chosen (the select is hidden, so not required), Invite for a typed address
+    const btn = select.form.querySelector('.member-add-btn');
+    const follow = () => {
+	const invite = select.value !== '' && !users.has(select.value);
+	btn.disabled = select.value === '';
+	btn.innerHTML = invite ? '<i class="bi bi-envelope-plus me-1"></i>Invite' : '<i class="bi bi-person-plus me-1"></i>Add';
+    };
+    select.addEventListener('change', follow);
+    follow();
+})();
+JS);
 }
 
 //the members as a table, as the invitations below

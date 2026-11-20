@@ -227,22 +227,44 @@ class ProjectController extends \sys\BaseController {
     //the members of a project (user's choice: managed by who has Project::update): add one (a user of the account, with a role), change a member's role,
     //remove one. POST only, back to the Members tab. A personal project has one member; a change cannot take away the last member with the owner role. Each change is
     //saved through the model (members is not a form field) and written to the audit log
+    //CLD: 2026-11-20T15:00:00+02:00: add people (POST user, role): `user` is a user of the account (its id, or its email address), added now and told by email; another
+    //email address gets an invitation (models\user\ProjectInvite: a link, valid 7 days, that makes the user and joins the project) - that needs User::create too, since
+    //it adds a user to the account
     public function member_add($req, $resp) {
 	$project = $this->memberProject();
-	$uid = (string)($req->data['user'] ?? '');
-	$user = \util\Validator::rule('oid', $uid) ? \V::app()->om->findOne('User', [ '_id' => $uid ]) : null;
+	$value = trim((string)($req->data['user'] ?? ''));
 	$roleId = (string)($req->data['role'] ?? '');
 	$role = \util\Validator::rule('oid', $roleId) ? \V::app()->om->findOne('Role', [ '_id' => $roleId ]) : null;
-	$members = (array)$project->members;
-	if (!$user || !$role)
-	    $this->addToast('error', 'Not added', 'Choose a user and a role');
-	elseif (isset($members[$uid]))
-	    $this->addToast('warning', 'Not added', (string)$user . ' is a member already');
-	else {
-	    $members[$uid] = [ 'role' => $role->_id ];
-	    $this->saveMembers($project, $members, 'project.member.add', (string)$user . ' added as ' . (string)$role);
+	$email = strtolower($value);
+	$user = \util\Validator::rule('oid', $value) ? \V::app()->om->findOne('User', [ '_id' => $value ])
+	    : (\util\Validator::rule('email', $email) ? \V::app()->om->findOne('User', [ 'email' => $email ]) : null);
+	if (!$role || (!$user && !\util\Validator::rule('email', $email)))
+	    $this->backTo($project, 'members', 'Not added', 'Choose a user or enter an email address, and a role');
+
+	$inviter = \V::app()->om->findById('User', \V::app()->user->_id);
+	$vars = [ 'inviter' => (string)$inviter, 'project' => (string)$project->name, 'account' => (string)($this->account->name ?? '') ?: (string)$this->account->hostname ];
+	//absolute url from V::createAbsoluteUrl (app.env BASE_URL, always https://)
+
+	if ($user) {
+	    $members = (array)$project->members;
+	    if (isset($members[(string)$user->_id]))
+		$this->addToast('warning', 'Not added', (string)$user . ' is a member already');
+	    else {
+		$members[(string)$user->_id] = [ 'role' => $role->_id ];
+		$saved = $this->saveMembers($project, $members, 'project.member.add', (string)$user . ' added as ' . (string)$role);
+		if ($saved && $user->state === 'active' && $user->email)
+		    \util\EmailSend::system('project_added', (string)$user->email, $vars + [ 'link' => \V::app()->createAbsoluteUrl('/site/index') ]);
+	    }
+	    $this->backTo($project, 'members');
 	}
-	$this->redirect('/project/settings', [ 'id' => (string)$project->_id, '__tab' => 'members' ]);
+
+	if (!\V::app()->user->can('User::create'))
+	    $this->backTo($project, 'members', 'Not invited', $email . ' is not a user of the account: only who may add users can invite new people');
+	[ , $token ] = \models\user\ProjectInvite::start($project, $email, $role->_id, $inviter);
+	\util\EmailSend::system('project_invite', $email, $vars + [ 'link' => \V::app()->createAbsoluteUrl('/site/invite', [ 't' => $token ]), 'days' => intdiv(\data\Constants::INVITE_VALID, 86400) ]);
+	\models\AuditLog::record('project.member.invite', $project, $email . ' invited as ' . (string)$role);
+	$this->addToast('success', 'OK', 'Invitation sent to ' . $email);
+	$this->backTo($project, 'members');
     }
 
     public function member_role($req, $resp) {
@@ -273,46 +295,6 @@ class ProjectController extends \sys\BaseController {
 	    $this->saveMembers($project, $members, 'project.member.remove', ($user ? (string)$user : $uid) . ' removed');
 	}
 	$this->redirect('/project/settings', [ 'id' => (string)$project->_id, '__tab' => 'members' ]);
-    }
-
-    //invite by email (POST email, role): a user of the account with that address is added now (and told by email); another address gets an
-    //invitation (models\user\ProjectInvite: a link, valid 7 days, that makes the user and joins the project) - that needs User::create too, since it adds a user to the account
-    public function member_invite($req, $resp) {
-	$project = $this->memberProject();
-	$email = strtolower(trim((string)($req->data['email'] ?? '')));
-	$roleId = (string)($req->data['role'] ?? '');
-	$role = \util\Validator::rule('oid', $roleId) ? \V::app()->om->findOne('Role', [ '_id' => $roleId ]) : null;
-	if (!\util\Validator::rule('email', $email) || !$role) {
-	    $this->addToast('error', 'Not invited', 'Enter an email address and choose a role');
-	    $this->backTo($project, 'members');
-	}
-	$inviter = \V::app()->om->findById('User', \V::app()->user->_id);
-	$vars = [ 'inviter' => (string)$inviter, 'project' => (string)$project->name, 'account' => (string)($this->account->name ?? '') ?: (string)$this->account->hostname ];
-	//absolute url from V::createAbsoluteUrl (app.env BASE_URL, always https://)
-
-	$user = \V::app()->om->findOne('User', [ 'email' => $email ]);
-	if ($user) {
-	    $members = (array)$project->members;
-	    if (isset($members[(string)$user->_id]))
-		$this->addToast('warning', 'Not added', (string)$user . ' is a member already');
-	    else {
-		$members[(string)$user->_id] = [ 'role' => $role->_id ];
-		$saved = $this->saveMembers($project, $members, 'project.member.add', (string)$user . ' added as ' . (string)$role);
-		if ($saved && $user->state === 'active')
-		    \util\EmailSend::system('project_added', (string)$user->email, $vars + [ 'link' => \V::app()->createAbsoluteUrl('/site/index') ]);
-	    }
-	    $this->backTo($project, 'members');
-	}
-
-	if (!\V::app()->user->can('User::create')) {
-	    $this->addToast('error', 'Not invited', $email . ' is not a user of the account: only who may add users can invite new people');
-	    $this->backTo($project, 'members');
-	}
-	[ , $token ] = \models\user\ProjectInvite::start($project, $email, $role->_id, $inviter);
-	\util\EmailSend::system('project_invite', $email, $vars + [ 'link' => \V::app()->createAbsoluteUrl('/site/invite', [ 't' => $token ]), 'days' => intdiv(\data\Constants::INVITE_VALID, 86400) ]);
-	\models\AuditLog::record('project.member.invite', $project, $email . ' invited as ' . (string)$role);
-	$this->addToast('success', 'OK', 'Invitation sent to ' . $email);
-	$this->backTo($project, 'members');
     }
 
     //back to tab $tab of project $project's settings; with $title: an error toast first
@@ -374,7 +356,7 @@ class ProjectController extends \sys\BaseController {
     }
 
     //saves the members (a change does not take away the last member with the owner role) and records the change
-    //returns whether saved (member_invite emails only then)
+    //returns whether saved (member_add emails only then)
     private function saveMembers($project, array $members, $action, $details) {
 	$owner = \V::app()->om->findOne('Role', [ 'aid' => $project->aid, 'iname' => 'owner' ]);
 	if (self::ownersIn((array)$project->members, $owner) > 0 && self::ownersIn($members, $owner) == 0) {

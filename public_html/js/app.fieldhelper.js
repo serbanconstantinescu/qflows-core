@@ -535,6 +535,8 @@ window.app.SelectPlus = (function() {
 	ajax: null,                 // see AJAX_DEFAULTS
 	create: false,              // true, or async (term, instance) => ({ id, text }) | null
 	createLabel: (term) => `Add "${term}"`,
+	//CLD: 2026-11-20T15:00:00+02:00: optional (term, instance) => true (the create row shown) | false (not shown) | 'text' (shown greyed out with that text, not choosable)
+	canCreate: null,
 	templateResult: null,       // (item) => HTML string, for dropdown rows (you escape it)
 	templateSelection: null,    // (item) => HTML string, for the selected value / tags
 	texts: {
@@ -995,13 +997,15 @@ window.app.SelectPlus = (function() {
 
     		const canCreate = this.o.create && term && term.length >= this.o.minimumInputLength &&
         	    !this.items.some((i) => norm(i.text) === norm(term));
-    		if (canCreate) {
-        	    const node = app.utils.el('li', 'dropdown-item sp-create', {
+    		const allow = canCreate && this.o.canCreate ? this.o.canCreate(term, this) : canCreate;
+    		if (allow) {
+        	    const reason = typeof allow === 'string';
+        	    const node = app.utils.el('li', 'dropdown-item sp-create' + (reason ? ' disabled' : ''), {
         		role: 'option', id: `${this.id}-opt-${this.rows.length}`, 'data-index': this.rows.length,
         	    });
-        	    node.textContent = this.o.createLabel(term);
+        	    node.textContent = reason ? allow : this.o.createLabel(term);
         	    this.list.appendChild(node);
-        	    this.rows.push({ create: true, term, node });
+        	    this.rows.push({ create: true, term, node, disabled: reason });
     		}
     	    }
 
@@ -1018,7 +1022,7 @@ window.app.SelectPlus = (function() {
     		this.list.scrollTop = scrollTop;
     	    const start = state.keepActive && prevActive >= 0 && prevActive < this.rows.length
     		? prevActive
-    		: this.rows.findIndex((r) => !(r.item && r.item.disabled));
+    		: this.rows.findIndex((r) => !(r.disabled || (r.item && r.item.disabled)));
     	    this._highlight(start, false);
 	}
 
@@ -1041,14 +1045,14 @@ window.app.SelectPlus = (function() {
     	    let i = this.active;
     	    for (let step = 0; step < n; step++) {
     		i = (i + delta + n) % n;
-    		if (!(this.rows[i].item && this.rows[i].item.disabled))
+    		if (!(this.rows[i].disabled || (this.rows[i].item && this.rows[i].item.disabled)))
     		    return this._highlight(i);
     	    }
 	}
 
 	_choose(i) {
     	    const row = this.rows[i];
-    	    if (!row || (row.item && row.item.disabled))
+    	    if (!row || row.disabled || (row.item && row.item.disabled))
     		return;
     	    if (row.create)
     		return this._create(row.term);
