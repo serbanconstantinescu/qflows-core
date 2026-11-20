@@ -201,9 +201,14 @@ $dd_items = implode('', $dd_items);
 		    if ($published)
 			$name .= " <i class='bi bi-circle-fill text-success ms-1' style='font-size: .45rem; vertical-align: middle' title='Published'></i>";
 
-		    //a menu (three dots) per workflow: Publish (the designer's Publish dialog: shown when not published, or the draft changed since), Unpublish
-		    //(published), Share, Move, Duplicate (the saved draft), Delete; each with its permission (as the designer's status menu), with the designer's confirmations; none allowed: no menu
+		    //CLD: 2026-11-20T12:00:00+02:00: a menu (three dots) per workflow: Edit (icon and name, the designer's gear dialog), Publish (the designer's Publish dialog: shown when
+		    //not published, or the draft changed since), Unpublish (published), Share, Move, Duplicate (the saved draft), Delete; each with its permission (as the designer's
+		    //status menu), with the designer's confirmations; none allowed: no menu
 		    $items = '';
+		    if (\V::app()->user->can('Workflow::update', [ 'object' => $wf ]))
+			$items .= \util\VString::insert('<a class="dropdown-item px-2" href="{:href}"><i class="bi bi-pencil me-2"></i>Edit&hellip;</a>', [
+			    'href' => \V::app()->createUrl('/workflow/update_name', [ 'id' => $wf->_id ]),
+			]);
 		    if (\V::app()->user->can('Workflow::publish', [ 'object' => $wf ])) {
 			$active = $published ? $wf->publishedVersion() : null;
 			if (!$published || !$active || !$wf->draftMatches($active))
