@@ -1025,8 +1025,78 @@ window.app.GridView = (function() {
 	//CLD: 2026-11-21T11:00:00+02:00: opts.sort (e.g. {}): a click on a column's name sorts by it (again: the other way), an arrow on the sorted one; sent as __sortField /
 	//__sortDir (also to the export); none: the server's order
 	this.sort = opts.sort ? { field: opts.sort.field || null, dir: opts.sort.dir || 'asc' } : null;
+	//CLD: 2026-11-21T13:00:00+02:00: opts.select ({ deleteUrl }): a checkbox per row and one for the page; a bar above the grid with how many are selected, "Select all
+	//N rows found" (the whole search / filter, every page) when the page is, Delete (a POST to deleteUrl + rows=<ids> or all=1 with the search and filter, after a
+	//confirmation) and Clear. The selection is of the rows shown: it ends when they are loaded again
+	this.select = opts.select || null;
+	this.selected = new Set();
+	this.allFound = false;
+	this.nRecords = 0;
     	this.run();
         }
+
+	//the checkbox column, when rows can be selected: 1, else 0
+	selectCols() {
+	    return this.select ? 1 : 0;
+	}
+
+	//the selection changed: the page's checkbox (checked / some), the bar
+	updateSelection() {
+	    const ids = this.data.map((r) => String(r._id));
+	    const pageAll = ids.length > 0 && ids.every((id) => this.selected.has(id));
+	    if (!pageAll)
+		this.allFound = false;
+	    const pageBox = this.container.querySelector('.grid-select-page');
+	    if (pageBox) {
+		pageBox.checked = pageAll;
+		pageBox.indeterminate = !pageAll && this.selected.size > 0;
+	    }
+
+	    let bar = this.container.querySelector('.grid-select-bar');
+	    if (!bar) {
+		bar = document.createElement('div');
+		bar.className = 'grid-select-bar d-flex flex-wrap align-items-center gap-3 small bg-body-tertiary rounded px-2 py-1 mb-2';
+		this.container.querySelector('.datagrid-wrap').before(bar);
+	    }
+	    const n = this.allFound ? this.nRecords : this.selected.size;
+	    bar.classList.toggle('d-none', n === 0);
+	    if (n === 0)
+		return;
+
+	    const glue = (url) => url + (url.indexOf('?') == -1 ? '?' : '&');
+	    const url = this.allFound ? this.widgetsUrl(glue(this.select.deleteUrl) + 'all=1', [ 'pager' ]) : glue(this.select.deleteUrl) + 'rows=' + [...this.selected].join(',');
+	    const rows = (k) => k + (k === 1 ? ' row' : ' rows');
+	    bar.innerHTML = '';
+	    const count = document.createElement('span');
+	    count.textContent = this.allFound ? 'All ' + rows(n) + ' found are selected' : rows(n) + ' selected';
+	    bar.appendChild(count);
+	    if (pageAll && !this.allFound && this.nRecords > ids.length) {
+		const all = document.createElement('button');
+		all.type = 'button';
+		all.className = 'btn btn-link btn-sm p-0';
+		all.textContent = 'Select all ' + rows(this.nRecords) + ' found';
+		all.addEventListener('click', () => { this.allFound = true; this.updateSelection(); });
+		bar.appendChild(all);
+	    }
+	    const del = document.createElement('a');
+	    del.href = url;
+	    del.className = 'btn btn-sm btn-outline-danger py-0';
+	    del.dataset.method = 'post';
+	    del.dataset.confirm = 'Delete ' + rows(n) + '? This cannot be undone.';
+	    del.innerHTML = '<i class="bi bi-trash me-1"></i>Delete';
+	    bar.appendChild(del);
+	    const clear = document.createElement('button');
+	    clear.type = 'button';
+	    clear.className = 'btn btn-link btn-sm p-0';
+	    clear.textContent = 'Clear';
+	    clear.addEventListener('click', () => {
+		this.selected.clear();
+		this.allFound = false;
+		this.container.querySelectorAll('.grid-select-row').forEach((b) => b.checked = false);
+		this.updateSelection();
+	    });
+	    bar.appendChild(clear);
+	}
 
 	widgetsUrl(url, except = []) {
 	    url = super.widgetsUrl(url, except);
@@ -1053,14 +1123,36 @@ window.app.GridView = (function() {
 
 
         renderItems(data) {
+	this.nRecords = (data && data.nRecords) || 0;
+	this.selected.clear();
+	this.allFound = false;
     	this.renderHeader();
     	this.renderBody();
+	if (this.select)
+	    this.updateSelection();
         }
 
         renderHeader() {
     	const headerRow = this.container.getElementsByClassName('header-row')[0];
 
     	headerRow.innerHTML = "";
+
+	if (this.select) {
+	    const th = document.createElement('th');
+	    th.className = 'col-th sticky-top p-0 text-center align-middle';
+	    th.style.width = '2rem';
+	    const box = document.createElement('input');
+	    box.type = 'checkbox';
+	    box.className = 'form-check-input m-0 grid-select-page';
+	    box.setAttribute('aria-label', 'Select the rows of this page');
+	    box.addEventListener('change', () => {
+		this.data.forEach((r) => box.checked ? this.selected.add(String(r._id)) : this.selected.delete(String(r._id)));
+		this.container.querySelectorAll('.grid-select-row').forEach((b) => b.checked = box.checked);
+		this.updateSelection();
+	    });
+	    th.appendChild(box);
+	    headerRow.appendChild(th);
+	}
 
 
     	this.schema.getVisibleColumnNames().forEach((colName) => {
@@ -1217,7 +1309,7 @@ window.app.GridView = (function() {
     	    const emptyTd = document.createElement("td");
     	    emptyTd.className = "p-0";
     	    emptyTd.style.cursor = "pointer";
-    	    emptyTd.colSpan = this.schema.getVisibleColumnNames().length + 1;
+    	    emptyTd.colSpan = this.schema.getVisibleColumnNames().length + 1 + this.selectCols();
     	    emptyTd.innerHTML = this.renderEmpty(); //app.template.compile(this.emptyLayout)();
     	    //the text in the middle of the row (renderFiller makes the row as tall as a full page); no hover highlight on it
     	    emptyTd.style.verticalAlign = 'middle';
@@ -1231,6 +1323,21 @@ window.app.GridView = (function() {
     	    this.data.forEach((row) => {
         		const tr = document.createElement("tr");
         		tr.dataset.row = row._id;
+
+		if (this.select) {
+		    const td = document.createElement('td');
+		    td.className = 'p-0 text-center align-middle';
+		    const box = document.createElement('input');
+		    box.type = 'checkbox';
+		    box.className = 'form-check-input m-0 grid-select-row';
+		    box.setAttribute('aria-label', 'Select this row');
+		    box.addEventListener('change', () => {
+			box.checked ? this.selected.add(String(row._id)) : this.selected.delete(String(row._id));
+			this.updateSelection();
+		    });
+		    td.appendChild(box);
+		    tr.appendChild(td);
+		}
 
     		this.schema.getVisibleColumnNames().forEach((colName) => {
     		    const col = this.schema.column(colName);
@@ -1304,7 +1411,7 @@ window.app.GridView = (function() {
     	    addTd.className = "p-0";
     	    addTd.style.cursor = "pointer";
 
-    	    addTd.colSpan = this.schema.getVisibleColumnNames().length + 1;
+    	    addTd.colSpan = this.schema.getVisibleColumnNames().length + 1 + this.selectCols();
 
         	    const btn = document.createElement('button');
         	    btn.className = 'btn btn-sm btn-circle-xs btn-outline-primary mx-2 my-1';
@@ -1338,7 +1445,7 @@ window.app.GridView = (function() {
     	const cols = this.schema.getVisibleColumnNames().filter((colName) => {
     	    const col = this.schema.column(colName);
     	    return !(col.show === false || col.hide === true);
-    	}).length + 1;
+    	}).length + 1 + this.selectCols();
 
     	for (let i = 0; i < missing; i++) {
     	    const tr = document.createElement('tr');

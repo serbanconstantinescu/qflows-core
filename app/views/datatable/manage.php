@@ -32,7 +32,11 @@ $createRowUrl = \V::app()->createUrl('/datatable/create_row', [ 'id' => $dt->_id
 $updateRowUrl = str_replace('__ROW__', '{{item._id}}', \V::app()->createUrl('/datatable/update_row', [ 'id' => $dt->_id, 'row' => '__ROW__' ]));
 $deleteRowUrl = str_replace('__ROW__', '{{item._id}}', \V::app()->createUrl('/datatable/delete_row', [ 'id' => $dt->_id, 'row' => '__ROW__' ]));
 //row editing (Create: the row form in a modal, add-row button, edit / delete actions) only with DataTable::writeData
-$createBtn = $canWrite ? \V::app()->html->link('<i class="bi bi-plus-lg me-1"></i>Add row', $createRowUrl, [ 'class' => 'btn btn-primary btn-sm', 'escape' => false ]) : '';
+//CLD: 2026-11-21T13:00:00+02:00: with DataTable::writeData also Import (rows from a file or pasted: DatatableController::import_rows) before Add row, and the rows can be
+//selected and deleted together (select: DatatableController::delete_rows)
+$createBtn = $canWrite ? \V::app()->html->link('<i class="bi bi-upload me-1"></i>Import', \V::app()->createUrl('/datatable/import_rows', [ 'id' => $dt->_id ]), [ 'class' => 'btn btn-outline-info btn-sm', 'escape' => false, 'title' => 'Import rows from a CSV or Excel file, or paste them from a spreadsheet' ])
+    . ' ' . \V::app()->html->link('<i class="bi bi-plus-lg me-1"></i>Add row', $createRowUrl, [ 'class' => 'btn btn-primary btn-sm', 'escape' => false ]) : '';
+$selectJs = $canWrite ? "{ deleteUrl: '" . \V::app()->createUrl('/datatable/delete_rows', [ 'id' => $dt->_id ]) . "' }" : 'null';
 $createRowJs = $canWrite ? "'{$createRowUrl}'" : 'false';
 $rowActionsJs = $canWrite ? "{
 		    edit: `<a href='{$updateRowUrl}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' title='Edit row'><i class='bi bi-pencil'></i></a>`,
@@ -54,6 +58,7 @@ $script = "
 	    title: '',
 	    emptyLayout: '<div class=\"p-4 text-center text-body-secondary\">' + {$emptyHintJs} + '</div>',
 	    sort: {},
+	    select: {$selectJs},
 	    dataUrl: '{$dataUrl}',
 	    schema: {
 		//read-only without DataTable::update

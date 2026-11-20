@@ -136,19 +136,12 @@ class DatatableController extends \sys\BaseController {
     //import a CSV / Excel (.xlsx) file as a new data table (DataTable::create). Steps (one dialog): upload (GET: the file form; POST with `file`),
     //preview (the guessed columns: header row or not, name, key, type, which to import; first rows; another sheet / header choice posts `step=preview`
     //again), import (POST `step=import`: the table, its columns and rows are created; values a column cannot read are left empty, rows that fail
-    //the column rules are skipped; one audit entry `datatable.import`). The uploaded file waits in tmp/import/<token>.<ext> (+ .json: account,
-    //user, name) until imported; files older than a day are removed
+    //the column rules are skipped; one audit entry `datatable.import`). The uploaded file: keepUpload
     public function import($req, $resp) {
 	if (!\V::app()->user->can('DataTable::create'))
 	    \V::app()->error(403, 'Unauthorized');
 
-	$dir = BASE . '/tmp/import';
-	if (!is_dir($dir))
-	    mkdir($dir, 0700, true);
-	foreach(glob($dir . '/*') ?: [] as $old) {
-	    if (filemtime($old) < time() - 86400)
-		@unlink($old);
-	}
+	$dir = $this->importDir();
 
 	if (!$req->is('post')) {
 	    $this->render('import_upload', [ 'error' => null ]);
@@ -164,57 +157,29 @@ class DatatableController extends \sys\BaseController {
 
 	$data = is_array($req->data) ? $req->data : [];
 	$step = (string)($data['step'] ?? '');
-	$aid = (string)$this->account->_id;
 
 	//upload: keep the file, then the preview
 	if ($step === '') {
-	    $file = $req->files['file'] ?? null;
 	    $error = null;
-	    $ext = strtolower(pathinfo((string)($file['name'] ?? ''), PATHINFO_EXTENSION));
-	    if (empty($file) || ($file['error'] ?? 1) == UPLOAD_ERR_NO_FILE)
-		$error = 'Choose a file';
-	    elseif ($file['error'] > 0)
-		$error = 'The file could not be uploaded';
-	    elseif ($file['size'] > \util\TableImport::MAX_BYTES)
-		//util\Format::bytes
-		$error = 'The file is larger than ' . \util\Format::bytes(\util\TableImport::MAX_BYTES);
-	    elseif ($ext === 'xls')
-		$error = 'Old Excel files (.xls) cannot be read: save the file as .xlsx or CSV';
-	    elseif (!isset(\util\TableImport::TYPES[$ext]))
-		$error = 'Choose a CSV or Excel (.xlsx) file';
-	    if ($error !== null) {
+	    $token = $this->keepUpload($req->files['file'] ?? null, $error);
+	    if ($token === null) {
 		$this->render('import_upload', compact('error'));
 		return;
 	    }
-
-	    $token = bin2hex(random_bytes(16));
-	    move_uploaded_file($file['tmp_name'], "{$dir}/{$token}.{$ext}");
-	    file_put_contents("{$dir}/{$token}.json", \util\JSON::encode([ 'aid' => $aid, 'user' => (string)\V::app()->user->_id, 'name' => (string)$file['name'], 'ext' => $ext ]));
 	    $data = [ 'token' => $token ];
 	    $step = 'preview';
 	}
 
-	//the uploaded file of this user
+	//the uploaded file of this user, read
 	$token = (string)($data['token'] ?? '');
-	$meta = preg_match('/^[0-9a-f]{32}$/', $token) && is_file("{$dir}/{$token}.json") ? json_decode(file_get_contents("{$dir}/{$token}.json"), true) : null;
-	if (empty($meta) || $meta['aid'] !== $aid || $meta['user'] !== (string)\V::app()->user->_id || !is_file("{$dir}/{$token}.{$meta['ext']}")) {
-	    $this->render('import_upload', [ 'error' => 'The uploaded file is no longer available: upload it again' ]);
+	$meta = $this->keptUpload($token);
+	$error = null;
+	$read = $meta ? $this->readUpload($token, $meta, $data, $error) : null;
+	if ($read === null) {
+	    $this->render('import_upload', [ 'error' => $error ?? 'The uploaded file is no longer available: upload it again' ]);
 	    return;
 	}
-
-	$reader = new \util\TableImport("{$dir}/{$token}.{$meta['ext']}", $meta['ext']);
-	try {
-	    $sheets = $reader->sheets();
-	    $sheet = in_array($data['sheet'] ?? null, $sheets, true) ? $data['sheet'] : ($sheets[0] ?? null);
-	    $rows = $reader->rows($sheet);
-	} catch (\RuntimeException $e) {
-	    $this->render('import_upload', [ 'error' => $e->getMessage() ]);
-	    return;
-	}
-	if (empty($rows)) {
-	    $this->render('import_upload', [ 'error' => 'The file has no data' . ($sheet !== null ? " (sheet {$sheet})" : '') ]);
-	    return;
-	}
+	[ $sheets, $sheet, $rows ] = $read;
 
 	//header: guessed when the sheet is shown first, else as chosen
 	$header = isset($data['header_set']) && ($data['sheet_shown'] ?? null) === $sheet ? !empty($data['header']) : \util\TableImport::hasHeader($rows);
@@ -257,6 +222,81 @@ class DatatableController extends \sys\BaseController {
 	$types = \V::app()->om->getFieldTypes();
 	unset($types['object']);
 	$this->render('import_preview', compact('meta', 'token', 'sheets', 'sheet', 'header', 'name', 'columns', 'dataRows', 'types', 'errors'));
+    }
+
+    //CLD: 2026-11-21T13:00:00+02:00: the uploads of both imports (a new table: import; rows into a table: import_rows) wait in tmp/import/<token>.<ext> + <token>.json
+    //(account, user, name, ext) until imported; files older than a day are removed. The folder, made when missing
+    private function importDir() {
+	$dir = BASE . '/tmp/import';
+	if (!is_dir($dir))
+	    mkdir($dir, 0700, true);
+	foreach(glob($dir . '/*') ?: [] as $old) {
+	    if (filemtime($old) < time() - 86400)
+		@unlink($old);
+	}
+	return $dir;
+    }
+
+    //keeps uploaded $file (a $req->files entry) or pasted text ($text: tab-separated, as a spreadsheet copies rows); its token, or null with $error
+    private function keepUpload($file, &$error, $text = null) {
+	$dir = $this->importDir();
+	$meta = [ 'aid' => (string)$this->account->_id, 'user' => (string)\V::app()->user->_id ];
+	$token = bin2hex(random_bytes(16));
+	if ($text !== null) {
+	    if (strlen($text) > \util\TableImport::MAX_BYTES) {
+		$error = 'The pasted text is larger than ' . \util\Format::bytes(\util\TableImport::MAX_BYTES);
+		return null;
+	    }
+	    file_put_contents("{$dir}/{$token}.tsv", $text);
+	    file_put_contents("{$dir}/{$token}.json", \util\JSON::encode($meta + [ 'name' => 'the pasted rows', 'ext' => 'tsv', 'pasted' => true ]));
+	    return $token;
+	}
+
+	$ext = strtolower(pathinfo((string)($file['name'] ?? ''), PATHINFO_EXTENSION));
+	if (empty($file) || ($file['error'] ?? 1) == UPLOAD_ERR_NO_FILE)
+	    $error = 'Choose a file';
+	elseif ($file['error'] > 0)
+	    $error = 'The file could not be uploaded';
+	elseif ($file['size'] > \util\TableImport::MAX_BYTES)
+	    //util\Format::bytes
+	    $error = 'The file is larger than ' . \util\Format::bytes(\util\TableImport::MAX_BYTES);
+	elseif ($ext === 'xls')
+	    $error = 'Old Excel files (.xls) cannot be read: save the file as .xlsx or CSV';
+	elseif (!isset(\util\TableImport::TYPES[$ext]))
+	    $error = 'Choose a CSV or Excel (.xlsx) file';
+	if ($error !== null)
+	    return null;
+
+	move_uploaded_file($file['tmp_name'], "{$dir}/{$token}.{$ext}");
+	file_put_contents("{$dir}/{$token}.json", \util\JSON::encode($meta + [ 'name' => (string)$file['name'], 'ext' => $ext ]));
+	return $token;
+    }
+
+    //the kept upload $token of this user (its meta), or null
+    private function keptUpload($token) {
+	$dir = $this->importDir();
+	$meta = preg_match('/^[0-9a-f]{32}$/', (string)$token) && is_file("{$dir}/{$token}.json") ? json_decode(file_get_contents("{$dir}/{$token}.json"), true) : null;
+	if (empty($meta) || $meta['aid'] !== (string)$this->account->_id || $meta['user'] !== (string)\V::app()->user->_id || !is_file("{$dir}/{$token}.{$meta['ext']}"))
+	    return null;
+	return $meta;
+    }
+
+    //the kept upload read: [ sheets, the sheet chosen in $data (default the first), its rows ], or null with $error
+    private function readUpload($token, array $meta, array $data, &$error) {
+	$reader = new \util\TableImport($this->importDir() . "/{$token}.{$meta['ext']}", $meta['ext']);
+	try {
+	    $sheets = $reader->sheets();
+	    $sheet = in_array($data['sheet'] ?? null, $sheets, true) ? $data['sheet'] : ($sheets[0] ?? null);
+	    $rows = $reader->rows($sheet);
+	} catch (\RuntimeException $e) {
+	    $error = $e->getMessage();
+	    return null;
+	}
+	if (empty($rows)) {
+	    $error = (!empty($meta['pasted']) ? 'The pasted text has no data' : 'The file has no data') . ($sheet !== null ? " (sheet {$sheet})" : '');
+	    return null;
+	}
+	return [ $sheets, $sheet, $rows ];
     }
 
     //creates the table, its columns and rows; null when done (toast + redirect to the table), else the errors [ 'name' | column index => [ messages ] ];
@@ -588,6 +628,221 @@ class DatatableController extends \sys\BaseController {
 	$this->addToast('success', 'OK', 'Row deleted!');
 	$this->addEvent('object::deleted', [ 'object' => $dt->iname, 'oid' => (string)$row->_id ]);
 	$this->sendEvents();
+    }
+
+    //CLD: 2026-11-21T13:00:00+02:00: delete several rows (POST; DataTable::writeData): `rows` (ids, comma separated: those selected on the page) or `all=1` (every row the
+    //grid finds: its __search / __filter, as the export). Without loading them (om->deleteMany: no audit entry per row), one audit entry `datatable.rows.delete`
+    public function delete_rows($req, $resp) {
+	$dt = $this->findTable('DataTable::writeData');
+	if (!$req->is('post'))
+	    \V::app()->error(400, 'malformed request: POST required');
+
+	if (!empty($req->query['all'])) {
+	    [ $query ] = $this->__listQuery(\V::app()->om->create($dt->iname, [ 'aid' => $this->account->_id ]));
+	} else {
+	    $ids = array_values(array_filter(explode(',', (string)($req->query['rows'] ?? '')), fn($id) => \util\Validator::rule('oid', $id)));
+	    if (!$ids) {
+		$this->addToast('error', 'Not deleted', 'No rows selected');
+		$this->sendEvents();
+	    }
+	    $query = [ '_id' => [ '$in' => array_map(fn($id) => \V::app()->om->to_oid($id), $ids) ] ];
+	}
+	$n = \V::app()->om->deleteMany($dt->iname, $query + [ 'aid' => $this->account->_id ]);
+	\models\AuditLog::record('datatable.rows.delete', $dt, \util\Format::plural($n, 'row') . ' deleted');
+	$this->addToast('success', 'OK', \util\Format::plural($n, 'row') . ' deleted');
+	$this->addEvent('object::deleted', [ 'object' => $dt->iname, 'oid' => null ]);
+	$this->sendEvents();
+    }
+
+    //CLD: 2026-11-21T13:00:00+02:00: rows into table `id` (DataTable::writeData) from a CSV / Excel file or pasted from a spreadsheet. Steps, one dialog (as import): upload
+    //(GET: the form; POST `file` or `paste`), preview (header row or not, the sheet; each file column paired with a table column or skipped, guessed by name, else by
+    //position; `mode` add: all as new rows, or update: the row with the same value in column `match` is updated, the others added; another sheet / header choice posts
+    //step=preview again), import (step=import). Values a column cannot read are left empty (and in an update leave the row's value as it is); rows the column rules
+    //refuse are skipped; object columns are not offered (they hold ids). The tier's row limit counts the rows added. One audit entry `datatable.import`
+    public function import_rows($req, $resp) {
+	$dt = $this->findTable('DataTable::writeData');
+	$uid = \V::app()->user->_id;
+	$columns = array_filter($dt->columns(), fn($f) => $f->type !== 'object' && $f->checkAccess($uid, 'update'));
+
+	if (!$req->is('post')) {
+	    $this->render('import_rows_upload', [ 'dt' => $dt, 'error' => null ]);
+	    return;
+	}
+	$data = is_array($req->data) ? $req->data : [];
+	$step = (string)($data['step'] ?? '');
+
+	if ($step === '') {
+	    $error = null;
+	    $paste = (string)($data['paste'] ?? '');
+	    $hasFile = ($req->files['file']['error'] ?? UPLOAD_ERR_NO_FILE) != UPLOAD_ERR_NO_FILE;
+	    $token = $hasFile || trim($paste) === '' ? $this->keepUpload($req->files['file'] ?? null, $error) : $this->keepUpload(null, $error, $paste);
+	    if ($token === null) {
+		$this->render('import_rows_upload', [ 'dt' => $dt, 'error' => $hasFile || trim($paste) !== '' ? $error : 'Choose a file or paste rows' ]);
+		return;
+	    }
+	    $data = [ 'token' => $token ];
+	    $step = 'preview';
+	}
+
+	$token = (string)($data['token'] ?? '');
+	$meta = $this->keptUpload($token);
+	$error = null;
+	$read = $meta ? $this->readUpload($token, $meta, $data, $error) : null;
+	if ($read === null) {
+	    $this->render('import_rows_upload', [ 'dt' => $dt, 'error' => $error ?? 'The uploaded file is no longer available: upload it again' ]);
+	    return;
+	}
+	[ $sheets, $sheet, $rows ] = $read;
+
+	//header: guessed when the sheet is shown first, else as chosen (as import)
+	$header = isset($data['header_set']) && ($data['sheet_shown'] ?? null) === $sheet ? !empty($data['header']) : \util\TableImport::hasHeader($rows);
+	$dataRows = $header ? array_slice($rows, 1) : $rows;
+	$width = count($rows[0]);
+	$names = [];
+	for ($c = 0; $c < $width; $c++)
+	    $names[$c] = $header ? trim((string)$rows[0][$c]) : '';
+
+	//the pairs [ file column => table column key | '' ]: as posted when the preview keeps them (same sheet and header), else guessed
+	$norm = fn($t) => preg_replace('/[^a-z0-9]/', '', mb_strtolower((string)$t));
+	$keep = $step === 'import' || (($data['sheet_shown'] ?? null) === $sheet && isset($data['header_set']) && (bool)($data['header_was'] ?? false) === $header);
+	$map = [];
+	$used = [];
+	$keys = array_keys($columns);
+	for ($c = 0; $c < $width; $c++) {
+	    if ($keep && is_array($data['map'] ?? null)) {
+		$k = (string)($data['map'][$c] ?? '');
+		$map[$c] = isset($columns[$k]) ? $k : '';
+		continue;
+	    }
+	    $k = '';
+	    if ($header) {
+		foreach($columns as $key => $f) {
+		    if (!isset($used[$key]) && $names[$c] !== '' && ($norm($names[$c]) === $norm($key) || $norm($names[$c]) === $norm($f->label))) {
+			$k = $key;
+			break;
+		    }
+		}
+	    } elseif (isset($keys[$c]))
+		$k = $keys[$c];
+	    if ($k !== '')
+		$used[$k] = true;
+	    $map[$c] = $k;
+	}
+	$mode = ($data['mode'] ?? 'add') === 'update' ? 'update' : 'add';
+	$match = isset($columns[$data['match'] ?? '']) ? (string)$data['match'] : '';
+
+	$errors = [];
+	if ($step === 'import') {
+	    $errors = $this->importRows($dt, $meta, $columns, $map, $mode, $match, $dataRows, $header ? 2 : 1, [ $this->importDir() . "/{$token}.{$meta['ext']}", $this->importDir() . "/{$token}.json" ]);
+	    if ($errors === null)
+		return;
+	}
+	$this->render('import_rows_preview', compact('dt', 'meta', 'token', 'sheets', 'sheet', 'header', 'names', 'columns', 'map', 'mode', 'match', 'dataRows', 'errors'));
+    }
+
+    //the rows of import_rows into $dt; null when done (toast + the table's page again), else the errors (texts)
+    private function importRows($dt, array $meta, array $columns, array $map, $mode, $match, array $dataRows, $firstRow, array $files) {
+	$pairs = array_filter($map, fn($k) => $k !== '');
+	$errors = [];
+	if (!$pairs)
+	    $errors[] = 'Pair at least one file column with a column of the table';
+	foreach(array_count_values($pairs) as $key => $n) {
+	    if ($n > 1)
+		$errors[] = 'The column ' . $columns[$key]->label . ' is paired with more than one file column';
+	}
+	if ($mode === 'update' && !in_array($match, $pairs, true))
+	    $errors[] = 'Choose the column rows are matched by, and pair it with a file column';
+	if ($errors)
+	    return $errors;
+
+	$iname = $dt->iname;
+	$aid = $this->account->_id;
+	$formats = [];
+	foreach($pairs as $c => $key)
+	    $formats[$c] = \util\TableImport::formatFor(array_column($dataRows, $c), $columns[$key]->type);
+
+	//the rows to write: [ row, new ] (a value of `match` seen again in the file updates the same row); a row the column rules refuse: skipped
+	$plan = [];
+	$byMatch = [];
+	$unread = 0;
+	$skipped = [];
+	foreach($dataRows as $r => $raw) {
+	    $values = [];
+	    foreach($pairs as $c => $key) {
+		$type = $columns[$key]->type;
+		$v = \util\TableImport::normalize($raw[$c] ?? null, $type, $formats[$c]);
+		if ($v === false && !in_array($type, [ 'checkbox', 'switch' ], true)) {
+		    $unread++;
+		    $v = null;
+		}
+		if ($v !== null)
+		    $values[$key] = $v;
+	    }
+	    //update: the row with the same value in `match` (cast as the column stores it; a date by its time), one already planned for an earlier line of the file first
+	    $row = null;
+	    $new = true;
+	    $m = null;
+	    if ($mode === 'update' && isset($values[$match])) {
+		$cast = $columns[$match]->cast($values[$match]);
+		$m = is_object($cast) ? get_class($cast) . ':' . (string)$cast : \util\JSON::encode($cast);
+		if (isset($byMatch[$m]))
+		    [ $row, $new ] = $plan[$byMatch[$m]];
+		else {
+		    $row = \V::app()->om->findOne($iname, [ 'aid' => $aid, $match => $cast ]);
+		    $new = $row === null;
+		}
+	    }
+	    $row = $row ?: \V::app()->om->create($iname, [ 'aid' => $aid ]);
+	    $row->assign($values);
+	    if (!$row->validates()) {
+		$skipped[] = $r + $firstRow;
+		continue;
+	    }
+	    if ($m !== null && isset($byMatch[$m]))
+		continue;
+	    if ($m !== null)
+		$byMatch[$m] = count($plan);
+	    $plan[] = [ $row, $new ];
+	}
+
+	$adding = count(array_filter($plan, fn($p) => $p[1]));
+	try {
+	    \util\Tiers::check($this->account, 'datatable_records', $adding, $iname);
+	} catch (\util\LimitException $e) {
+	    return [ $e->getMessage() . ' The import would add ' . \util\Format::plural($adding, 'row') . '.' ];
+	}
+
+	//new rows with om->insertMany in batches of 500, updated ones saved
+	$added = 0;
+	$updated = 0;
+	$batch = [];
+	foreach($plan as [ $row, $new ]) {
+	    if (!$new) {
+		$row->save();
+		$updated++;
+		continue;
+	    }
+	    $batch[] = $row;
+	    if (count($batch) >= 500) {
+		$added += \V::app()->om->insertMany($iname, $batch);
+		$batch = [];
+	    }
+	}
+	if ($batch)
+	    $added += \V::app()->om->insertMany($iname, $batch);
+
+	$details = \util\Format::plural($added, 'row') . ' added' . ($mode === 'update' ? ', ' . \util\Format::plural($updated, 'row') . ' updated' : '') . ' from ' . $meta['name']
+	    . ($skipped ? ', ' . count($skipped) . ' skipped' : '') . ($unread ? ", {$unread} " . ($unread > 1 ? 'values' : 'value') . ' left empty' : '');
+	\models\AuditLog::record('datatable.import', $dt, $details);
+	foreach($files as $f)
+	    @unlink($f);
+
+	$message = $details;
+	if ($skipped)
+	    $message .= '; skipped (not valid): row' . (count($skipped) > 1 ? 's ' : ' ') . implode(', ', array_slice($skipped, 0, 10)) . (count($skipped) > 10 ? '…' : '');
+	$this->addToast($skipped ? 'warning' : 'success', 'Imported', $message);
+	$this->redirect(\V::app()->createUrl('/datatable/manage', [ 'id' => $dt->_id ]));
+	return null;
     }
 
     //---------------------------------------------------------------------------------------------------------------
