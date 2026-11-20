@@ -282,6 +282,12 @@ $stepIssuesUrl = \V::app()->createUrl('/workflow/step_issues', array_filter([ 'i
 	designer.redo();
     });
 
+    //CLD: 2026-11-20T13:30:00+02:00: the breadcrumb's icon and name after the icon and name dialog saves (WorkflowController::update_name sends them)
+    app.events.on('object::updated', (e) => {
+	if (e && e.object === 'Workflow' && e.oid === '{$wfIdJs}' && e.label !== undefined)
+	    document.querySelectorAll('.main-header .wf-name').forEach((el) => el.innerHTML = e.label);
+    });
+
     //the version menu follows the saved draft: `draft changed` and which Publish item (wf-if-changed / wf-if-same) is shown
     const versions = {
 	update(changed) {
@@ -522,8 +528,14 @@ $formOptions = [
     <?= (new \sys\html\BtnExpandSidebar())->render() ?>
     <?= (new \sys\html\Breadcrumbs([ 'items' => [
 	[ 'label' => 'Home', 'href' => '/site/index' ],
-	//Breadcrumbs prints labels as HTML; escape the user-editable name
-	[ 'label' => \V::app()->html->escape((string)$wf->name) ],
+	//CLD: 2026-11-20T13:30:00+02:00: the workflow's icon and name (escaped by display()); who can update it, on the draft: a link with a pencil to the icon and name
+	//dialog (update_name, as the sidebar's Edit), kept current after a save (object::updated, below)
+	[ 'label' => \util\VString::insert($canUpdate && !$viewVersion
+	    ? '<a href="{:href}" class="wf-name-edit text-reset text-decoration-none" title="Edit the name and icon"><span class="wf-name">{:name}</span><i class="bi bi-pencil small text-body-secondary ms-2"></i></a>'
+	    : '<span class="wf-name">{:name}</span>', [
+	    'href' => \V::app()->createUrl('/workflow/update_name', [ 'id' => $wf->_id ]),
+	    'name' => $wf->schema['icon']->display() . ' ' . $wf->schema['name']->display(),
+	]) ],
     ]]))->render() ?>
 
     <div class="spacer"></div>
@@ -590,7 +602,12 @@ $formOptions = [
 		$tip .= '; the draft has changes that are not published';
 	    }
 
+	    //CLD: 2026-11-20T13:30:00+02:00: Edit (the icon and name dialog) first, as in the sidebar's menu
 	    $items = '';
+	    if ($canUpdate)
+		$items .= \util\VString::insert('<li><a class="dropdown-item" href="{:href}"><i class="bi bi-pencil me-2"></i>Edit&hellip;</a></li><li><hr class="dropdown-divider"></li>', [
+		    'href' => \V::app()->createUrl('/workflow/update_name', [ 'id' => $id ]),
+		]);
 	    if ($canPublish) {
 		//both items: the draft differs from the version (wf-if-changed) or not (wf-if-same); the one not shown is hidden, the autosave switches them (versions.update)
 		$publishUrl = \V::app()->createUrl('/workflow/publish', [ 'id' => $id ]);
@@ -664,7 +681,6 @@ $formOptions = [
 	<?php //the Tests panel ?>
 	<a href="#" class="px-1 btn btn-sm btn-icon btn-tests-toggle d-inline" title="Tests: check the AI steps before publishing"><i class="bi bi-clipboard-check"></i></a>
 	<?php /* <a href="<?= \V::app()->createUrl('/workflow/variables', [ 'id' => $wf->_id ]) ?>" class="px-1 btn btn-sm btn-icon d-inline"><i class="bi bi-code-slash"></i></a> */ ?>
-	<a href="<?= \V::app()->createUrl('/workflow/update_name', [ 'id' => $wf->_id ]) ?>" class="px-1 btn btn-sm btn-icon d-inline"><i class="bi bi-gear"></i></a>
 	<a href="#" class="px-1 btn btn-sm btn-icon btn-undo-wf d-inline disabled opacity-50" title="Undo (Ctrl+Z)" aria-disabled="true"><i class="bi bi-arrow-counterclockwise"></i></a>
 	<a href="#" class="px-1 btn btn-sm btn-icon btn-redo-wf d-inline disabled opacity-50" title="Redo (Ctrl+Shift+Z)" aria-disabled="true"><i class="bi bi-arrow-clockwise"></i></a>
 	<a href="#" class="wf-save-status small px-1 text-nowrap text-muted text-decoration-none" title="All changes are saved"><i class="bi bi-cloud-check me-1"></i><span class="btn-label">Saved</span></a>

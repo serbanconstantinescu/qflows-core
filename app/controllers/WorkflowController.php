@@ -143,6 +143,8 @@ class WorkflowController extends \sys\BaseController {
 		$wf->save();
 		$this->addToast('success', 'OK', 'Name updated!');
 		$this->addEvent('sidebar::refresh');
+		//CLD: 2026-11-20T13:30:00+02:00: the designer's breadcrumb shows the new icon and name (label: HTML, escaped by display())
+		$this->addEvent('object::updated', [ 'object' => 'Workflow', 'oid' => (string)$wf->_id, 'label' => $wf->schema['icon']->display() . ' ' . $wf->schema['name']->display() ]);
 		$this->sendEvents();
 		//$renderEmpty = true;
 	    } else {
