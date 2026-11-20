@@ -528,10 +528,10 @@ $formOptions = [
     <?= (new \sys\html\BtnExpandSidebar())->render() ?>
     <?= (new \sys\html\Breadcrumbs([ 'items' => [
 	[ 'label' => 'Home', 'href' => '/site/index' ],
-	//CLD: 2026-11-20T13:30:00+02:00: the workflow's icon and name (escaped by display()); who can update it, on the draft: a link with a pencil to the icon and name
+	//CLD: 2026-11-20T14:00:00+02:00: the workflow's icon and name (escaped by display()); who can update it, on the draft: a link with a pencil (on hover, theme _app.scss) to the icon and name
 	//dialog (update_name, as the sidebar's Edit), kept current after a save (object::updated, below)
 	[ 'label' => \util\VString::insert($canUpdate && !$viewVersion
-	    ? '<a href="{:href}" class="wf-name-edit text-reset text-decoration-none" title="Edit the name and icon"><span class="wf-name">{:name}</span><i class="bi bi-pencil small text-body-secondary ms-2"></i></a>'
+	    ? '<a href="{:href}" class="wf-name-edit text-reset text-decoration-none" title="Edit the name and icon"><span class="wf-name">{:name}</span><i class="bi bi-pencil wf-name-pencil ms-2"></i></a>'
 	    : '<span class="wf-name">{:name}</span>', [
 	    'href' => \V::app()->createUrl('/workflow/update_name', [ 'id' => $wf->_id ]),
 	    'name' => $wf->schema['icon']->display() . ' ' . $wf->schema['name']->display(),
