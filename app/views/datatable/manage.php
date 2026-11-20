@@ -32,22 +32,28 @@ $createRowUrl = \V::app()->createUrl('/datatable/create_row', [ 'id' => $dt->_id
 $updateRowUrl = str_replace('__ROW__', '{{item._id}}', \V::app()->createUrl('/datatable/update_row', [ 'id' => $dt->_id, 'row' => '__ROW__' ]));
 $deleteRowUrl = str_replace('__ROW__', '{{item._id}}', \V::app()->createUrl('/datatable/delete_row', [ 'id' => $dt->_id, 'row' => '__ROW__' ]));
 //row editing (Create: the row form in a modal, add-row button, edit / delete actions) only with DataTable::writeData
-$createBtn = $canWrite ? \V::app()->html->link('Create', $createRowUrl, [ 'class' => 'btn btn-primary btn-sm', 'escape' => false ]) : '';
+$createBtn = $canWrite ? \V::app()->html->link('<i class="bi bi-plus-lg me-1"></i>Add row', $createRowUrl, [ 'class' => 'btn btn-primary btn-sm', 'escape' => false ]) : '';
 $createRowJs = $canWrite ? "'{$createRowUrl}'" : 'false';
 $rowActionsJs = $canWrite ? "{
 		    edit: `<a href='{$updateRowUrl}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' title='Edit row'><i class='bi bi-pencil'></i></a>`,
 		    delete: `<a href='{$deleteRowUrl}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' title='Delete row' data-confirm='Delete this row?' data-method='post'><i class='bi bi-trash'></i></a>`,
 		}" : '{}';
 
+//CLD: 2026-11-21T11:00:00+02:00: no title (the name was put into the script unescaped; the breadcrumb has it); with no rows, how to start (what this user may do);
+//a click on a column's name sorts (sort); a rename (the breadcrumb's pencil) shows the new name there (object::updated with the label)
+$emptyHint = $canWrite ? ($canUpdate ? 'No rows. Add columns with + in the header, and rows with + below or Add row.' : 'No rows. Add one with + below or Add row.') : 'No rows.';
+$emptyHintJs = \util\JSON::encode(\V::app()->html->escape($emptyHint));
+$dtIdJs = (string)$dt->_id;
 $script = "
 +function() {
-    const dtName = '{$dt->name}';
     //container kept for the reload on row events (onInit)
     const container = document.getElementById('datatables-list');
     new app.GridView(
 	container, {
 	    create: '{$createBtn}',
-	    title: `<h5 class='h5 mb-0'>Manage Data Table: \${dtName}</h5>`,
+	    title: '',
+	    emptyLayout: '<div class=\"p-4 text-center text-body-secondary\">' + {$emptyHintJs} + '</div>',
+	    sort: {},
 	    dataUrl: '{$dataUrl}',
 	    schema: {
 		//read-only without DataTable::update
@@ -82,6 +88,8 @@ $script = "
 	    //reload rows after add/edit/delete (events sent by the row actions)
 	    onInit: function(e) {
 		app.events.on('object::deleted object::created object::updated', (e) => {
+		    if (e && e.object === 'DataTableDef' && e.oid === '{$dtIdJs}' && e.label !== undefined)
+			document.querySelectorAll('.main-header .dt-name').forEach((el) => el.innerHTML = e.label);
 		    container._dataView.reload();
 		});
 	    }
@@ -97,8 +105,13 @@ $script = "
     <?= (new \sys\html\Breadcrumbs([ 'items' => [
 	[ 'label' => 'Home', 'href' => '/site/index' ],
 	[ 'label' => 'Data Tables', 'href' => '/datatable/list' ],
-	//Breadcrumbs prints labels as HTML; escape the user-editable name
-	[ 'label' => \V::app()->html->escape((string)$dt->name) ],
+	//Breadcrumbs prints labels as HTML; escape the user-editable name; with DataTable::update a link to rename it (the pencil on hover, as the designer's name)
+	[ 'label' => \util\VString::insert($canUpdate
+	    ? '<a href="{:href}" class="crumb-edit text-reset text-decoration-none" title="Rename the data table"><span class="dt-name">{:name}</span><i class="bi bi-pencil crumb-edit-pencil ms-2"></i></a>'
+	    : '<span class="dt-name">{:name}</span>', [
+	    'href' => \V::app()->createUrl('/datatable/update', [ 'id' => $dt->_id ]),
+	    'name' => \V::app()->html->escape((string)$dt->name),
+	]) ],
     ]]))->render() ?>
     <?php //a table of another project, open through a share ?>
     <?php if (!$dt->isHome(\V::app()->user->crtProject)): ?>

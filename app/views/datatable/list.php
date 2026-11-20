@@ -2,15 +2,16 @@
 
 $this->pageTitle = 'Data Tables - list';
 
+//CLD: 2026-11-21T11:00:00+02:00: Create is a menu: an empty table (its name asked first: DatatableController::create) or one from a CSV / Excel file (the import dialog, was a
+//button in the header); one line, no single quote: it goes into the script's '...' string
 $createBtn = '';
-if (\V::app()->user->can('DataTable::create')) {
-    $createBtn = \V::app()->html->link(
-	'Create',
-	\V::app()->createUrl('/datatable/create'),
-	//data-method post: Create makes a table, so it is a POST (app.pjax sends the link's data-method)
-	[ 'class' => 'btn btn-primary btn-sm', 'escape' => false, 'data-method' => 'post' ]
-    );
-}
+if (\V::app()->user->can('DataTable::create'))
+    $createBtn = \util\VString::insert('<div class="dropdown"><button type="button" class="btn btn-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Create</button>'
+	. '<ul class="dropdown-menu dropdown-menu-end"><li><a class="dropdown-item" href="{:empty}"><i class="bi bi-table me-2"></i>Empty table&hellip;</a></li>'
+	. '<li><a class="dropdown-item" href="{:import}"><i class="bi bi-upload me-2"></i>From a CSV or Excel file&hellip;</a></li></ul></div>', [
+	'empty' => \V::app()->createUrl('/datatable/create'),
+	'import' => \V::app()->createUrl('/datatable/import'),
+    ]);
 
 $dataUrl = \V::app()->createUrl('', [ 'data' => 1 ]);
 //Share, with DataTable::share (not in a personal project); the second list: the tables shared with this project (open only: the rest is their project's)
@@ -37,20 +38,22 @@ $script = "
 	    createColumnUrl: '',
 	    data: {
 		//_id: { label: 'ID', type: 'object', filter: false, choices: [] },
-		name: { label: 'Name', type: 'text', filter: true },
+		//the name opens the table (link: app.GridView)
+		name: { label: 'Name', type: 'text', filter: true, link: '/datatable/manage/{{item._id}}' },
 		rows: { label: 'Rows', type: 'number', filter: false },
-		cols: { label: 'Cols', type: 'number', filter: false },
-		//how many projects it is shared with
-		shares: { label: 'Shared with', type: 'number', filter: false },
+		cols: { label: 'Columns', type: 'number', filter: false },
+		//the projects it is shared with
+		shares: { label: 'Shared with', type: 'text', filter: false },
 		created_at: { label: 'Created', type: 'datetime', filter: true },
 	    },
 	},
 	grid: {
 	    createRowUrl: false,
 	    rowActions: {
-		manage: `<a href='/datatable/manage/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn'><i class='bi bi-table'></i></a>`,
-		{$shareAction}{$moveAction}update: `<a href='/datatable/update/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn'><i class='bi bi-pencil'></i></a>`,
-		delete: `<a href='/datatable/delete/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' data-confirm='Are you sure?' data-method='post'><i class='bi bi-trash'></i></a>`,
+		//each with its tooltip; Delete asks with the table's name, rows and the workflows using it (item.confirm: HTML, escaped again for the attribute)
+		manage: `<a href='/datatable/manage/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' title='Open'><i class='bi bi-table'></i></a>`,
+		{$shareAction}{$moveAction}update: `<a href='/datatable/update/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' title='Rename'><i class='bi bi-pencil'></i></a>`,
+		delete: `<a href='/datatable/delete/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' title='Delete' data-confirm='{{- item.confirm}}' data-method='post'><i class='bi bi-trash'></i></a>`,
 	    }
 	},
 	onInit: function(e) {
@@ -77,7 +80,7 @@ if ($sharedCount > 0) {
 	    updateColumnUrl: '',
 	    createColumnUrl: '',
 	    data: {
-		name: { label: 'Name', type: 'text', filter: false },
+		name: { label: 'Name', type: 'text', filter: false, link: '/datatable/manage/{{item._id}}' },
 		project: { label: 'From project', type: 'text', filter: false },
 		access: { label: 'This project may', type: 'text', filter: false },
 		rows: { label: 'Rows', type: 'number', filter: false },
@@ -101,12 +104,6 @@ if ($sharedCount > 0) {
 	[ 'label' => 'Home', 'href' => '/site/index' ],
 	[ 'label' => 'Data Tables' ],
     ]]))->render() ?>
-    <?php //Import (a new table from a CSV / Excel file; DatatableController::import opens as a dialog) ?>
-    <?php //the text in .btn-label (only the icon on phones) ?>
-    <?php if (\V::app()->user->can('DataTable::create')): ?>
-    <div class="spacer"></div>
-    <a href="<?= \V::app()->createUrl('/datatable/import') ?>" class="btn btn-sm btn-outline-primary py-0" title="Create a data table from a CSV or Excel file"><i class="bi bi-upload me-1"></i><span class="btn-label">Import</span></a>
-    <?php endif; ?>
 </div>
 
 <div class="main-body p-4">

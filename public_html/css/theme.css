@@ -12337,18 +12337,18 @@ html[data-theme-choice=dark] [data-theme-cycle] .theme-icon-dark {
   min-width: 0;
   max-width: 50vw;
 }
-.main-header .wf-name-pencil {
+.main-header .crumb-edit-pencil {
   font-size: 0.7em;
   color: var(--bs-link-color);
   opacity: 0;
   transition: opacity 0.12s ease;
 }
-.main-header .wf-name-edit:hover .wf-name-pencil,
-.main-header .wf-name-edit:focus-visible .wf-name-pencil {
+.main-header .crumb-edit:hover .crumb-edit-pencil,
+.main-header .crumb-edit:focus-visible .crumb-edit-pencil {
   opacity: 1;
 }
 @media (hover: none) {
-  .main-header .wf-name-pencil {
+  .main-header .crumb-edit-pencil {
     opacity: 1;
   }
 }

@@ -49,16 +49,25 @@ class DatatableController extends \sys\BaseController {
 		'data' => [],
 	    ];
 
+	    //CLD: 2026-11-21T11:00:00+02:00: `shares`: the names of the projects it is shared with; `confirm`: Delete's question (HTML, escaped: the confirmation shows it as HTML)
+	    //with the rows and the workflows of the project whose steps use the table (util\Transfer::references, as Move's warning)
+	    $projectNames = [];
+	    foreach(\V::app()->om->find('Project', []) as $p)
+		$projectNames[(string)$p->_id] = (string)$p->name;
+	    $workflows = iterator_to_array(\V::app()->om->find('Workflow', [ 'project' => $this->project->_id ], [ 'sort' => [ 'name' => 1 ] ]), false);
 	    $tables = \V::app()->om->find('DataTableDef', $query);
 	    foreach($tables as $t) {
+		$rows = \V::app()->om->count($t->iname);
+		$users = array_map(fn($wf) => (string)$wf->name, array_filter($workflows, fn($wf) => \util\Transfer::references($wf, $t->_id)));
 		$response['data'][] = [
 		    '_id' => (string)$t->_id,
 		    'name' => $t->name,
-		    'rows' => \V::app()->om->count($t->iname),
+		    'rows' => $rows,
 		    'cols' => \V::app()->om->count('Field', [ 'objectName' => $t->iname ]),
-		    //how many projects it is shared with
-		    'shares' => count((array)$t->shares),
+		    'shares' => implode(', ', array_map(fn($s) => $projectNames[(string)$s['project']] ?? '?', (array)$t->shares)),
 		    'created_at' => $t->schema['created_at']->display(),
+		    'confirm' => \V::app()->html->escape('Delete the data table ' . $t->name . ' and its ' . $rows . ' row' . ($rows == 1 ? '' : 's') . '?'
+			. ($users ? ' These workflows use it: ' . implode(', ', $users) . '.' : '')),
 		];
 	    }
 
@@ -76,10 +85,8 @@ class DatatableController extends \sys\BaseController {
 	    fn($t) => \V::app()->user->can('DataTable::readData', [ 'object' => $t ]));
     }
 
-    //POST only (the Create link has data-method="post"; a GET, e.g. a prefetch or a typed URL, created a table)
+    //CLD: 2026-11-21T11:00:00+02:00: GET: the name dialog (form, a free name suggested); POST `name`: the table is made, with a first column Name, and opened
     public function create($req, $resp) {
-	if (!$req->is('post'))
-	    \V::app()->error(405, 'Method not allowed');
 	if (!\V::app()->user->can('DataTable::create'))
 	    \V::app()->error(403, 'Unauthorized');
 
@@ -91,16 +98,22 @@ class DatatableController extends \sys\BaseController {
 	    $this->redirect(\V::app()->createUrl('/datatable/list'));
 	    return;
 	}
+	//a free internal name (as util\Transfer's import); the suggested name: data_table, data_table_2... the first not used in the project
 	$n = \V::app()->om->count('DataTableDef');
-
+	do {
+	    $iname = 'data-table-' . ++$n . '-' . $this->project->_id;
+	} while (\V::app()->om->count('DataTableDef', [ 'iname' => $iname ]) > 0);
+	$name = 'data_table';
+	for ($k = 2; \V::app()->om->count('DataTableDef', [ 'project' => $this->project->_id, 'name' => $name ]) > 0; $k++)
+	    $name = 'data_table_' . $k;
 	$dt = \V::app()->om->create('DataTableDef', [
 	    'aid' => $this->account->_id,
-	    'name' => 'data_table_' . ++$n,
-	    'iname' => "data-table-{$n}-{$this->project->_id}",
+	    'name' => $req->is('post') ? trim((string)($req->data['name'] ?? '')) : $name,
+	    'iname' => $iname,
 	    'project' => $this->project->_id,
 	]);
-	if (!$dt->validates())
-	    \V::app()->error(400, 'Error creating datatable:' . print_r($dt->errors(), true));
+	if (!$req->is('post') || !$dt->validates())
+	    return $this->render('form', compact('dt'));
 
 	$dt->save();
 
@@ -367,7 +380,8 @@ class DatatableController extends \sys\BaseController {
 	    if ($dt->validates()) {
 		$dt->save();
 		$this->addToast('success', 'OK', 'Data Table saved!');
-		$this->addEvent('object::updated', [ 'object' => 'DataTableDef', 'oid' => (string)$dt->_id ]);
+		//CLD: 2026-11-21T11:00:00+02:00: `label`: the new name (escaped) for the table page's breadcrumb
+		$this->addEvent('object::updated', [ 'object' => 'DataTableDef', 'oid' => (string)$dt->_id, 'label' => \V::app()->html->escape((string)$dt->name) ]);
 		$this->sendEvents();
 	    }
 	}

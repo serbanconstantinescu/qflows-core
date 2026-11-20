@@ -1022,8 +1022,26 @@ window.app.GridView = (function() {
     	this.layout = opts.layout || defLayout;
 
     	this.gridOptions = opts.grid || {};
+	//CLD: 2026-11-21T11:00:00+02:00: opts.sort (e.g. {}): a click on a column's name sorts by it (again: the other way), an arrow on the sorted one; sent as __sortField /
+	//__sortDir (also to the export); none: the server's order
+	this.sort = opts.sort ? { field: opts.sort.field || null, dir: opts.sort.dir || 'asc' } : null;
     	this.run();
         }
+
+	widgetsUrl(url, except = []) {
+	    url = super.widgetsUrl(url, except);
+	    if (!this.sort || !this.sort.field)
+		return url;
+	    return url + (url.indexOf('?') == -1 ? '?' : '&') + '__sortField=' + encodeURIComponent(this.sort.field) + '&__sortDir=' + this.sort.dir;
+	}
+
+	sortBy(colName) {
+	    this.sort.dir = this.sort.field === colName && this.sort.dir === 'asc' ? 'desc' : 'asc';
+	    this.sort.field = colName;
+	    if (this.widgets.pager)
+		this.widgets.pager.reset();
+	    this.loadData();
+	}
 
         reload() {
     	//reset paging
@@ -1070,6 +1088,19 @@ window.app.GridView = (function() {
     	    nameSpan.className = "col-name text-truncate flex-fill";
     	    nameSpan.textContent = col.label;
     	    nameSpan.title = colName;
+	    if (this.sort) {
+		nameSpan.title = colName + ': click to sort';
+		nameSpan.setAttribute('role', 'button');
+		nameSpan.style.cursor = 'pointer';
+		nameSpan.addEventListener('click', () => this.sortBy(colName));
+		if (this.sort.field === colName) {
+		    const arrow = document.createElement('i');
+		    arrow.className = 'bi ms-1 ' + (this.sort.dir === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down');
+		    arrow.setAttribute('aria-hidden', 'true');
+		    nameSpan.appendChild(arrow);
+		    th.setAttribute('aria-sort', this.sort.dir === 'asc' ? 'ascending' : 'descending');
+		}
+	    }
         	    wrap.appendChild(nameSpan);
 
         	    // kebab menu (dropdown)
@@ -1216,7 +1247,14 @@ window.app.GridView = (function() {
         		    //boolean columns (checkbox / switch) shown as text, as any other field
         		    const content = document.createElement("div");
         		    content.className = "cell-content px-2 py-1 text-truncate w-100 h-100";
-        		    content.textContent = row[colName];
+		    //CLD: 2026-11-21T11:00:00+02:00: col.link (a template, {{item}} = the row): the value as a link, e.g. a list's name opening the item
+		    if (col.link) {
+			const a = document.createElement('a');
+			a.href = app.template.compile(col.link)({ item: row });
+			a.textContent = row[colName] ?? '';
+			content.appendChild(a);
+		    } else
+			content.textContent = row[colName];
         		    td.appendChild(content);
 
     /*
