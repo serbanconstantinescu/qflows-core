@@ -657,7 +657,8 @@ $formOptions = [
 	<a href="#" class="px-1 btn btn-sm btn-icon btn-zoom-fit d-inline" title="Fit the workflow to the view"><i class="bi bi-aspect-ratio"></i></a>
 	<a href="#" class="px-1 btn btn-sm btn-icon btn-zoom-in d-inline" title="Zoom in"><i class="bi bi-zoom-in"></i></a>
 	<?php if (!$viewVersion):  ?>
-	<a href="#" class="px-1 btn btn-sm btn-icon btn-run-wf text-success d-inline" title="Run"><i class="bi bi-play-fill"></i></a>
+	<?php //CLD: 2026-11-20T13:00:00+02:00: Run stands out: a larger icon (fs-5, lh-1 keeps the toolbar's height), in the success green ?>
+	<a href="#" class="px-1 btn btn-sm btn-icon btn-run-wf text-success d-inline" title="Run"><i class="bi bi-play-fill fs-5 lh-1 text-success"></i></a>
 	<a href="#" class="px-1 btn btn-sm btn-icon btn-exec-toggle d-inline" title="Executions"><i class="bi bi-clock-history"></i></a>
 	<a href="#" class="px-1 btn btn-sm btn-icon btn-debug-toggle d-inline" title="Debug: errors and warnings"><i class="bi bi-bug"></i></a>
 	<?php //the Tests panel ?>
