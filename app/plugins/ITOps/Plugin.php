@@ -13,6 +13,8 @@
 	                  sophos       Sophos Firewall (util\Sophos, its XML API; no trigger)
 	                  wazuh        Wazuh (util\Wazuh; alert trigger)
 	Backup            veeam        Veeam Backup & Replication (util\Veeam; event trigger)
+	Storage           synology     Synology NAS (util\Synology: DSM's Web API, signed in as a DSM account; NAS trigger, polling; notification trigger: DSM's webhook
+	                               to /synology/<token>)
 	Monitoring        checkmk      Checkmk (util\Checkmk; problem trigger)
 	                  zabbix       Zabbix (util\Zabbix; problem trigger)
 	                  patchmon     PatchMon (util\PatchMon: its integration API, and the web API signed in as a user for patching; host trigger)
@@ -24,8 +26,9 @@
 	Domains & DNS     namecheap    Namecheap (util\Namecheap)
       The polling triggers keep their state in the core's models\TriggerState; the clients use the core's util\Http (private addresses: the account's allow_private_addresses)
       and util\Ip.
-    the endpoints of the push triggers (controllers/, ENDPOINTS): /gravityzone/<token> -> GravityzoneController::receive, /fortigate/<token> -> FortigateController::receive;
-	callers are not users: no session; their refusals in the execution log (gravityzone.refused, fortigate.refused)
+    the endpoints of the push triggers (controllers/, ENDPOINTS): /gravityzone/<token> -> GravityzoneController::receive, /fortigate/<token> -> FortigateController::receive,
+	/synology/<token> -> SynologyController::receive; callers are not users: no session; their refusals in the execution log (gravityzone.refused, fortigate.refused,
+	synology.refused)
     the steps as the tools of AI steps (the core's util\AgentTools, hook agent:families): one family per product, named as the product (PRODUCTS' family: the prefix of the tools'
 	names); the core's agent suites (agenttools, agentapproval, agentguard, agenttrace) use the GravityZone and FortiGate ones
     its checks in the core's check suite (hook check:suites, outside the web): checks.php, one suite per product (hyperV: hyperv) against its fake server in tests/
@@ -241,6 +244,51 @@ class Plugin {
 		],
 		'NodeTriggerVeeam' => [
 		    'class' => __NAMESPACE__ . '\\models\\node\\NodeTriggerVeeam',
+		    'wfNode' => true,
+		],
+	    ],
+	],
+	//CLD: 2026-11-20T12:00:00+02:00: Synology NAS (DSM 6.2 / 7.x): files, system, storage, users, Hyper Backup, any API; the NAS and notification triggers
+	'synology' => [
+	    'label' => 'Synology NAS',
+	    'family' => [ 'prefix' => 'syno', 'capability' => 'synology', 'base' => models\node\NodeAppSynology::class ],
+	    'objects' => [
+		//a Synology NAS (the Synology steps and NAS trigger)
+		'CredentialSynology' => [
+		    'class' => __NAMESPACE__ . '\\models\\credential\\CredentialSynology',
+		    'variant-of' => 'Credential',
+		],
+		//Synology (one step per area, NodeAppSynology their base; the NAS trigger, polling; the notification trigger, DSM's webhook)
+		'NodeAppSynoFiles' => [
+		    'class' => __NAMESPACE__ . '\\models\\node\\NodeAppSynoFiles',
+		    'wfNode' => true,
+		],
+		'NodeAppSynoSystem' => [
+		    'class' => __NAMESPACE__ . '\\models\\node\\NodeAppSynoSystem',
+		    'wfNode' => true,
+		],
+		'NodeAppSynoStorage' => [
+		    'class' => __NAMESPACE__ . '\\models\\node\\NodeAppSynoStorage',
+		    'wfNode' => true,
+		],
+		'NodeAppSynoUsers' => [
+		    'class' => __NAMESPACE__ . '\\models\\node\\NodeAppSynoUsers',
+		    'wfNode' => true,
+		],
+		'NodeAppSynoBackup' => [
+		    'class' => __NAMESPACE__ . '\\models\\node\\NodeAppSynoBackup',
+		    'wfNode' => true,
+		],
+		'NodeAppSynoApi' => [
+		    'class' => __NAMESPACE__ . '\\models\\node\\NodeAppSynoApi',
+		    'wfNode' => true,
+		],
+		'NodeTriggerSynology' => [
+		    'class' => __NAMESPACE__ . '\\models\\node\\NodeTriggerSynology',
+		    'wfNode' => true,
+		],
+		'NodeTriggerSynologyNotification' => [
+		    'class' => __NAMESPACE__ . '\\models\\node\\NodeTriggerSynologyNotification',
 		    'wfNode' => true,
 		],
 	    ],
@@ -550,6 +598,8 @@ class Plugin {
 	'gravityzone' => [ 'gravityzone.refused', 'GravityZone event refused' ],
 	//a FortiGate automation stitch's webhook: an event refused (FortigateController)
 	'fortigate' => [ 'fortigate.refused', 'FortiGate event refused' ],
+	//CLD: 2026-11-20T12:00:00+02:00: a DSM webhook's notification refused (SynologyController)
+	'synology' => [ 'synology.refused', 'Synology notification refused' ],
     ];
 
     private static $products = null;

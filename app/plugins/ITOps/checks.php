@@ -3,7 +3,7 @@
 /*
     the ITOps plugin's checks, run by the core's check suite (commands\CheckCommand, hook check:suites: Plugin): each a closure run as a method of the check command (->check(),
     ->fail(), ->account, ->project, ->runFlow(), ->workflow(), ->startServer(), self::logLine()), one per product against its fake server in tests/:
-      gravityzone, veeam, fortigate, sophos, checkmk, patchmon, vmware, proxmox, hyperV, zabbix, wazuh, namecheap, glpi, intune
+      gravityzone, veeam, fortigate, sophos, checkmk, patchmon, synology, vmware, proxmox, hyperV, zabbix, wazuh, namecheap, glpi, intune
 */
 
 return [
@@ -1086,6 +1086,347 @@ return [
 	    proc_close($proc);
 	    foreach(glob("{$dir}/*") as $f)
 		@unlink($f);
+	    @rmdir($dir);
+	}
+    },
+
+    //CLD: 2026-11-20T12:00:00+02:00: Synology DSM against a fake DS923+ (tests/SynologyTestServer.php; plugins\ITOps\util\Synology::$testing: http, no address guard): the client
+    //(the address, parameters as DSM takes them, DSM's codes said; the APIs read first, a missing one refused; the session's token on each call, signed out last; a two-factor
+    //code from the secret), the credential's test (an administrator, another user, a wrong password), the steps (files: shares, a folder, a search, upload renamed, download into
+    //Files, folders, rename, copy / move / delete waited for, compress, a sharing link; system; storage problems; shared folders; users and groups; Hyper Backup waited for; the
+    //API), the NAS trigger (the first check notes; the events once; recovered; unreachable and reachable again; Run in the designer), the notification trigger (categories,
+    //the address rebuilt on import, the endpoint: the key, a test message left out, a storage one started)
+    'synology' => function() {
+	$S = \plugins\ITOps\util\Synology::class;
+	$N = \plugins\ITOps\models\node\NodeTriggerSynologyNotification::class;
+	$om = \V::app()->om;
+	$n = [ self::class, 'node' ];
+	$e = [ self::class, 'edge' ];
+	$thrown = function(\Closure $f) {
+	    try {
+		$f();
+		return 'no error';
+	    } catch (\Throwable $e) {
+		return $e->getMessage();
+	    }
+	};
+	$this->check('synology: the address (a pasted /webapi/... or /#... dropped); parameters as DSM takes them; DSM\'s codes said by the API\'s family', [
+	    'https://nas.local:5001', 'https://nas.local:5001', 'true', '["/docs/a b.pdf"]', 'SYNO.API.Auth: the account or password is refused (code 400)',
+	    'SYNO.FileStation.CopyMove: unknown error (code 1000): /docs/x: no such file or folder', 'SYNO.Core.User: the signed-in user has no permission for this (code 105)' ], [
+	    $S::baseUrl(' https://nas.local:5001/webapi/entry.cgi '), $S::baseUrl('https://nas.local:5001/#/signin'), $S::param(true), $S::param([ '/docs/a b.pdf' ]),
+	    $S::errorText([ 'code' => 400 ], 'SYNO.API.Auth'), $S::errorText([ 'code' => 1000, 'errors' => [ [ 'code' => 408, 'path' => '/docs/x' ] ] ], 'SYNO.FileStation.CopyMove'),
+	    $S::errorText([ 'code' => 105 ], 'SYNO.Core.User') ]);
+	$P = \plugins\ITOps\models\node\NodeAppSynology::class;
+	$this->check('synology: paths: the shared folder first, duplicate slashes folded; .. and the top refused; several one per line or a list of items', [
+	    '/docs/a, b.pdf', true, true, [ '/docs/a', '/photos/b' ] ], [
+	    $P::path('docs//a, b.pdf/'), str_contains($thrown(fn() => $P::path('/docs/../etc')), 'not a path'), str_contains($thrown(fn() => $P::path('/')), 'a shared folder'),
+	    $P::paths([ [ 'path' => '/docs/a' ], '/photos/b' ]) ]);
+	$this->check('synology: notifications: categories from DSM\'s words; problem', [ [ 'storage', true ], [ 'disk', true ], [ 'backup', true ], [ 'backup', false ], [ 'security', true ],
+	    [ 'update', false ], [ 'power', false ], [ 'test', false ], [ 'other', false ] ], array_map([ $N, 'categorize' ], [
+	    'Volume 1 (Storage Pool 1) on NAS01 has entered degraded mode', 'Drive 3 in NAS01 is failing. Back up your data', 'Hyper Backup task Offsite on NAS01 failed',
+	    'Backup task Nightly on NAS01 has completed', 'IP address 203.0.113.9 of NAS01 has been blocked by SSH', 'A new DSM update is available for NAS01',
+	    'NAS01 was restarted', 'This is a test message from NAS01', 'Hello' ]));
+	$this->check('synology: a notification\'s text: the `text` parameter, else another; the other fields kept; a form body', [
+	    [ 'Volume 1 crashed', 'storage', true, [ 'host' => 'NAS01' ] ], [ 'Drive 2 is failing', 'disk' ] ], [
+	    (fn($x) => [ $x['text'], $x['category'], $x['problem'], $x['fields'] ])($N::notification([ 'text' => 'Volume 1 crashed', 'host' => 'NAS01' ], '')),
+	    (fn($x) => [ $x['text'], $x['category'] ])($N::notification([ 'message' => 'Drive 2 is failing' ], '')) ]);
+
+	$dir = sys_get_temp_dir() . '/qflows-check-syno-' . uniqid();
+	@mkdir($dir, 0700, true);
+	$server = $this->startServer('synology', '../../plugins/ITOps/tests/SynologyTestServer.php', $dir, [ 'SYNO_STATE' => $dir ]);
+	if (!$server)
+	    return;
+	[ $port, $proc ] = $server;
+	$S::$testing = true;
+	$pollBefore = [ $S::$poll, \plugins\ITOps\models\node\NodeAppSynoBackup::$poll ];
+	$S::$poll = 0;
+	\plugins\ITOps\models\node\NodeAppSynoBackup::$poll = 0;
+	$requests = function() use ($dir) {
+	    $list = array_map(fn($l) => json_decode($l, true), array_filter(explode("\n", (string)@file_get_contents("{$dir}/requests.jsonl"))));
+	    @unlink("{$dir}/requests.jsonl");
+	    return $list;
+	};
+	$put = fn($name, $data) => file_put_contents("{$dir}/{$name}.json", json_encode($data, JSON_UNESCAPED_SLASHES));
+	$fs = fn() => json_decode((string)@file_get_contents("{$dir}/fs.json"), true) ?: [];
+	$f = fn($text) => [ 'dir' => false, 'data' => base64_encode($text), 'mtime' => 1790000000 ];
+	$put('fs', [ '/docs' => [ 'dir' => true ], '/photos' => [ 'dir' => true ], '/docs/a.pdf' => $f('%PDF-1.4 a'), '/docs/b.txt' => $f('bee'), '/docs/reports' => [ 'dir' => true ],
+	    '/docs/reports/q3.pdf' => $f('%PDF q3'), '/docs/note.txt' => $f('old') ]);
+	$storage = fn($pool = 'normal', $disk = 'normal', $smart = 'normal', $used = 400) => [
+	    'volumes' => [ [ 'id' => 'volume_1', 'vol_path' => '/volume1', 'status' => $pool === 'normal' ? 'normal' : 'degraded', 'fs_type' => 'btrfs', 'size' => [ 'total' => '1000', 'used' => (string)$used ], 'pool_path' => 'reuse_1' ] ],
+	    'storagePools' => [ [ 'id' => 'reuse_1', 'status' => $pool, 'device_type' => 'shr_with_1_disk_protect', 'size' => [ 'total' => '1000', 'used' => '1000' ], 'disks' => [ 'sata1', 'sata2' ] ] ],
+	    'disks' => [ [ 'id' => 'sata1', 'longName' => 'Drive 1', 'model' => 'HAT5300', 'vendor' => 'Synology', 'serial' => 'S1', 'status' => 'normal', 'smart_status' => 'normal', 'temp' => 33, 'size_total' => '4000' ],
+		[ 'id' => 'sata2', 'longName' => 'Drive 2', 'model' => 'HAT5300', 'vendor' => 'Synology', 'serial' => 'S2', 'status' => $disk, 'smart_status' => $smart, 'temp' => 35, 'size_total' => '4000' ] ] ];
+	$put('storage', $storage());
+	$put('tasks', [ '1' => [ 'task_id' => 1, 'name' => 'Offsite', 'state' => 'backupable', 'status' => 'none', 'last_bkp_result' => 'done', 'last_bkp_time' => '2026/11/19 02:00' ],
+	    '2' => [ 'task_id' => 2, 'name' => 'Local', 'state' => 'backupable', 'status' => 'none', 'last_bkp_result' => 'done', 'last_bkp_time' => '2026/11/19 03:00' ] ]);
+	$creds = [];
+	$wfs = [];
+	$files = [];
+	$started = [];
+	try {
+	    $make = function($user, $password = 'pw', $otp = '') use ($om, $port, &$creds) {
+		$c = $om->create('CredentialSynology', [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'name' => 'Check: Synology ' . uniqid(),
+		    'serverUrl' => "https://127.0.0.1:{$port}", 'username' => $user, 'password' => $password, 'otpSecret' => $otp ]);
+		if (!$c->validates() || !$c->save()) {
+		    $this->fail('synology: the credential was not saved: ' . json_encode($c->errors()));
+		    return null;
+		}
+		$creds[] = $c;
+		$c->serverUrl = "http://127.0.0.1:{$port}";
+		$c->save([ 'validate' => false ]);
+		return $om->findById('CredentialSynology', (string)$c->_id);
+	    };
+	    $cred = $make('admin');
+	    $user = $make('user');
+	    $wrong = $make('admin', 'nope');
+	    $otp = $make('otp', 'pw', 'JBSW Y3DP EHPK 3PXP');
+	    $noOtp = $make('otp');
+	    if (!$cred || !$user || !$wrong || !$otp || !$noOtp)
+		return;
+	    $bad = $om->create('CredentialSynology', [ 'name' => 'x', 'serverUrl' => 'http://nas.local:5000', 'username' => 'a b', 'password' => 'p', 'otpSecret' => 'not-base32!' ]);
+	    $bad->validates();
+	    $requests();
+	    $test = $cred->test();
+	    $sent = $requests();
+	    $login = array_values(array_filter($sent, fn($r) => $r['method'] === 'login'))[0] ?? [];
+	    $info = array_values(array_filter($sent, fn($r) => $r['api'] === 'SYNO.Core.System'))[0] ?? [];
+	    $this->check('synology: the form (https, an account without spaces, a base32 secret); Test: the APIs read, signed in (version 7, the webui session, a sid), the model and '
+		. 'DSM version with the session\'s token, signed out last', [
+		[ 'serverUrl', 'username', 'otpSecret' ], 'connected: DS923+, DSM 7.2.2-72806 Update 3; signed in as admin', [ '/webapi/query.cgi', '7', 'webui', 'sid', null ],
+		[ 'sid-admin', 'tok-admin' ], 'logout' ], [
+		array_values(array_intersect([ 'serverUrl', 'username', 'otpSecret' ], array_keys((array)$bad->errors()))), $test,
+		[ $sent[0]['path'] ?? null, $login['version'] ?? null, $login['params']['session'] ?? null, $login['params']['format'] ?? null, $login['params']['otp_code'] ?? null ],
+		[ $info['sid'] ?? null, $info['token'] ?? null ], end($sent)['method'] ?? null ]);
+	    $this->check('synology: Test: another user (not an administrator) signed in all the same; a wrong password; two-factor: refused without the secret, the code made from it', [
+		'signed in as user (not an administrator: the Files steps only)', true, true, 'connected: DS923+, DSM 7.2.2-72806 Update 3; signed in as otp', 6 ], [
+		$user->test(), str_contains($thrown(fn() => $wrong->test()), 'the account or password is refused'), str_contains($thrown(fn() => $noOtp->test()), 'two-factor secret'),
+		$otp->test(), strlen((string)((array_values(array_filter($requests(), fn($r) => isset($r['params']['otp_code'])))[0] ?? [])['params']['otp_code'] ?? '')) ]);
+
+	    $id = (string)$cred->_id;
+	    $step = function($fq, $cfg, $vars = [], $credId = null) use ($n, $e, $id, $requests) {
+		$requests();
+		$exe = $this->runFlow("syno {$fq}", [ $n('m', 'trigger::manual'), $n('c', $fq, $cfg + [ 'credential' => $credId ?? $id, 'onError' => 'output' ]),
+		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 'c'), $e('e2', 'c', 'err', 1) ], $vars);
+		return [ $exe, $requests() ];
+	    };
+	    $of = fn($sent, $api, $method) => array_values(array_filter($sent, fn($r) => $r['api'] === $api && $r['method'] === $method))[0] ?? [];
+
+	    //files
+	    [ $exe, ] = $step('app::syno-files', [ 'operation' => 'shares', 'variable' => 'f' ]);
+	    [ $ls, $sent ] = $step('app::syno-files', [ 'operation' => 'list', 'folder' => '/docs', 'pattern' => '*.pdf', 'filetype' => 'file', 'variable' => 'f' ]);
+	    [ $usr, ] = $step('app::syno-files', [ 'operation' => 'list', 'folder' => '/docs', 'variable' => 'f' ], [], (string)$user->_id);
+	    $this->check('synology: Files: shared folders with their space; a folder by pattern, files only (the parameters sent); another user too', [
+		[ [ 'docs', 'photos' ], 500 ], [ [ 'a.pdf' ], '/docs/a.pdf', 10, '/volume1/docs/a.pdf' ], [ '/docs', '*.pdf', 'file', '0', '500' ], 4 ], [
+		[ array_column($exe?->getVariable('f')['items'] ?? [], 'name'), $exe?->getVariable('f')['items'][0]['free'] ?? null ],
+		[ array_column($ls?->getVariable('f')['items'] ?? [], 'name'), $ls?->getVariable('f')['items'][0]['path'] ?? null, $ls?->getVariable('f')['items'][0]['size'] ?? null,
+		    $ls?->getVariable('f')['items'][0]['realPath'] ?? null ],
+		(fn($r) => [ $r['params']['folder_path'] ?? null, $r['params']['pattern'] ?? null, $r['params']['filetype'] ?? null, $r['params']['offset'] ?? null, $r['params']['limit'] ?? null ])($of($sent, 'SYNO.FileStation.List', 'list')),
+		$usr?->getVariable('f')['count'] ?? null ]);
+	    [ $exe, $sent ] = $step('app::syno-files', [ 'operation' => 'search', 'folder' => '/docs', 'extension' => '.pdf', 'variable' => 's' ]);
+	    $this->check('synology: Files search: under the folder and its subfolders, by extension; read until finished; stopped and cleaned', [ [ '/docs/a.pdf', '/docs/reports/q3.pdf' ], true,
+		[ 'pdf', 'true' ], [ 'stop', 'clean' ] ], [ array_column($exe?->getVariable('s')['items'] ?? [], 'path'), $exe?->getVariable('s')['finished'] ?? null,
+		[ $of($sent, 'SYNO.FileStation.Search', 'start')['params']['extension'] ?? null, $of($sent, 'SYNO.FileStation.Search', 'start')['params']['recursive'] ?? null ],
+		array_values(array_intersect(array_column($sent, 'method'), [ 'stop', 'clean' ])) ]);
+	    [ $up, ] = $step('app::syno-files', [ 'operation' => 'upload', 'folder' => '/docs', 'source' => 'text', 'name' => 'note.txt', 'content' => 'hello {{ who }}', 'variable' => 'u' ], [ 'who' => 'NAS' ]);
+	    [ $rep, ] = $step('app::syno-files', [ 'operation' => 'upload', 'folder' => '/docs', 'source' => 'text', 'name' => 'b.txt', 'content' => 'new bee', 'conflict' => 'replace', 'variable' => 'u' ]);
+	    [ $no, ] = $step('app::syno-files', [ 'operation' => 'upload', 'folder' => '/docs', 'source' => 'text', 'name' => 'a.pdf', 'content' => 'x', 'conflict' => 'fail' ]);
+	    [ $deep, ] = $step('app::syno-files', [ 'operation' => 'upload', 'folder' => '/docs/new/deep', 'source' => 'text', 'name' => 'x.json', 'content' => '{{ obj }}', 'variable' => 'u' ], [ 'obj' => [ 'a' => 1 ] ]);
+	    $now = $fs();
+	    $this->check('synology: Files upload: a name that exists renamed (note (2).txt); replaced; refused (the error output, DSM\'s words); its folders made; an object as JSON', [
+		'/docs/note (2).txt', 'hello NAS', 'new bee', 'error', true, true ], [
+		$up?->getVariable('u')['path'] ?? null, base64_decode($now['/docs/note (2).txt']['data'] ?? ''), base64_decode($now['/docs/b.txt']['data'] ?? ''), $no?->getVariable('route'),
+		str_contains((string)self::logLine($no, 'Synology Files upload: '), 'the file exists already'), str_contains(base64_decode($now['/docs/new/deep/x.json']['data'] ?? ''), '"a": 1') ]);
+	    [ $dl, ] = $step('app::syno-files', [ 'operation' => 'download', 'path' => '/docs/reports/q3.pdf', 'variable' => 'd' ]);
+	    [ $dlNo, ] = $step('app::syno-files', [ 'operation' => 'download', 'path' => '/docs/none.pdf', 'variable' => 'd' ]);
+	    $file = ($fid = $dl?->getVariable('d')['id'] ?? null) ? $om->findOne('File', [ '_id' => $fid ]) : null;
+	    if ($file)
+		$files[] = $file;
+	    $this->check('synology: Files download: saved in the project Files; a missing file: the error output', [ 'q3.pdf', '%PDF q3', 'error' ],
+		[ $dl?->getVariable('d')['filename'] ?? null, $file?->getContents(), $dlNo?->getVariable('route') ]);
+	    [ $mk, ] = $step('app::syno-files', [ 'operation' => 'createFolder', 'folder' => '/docs', 'name' => '2026', 'variable' => 'r' ]);
+	    [ $rn, ] = $step('app::syno-files', [ 'operation' => 'rename', 'path' => '/docs/b.txt', 'name' => 'bee.txt', 'variable' => 'r' ]);
+	    [ $cp, ] = $step('app::syno-files', [ 'operation' => 'copy', 'paths' => "/docs/a.pdf\n/docs/bee.txt", 'target' => '/docs/2026', 'variable' => 'r' ]);
+	    [ $mv, $sent ] = $step('app::syno-files', [ 'operation' => 'move', 'paths' => '{{ list }}', 'target' => '/photos', 'variable' => 'r' ], [ 'list' => [ [ 'path' => '/docs/reports' ] ] ]);
+	    $move = $of($sent, 'SYNO.FileStation.CopyMove', 'start');
+	    [ $rm, ] = $step('app::syno-files', [ 'operation' => 'delete', 'paths' => '/docs/2026/bee.txt', 'variable' => 'r' ]);
+	    [ $zip, ] = $step('app::syno-files', [ 'operation' => 'compress', 'paths' => '/docs/a.pdf', 'destFile' => '/docs/a.zip', 'variable' => 'z' ]);
+	    $now = $fs();
+	    $this->check('synology: Files: a folder made, renamed, copied (waited for), moved (remove_src), deleted, compressed: the NAS\'s files after', [
+		'/docs/2026', '/docs/bee.txt', [ '/docs/2026/a.pdf' ], [ '["/docs/reports"]', 'true', '/photos' ], [ true, false, false ], true, [ true, true ] ], [
+		$mk?->getVariable('r')['path'] ?? null, $rn?->getVariable('r')['path'] ?? null, array_values(array_filter(array_keys($now), fn($x) => str_starts_with($x, '/docs/2026/'))),
+		[ $move['params']['path'] ?? null, $move['params']['remove_src'] ?? null, $move['params']['dest_folder_path'] ?? null ],
+		[ isset($now['/photos/reports/q3.pdf']), isset($now['/docs/reports']), isset($now['/docs/2026/bee.txt']) ], isset($now['/docs/a.zip']),
+		[ $cp?->getVariable('r')['finished'] ?? null, $zip?->getVariable('z')['finished'] ?? null ] ]);
+	    [ $badDate, ] = $step('app::syno-files', [ 'operation' => 'shareLink', 'path' => '/docs/a.pdf', 'expires' => 'next week' ]);
+	    [ $link, $sent ] = $step('app::syno-files', [ 'operation' => 'shareLink', 'path' => '/docs/a.pdf', 'expires' => '2026-12-31', 'linkPassword' => 's3', 'variable' => 'l' ]);
+	    $this->check('synology: Files sharing link: a date not YYYY-MM-DD refused; the link with its expiry and password', [ 'error', 'https://gofile.me/abc/L1', [ '2026-12-31', true ] ], [
+		$badDate?->getVariable('route'), $link?->getVariable('l')['url'] ?? null,
+		[ $of($sent, 'SYNO.FileStation.Sharing', 'create')['params']['date_expired'] ?? null, $link?->getVariable('l')['has_password'] ?? null ] ]);
+
+	    //system, storage
+	    [ $si, ] = $step('app::syno-system', [ 'operation' => 'info', 'variable' => 'i' ]);
+	    [ $siUser, ] = $step('app::syno-system', [ 'operation' => 'info' ], [], (string)$user->_id);
+	    $put('update', [ 'available' => true, 'version' => 'DSM 7.2.2-72806 Update 4' ]);
+	    [ $upd, ] = $step('app::syno-system', [ 'operation' => 'update', 'variable' => 'u' ]);
+	    [ $pk, ] = $step('app::syno-system', [ 'operation' => 'packages', 'variable' => 'p' ]);
+	    [ $pkBad, ] = $step('app::syno-system', [ 'operation' => 'startPackage', 'package' => 'Nope' ]);
+	    [ $boot, $sent ] = $step('app::syno-system', [ 'operation' => 'reboot' ]);
+	    $this->check('synology: System: info; another user: the error output (no permission); an update; packages and their state; an unknown package; restart refused without '
+		. 'the confirmation (nothing sent)', [ 'DS923+', 'error', true, [ true, 'DSM 7.2.2-72806 Update 4' ], [ [ 'HyperBackup', true ], [ 'SynologyDrive', false ] ], 'error', 'error', [] ], [
+		$si?->getVariable('i')['model'] ?? null, $siUser?->getVariable('route'), str_contains((string)self::logLine($siUser, 'Synology System info: '), 'has no permission'),
+		[ $upd?->getVariable('u')['available'] ?? null, $upd?->getVariable('u')['version'] ?? null ],
+		array_map(fn($x) => [ $x['id'], $x['running'] ], $pk?->getVariable('p')['items'] ?? []), $pkBad?->getVariable('route'), $boot?->getVariable('route'),
+		array_values(array_filter($sent, fn($r) => $r['method'] === 'reboot')) ]);
+	    $put('storage', $storage('degraded', 'failing', 'abnormal', 950));
+	    [ $ov, ] = $step('app::syno-storage', [ 'operation' => 'overview', 'variable' => 'o' ]);
+	    [ $vols, ] = $step('app::syno-storage', [ 'operation' => 'volumes', 'variable' => 'v' ]);
+	    [ $mkShare, $sent ] = $step('app::syno-storage', [ 'operation' => 'createShare', 'share' => 'projects', 'volume' => '/volume1', 'description' => 'Projects', 'variable' => 's' ]);
+	    [ $rmShare, ] = $step('app::syno-storage', [ 'operation' => 'deleteShare', 'share' => 'projects' ]);
+	    $shareinfo = json_decode((string)($of($sent, 'SYNO.Core.Share', 'create')['params']['shareinfo'] ?? ''), true);
+	    $this->check('synology: Storage: the problems (a degraded volume and pool, a failing drive with its S.M.A.R.T.); volumes with their use; a shared folder made (shareinfo as JSON); '
+		. 'deleting one refused without the confirmation', [ false, [ 'volume /volume1: degraded', 'pool reuse_1: degraded', 'drive Drive 2: failing (S.M.A.R.T. abnormal)' ],
+		[ 95.0, false ], [ 'projects', '/volume1', 'Projects', true ], 'error' ], [
+		$ov?->getVariable('o')['ok'] ?? null, $ov?->getVariable('o')['problems'] ?? null,
+		[ $vols?->getVariable('v')['items'][0]['usedPercent'] ?? null, $vols?->getVariable('v')['items'][0]['ok'] ?? null ],
+		[ $shareinfo['name'] ?? null, $shareinfo['vol_path'] ?? null, $shareinfo['desc'] ?? null, $shareinfo['enable_recycle_bin'] ?? null ], $rmShare?->getVariable('route') ]);
+	    $put('storage', $storage());
+
+	    //users, backup, API
+	    [ $cu, $sent ] = $step('app::syno-users', [ 'operation' => 'create', 'user' => 'jane', 'password' => '{{ pw }}', 'email' => 'jane@example.com', 'joinGroups' => 'users, administrators',
+		'variable' => 'u' ], [ 'pw' => 'S3cret!x' ]);
+	    [ $dis, ] = $step('app::syno-users', [ 'operation' => 'disable', 'user' => 'jane' ]);
+	    [ $mem, ] = $step('app::syno-users', [ 'operation' => 'members', 'group' => 'administrators', 'variable' => 'm' ]);
+	    [ $self, ] = $step('app::syno-users', [ 'operation' => 'delete', 'user' => 'ADMIN' ]);
+	    [ $ul, ] = $step('app::syno-users', [ 'operation' => 'list', 'variable' => 'l' ]);
+	    $users = array_column(json_decode((string)@file_get_contents("{$dir}/users.json"), true) ?: [], 'expired', 'name');
+	    $this->check('synology: Users: created with its password and groups; disabled (expired now); a group\'s members; the credential\'s own account not deleted; listed', [
+		'S3cret!x', [ 'users', 'administrators' ], 'now', [ 'admin', 'jane' ], 'error', 2 ], [
+		$of($sent, 'SYNO.Core.User', 'create')['password'] ?? null, $cu?->getVariable('u')['groups'] ?? null, $users['jane'] ?? null,
+		array_column($mem?->getVariable('m')['items'] ?? [], 'name'), $self?->getVariable('route'), $ul?->getVariable('l')['count'] ?? null ]);
+	    [ $bt, ] = $step('app::syno-backup', [ 'operation' => 'tasks', 'variable' => 't' ]);
+	    [ $run, $sent ] = $step('app::syno-backup', [ 'operation' => 'run', 'task' => 'offsite', 'wait' => true, 'variable' => 'r' ]);
+	    [ $noTask, ] = $step('app::syno-backup', [ 'operation' => 'run', 'task' => 'Cloud' ]);
+	    $this->check('synology: Backup: the tasks; one run by name (any case) and waited for: finished, done at a new time; an unknown name: the error output', [
+		[ 'Offsite', 'Local' ], [ true, 'done', '2026/11/20 12:00', true ], '1', 'error' ], [
+		array_column($bt?->getVariable('t')['items'] ?? [], 'name'),
+		[ $run?->getVariable('r')['finished'] ?? null, $run?->getVariable('r')['lastResult'] ?? null, $run?->getVariable('r')['lastTime'] ?? null, $run?->getVariable('r')['ok'] ?? null ],
+		$of($sent, 'SYNO.Backup.Task', 'backup')['params']['task_id'] ?? null, $noTask?->getVariable('route') ]);
+	    [ $call, $sent ] = $step('app::syno-api', [ 'operation' => 'request', 'api' => 'SYNO.Core.System', 'method' => 'info', 'callParams' => '{"type": "{{ t }}"}', 'variable' => 'a' ], [ 't' => 'storage' ]);
+	    [ $apis, ] = $step('app::syno-api', [ 'operation' => 'apis', 'prefix' => 'syno.backup', 'variable' => 'a' ]);
+	    $put('missing', [ 'SYNO.Backup.Task' ]);
+	    [ $gone, $goneSent ] = $step('app::syno-backup', [ 'operation' => 'tasks' ]);
+	    $put('missing', []);
+	    $this->check('synology: API: a call with its parameters, at the newest version the NAS has; the NAS\'s APIs by prefix; an API the NAS lacks: refused before any call', [
+		[ 'DS923+', 'storage', '3' ], [ [ 'name' => 'SYNO.Backup.Task', 'path' => 'entry.cgi', 'minVersion' => 1, 'maxVersion' => 1 ] ], true, [] ], [
+		[ $call?->getVariable('a')['model'] ?? null, $of($sent, 'SYNO.Core.System', 'info')['params']['type'] ?? null, $of($sent, 'SYNO.Core.System', 'info')['version'] ?? null ],
+		$apis?->getVariable('a')['items'] ?? null, str_contains((string)self::logLine($gone, 'Synology Backup tasks: '), 'this NAS has no SYNO.Backup.Task'),
+		array_values(array_filter($goneSent, fn($r) => $r['api'] === 'SYNO.Backup.Task')) ]);
+
+	    //the NAS trigger
+	    $wf = $this->workflow('syno nas', [ $n('t', 'trigger::synology-nas', [ 'credential' => $id, 'events' => array_keys(\plugins\ITOps\models\node\NodeTriggerSynology::EVENTS),
+		'spaceAt' => 90, 'tempAt' => 60, 'runs' => 'each', 'variable' => 'ev', 'mode' => 'interval', 'every' => 10, 'every_unit' => 'minutes' ]),
+		$n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ ev.event }}' ]), $e('e1', 't', 's') ]);
+	    $this->check('synology: the NAS trigger\'s workflow is valid', true, $wf->validates());
+	    $wf->save();
+	    $this->created[] = $wf->_id;
+	    $wfs[] = $wf;
+	    $T = \plugins\ITOps\models\node\NodeTriggerSynology::class;
+	    $node = $wf->nodes['t'];
+	    $put('update', [ 'available' => false ]);
+	    $put('temp', [ 45 ]);
+	    [ $d0, $r0 ] = $T::check($wf, $node, []);
+	    $put('storage', $storage('degraded', 'failing', 'abnormal', 950));
+	    $put('tasks', [ '1' => [ 'task_id' => 1, 'name' => 'Offsite', 'status' => 'none', 'last_bkp_result' => 'failed', 'last_bkp_time' => '2026/11/20 02:00' ],
+		'2' => [ 'task_id' => 2, 'name' => 'Local', 'status' => 'none', 'last_bkp_result' => 'done', 'last_bkp_time' => '2026/11/20 03:00' ] ]);
+	    $put('update', [ 'available' => true, 'version' => 'DSM 7.3' ]);
+	    $put('temp', [ 71 ]);
+	    [ $d1, $r1 ] = $T::check($wf, $node, $d0);
+	    [ $d2, $r2 ] = $T::check($wf, $node, $d1);
+	    $put('storage', $storage());
+	    [ $d3, $r3 ] = $T::check($wf, $node, $d2);
+	    $put('missing', [ 'SYNO.API.Auth' ]);
+	    [ $d4, $r4 ] = $T::check($wf, $node, $d3);
+	    [ $d5, $r5 ] = $T::check($wf, $node, $d4);
+	    $put('missing', []);
+	    [ $d6, $r6 ] = $T::check($wf, $node, $d5);
+	    $started = array_merge($started, $r0, $r1, $r2, $r3, $r4, $r5, $r6);
+	    $show = fn($runs) => array_map(fn($x) => [ $x->getVariable('ev')['event'] ?? null, $x->getVariable('ev')['name'] ?? null ], $runs);
+	    $this->check('synology: NAS trigger: the first check notes; then a degraded volume and pool, a failing drive, a volume filling up, a failed backup, an update, the heat '
+		. '(one run each); nothing new: none; normal again; unreachable once; reachable again', [
+		[], [ [ 'volume', '/volume1' ], [ 'volume', 'reuse_1' ], [ 'disk', 'Drive 2' ], [ 'space', '/volume1' ], [ 'backup', 'Offsite' ], [ 'update', '127.0.0.1' ],
+		    [ 'temperature', '127.0.0.1' ] ], [], [ [ 'recovered', '/volume1' ], [ 'recovered', 'reuse_1' ], [ 'recovered', 'Drive 2' ] ], [ [ 'unreachable', '127.0.0.1' ] ], [],
+		[ [ 'reachable', '127.0.0.1' ] ] ], [ $show($r0), $show($r1), $show($r2), $show($r3), $show($r4), $show($r5), $show($r6) ]);
+	    $this->check('synology: NAS trigger: the runs queued, at the trigger; the event\'s detail, the NAS, the item', [ 'new', 'synology-nas', 'drive Drive 2: failing (S.M.A.R.T. abnormal)',
+		'DS923+', 'S2' ], [ $r1[0]?->state, $r1[0]?->trigger, $r1[2]?->getVariable('ev')['detail'] ?? null, $r1[2]?->getVariable('ev')['nas']['model'] ?? null,
+		$r1[2]?->getVariable('ev')['item']['serial'] ?? null ]);
+	    $put('storage', $storage('normal', 'failing', 'normal'));
+	    $now = $T::startNow($wf, $node);
+	    $started = array_merge($started, $now['executions'] ?? []);
+	    $this->check('synology: NAS trigger: Run in the designer: the NAS as it is now', [ 1, 'disk', 'Drive 2' ], [ count($now['executions'] ?? []),
+		($now['executions'][0] ?? null)?->getVariable('ev')['event'] ?? null, ($now['executions'][0] ?? null)?->getVariable('ev')['name'] ?? null ]);
+
+	    //the notification trigger
+	    $init = $N::initConfig();
+	    $host = (string)parse_url($init['url'], PHP_URL_HOST);
+	    $moved = $N::forTransfer([ 'token' => $init['token'], 'secret' => $init['secret'], 'url' => 'https://old/x', 'setup' => 'old' ]);
+	    $this->check('synology: notification: the address holds the token and the key; the setup shows it; an import makes both again from the token and the secret', [
+		true, true, $init['url'], true ], [ str_contains($init['url'], '/synology/' . $init['token'] . '?key=' . $init['secret']), str_contains($init['setup'], $init['url']),
+		$moved['url'], str_contains($moved['setup'], $init['url']) ]);
+	    $wf = $this->workflow('syno notification', [ $n('t', 'trigger::synology-notification', $init + [ 'categories' => [ 'storage', 'disk' ], 'variable' => 'ev' ]),
+		$n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ ev.category }}' ]), $e('e1', 't', 's') ]);
+	    $this->check('synology: notification: the workflow is valid', true, $wf->validates());
+	    $wf->save();
+	    $this->created[] = $wf->_id;
+	    $wfs[] = $wf;
+	    $version = $om->create('WfVersion', [ 'aid' => $wf->aid, 'project' => $wf->project, 'wf' => $wf->_id, 'number' => 1, 'name' => (string)$wf->name, 'nodes' => $wf->nodes ]);
+	    $version->save();
+	    $wf->version = $version->_id;
+	    $wf->status = \models\Workflow::PUBLISHED;
+	    $wf->save();
+	    $post = function($url, $text) use ($host) {
+		$ch = curl_init($url);
+		curl_setopt_array($ch, [ CURLOPT_POST => true, CURLOPT_POSTFIELDS => json_encode([ 'text' => $text ]), CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15,
+		    CURLOPT_HTTPHEADER => [ 'Content-Type: application/json' ], CURLOPT_RESOLVE => [ "{$host}:443:127.0.0.1" ], CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0 ]);
+		$answer = json_decode((string)curl_exec($ch), true);
+		$status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+		curl_close($ch);
+		return [ $status, $answer ];
+	    };
+	    $base = strtok($init['url'], '?');
+	    [ $status ] = $post("{$base}?key=wrong", 'Volume 1 crashed');
+	    if ($status === 0) {
+		echo "  skipped: the notification trigger's address (this installation's web server cannot be reached from here)\n";
+	    } else {
+		[ $test, $testAnswer ] = $post($init['url'], 'This is a test message from NAS01');
+		[ $ok, ] = $post($init['url'], "Volume 1 on NAS01 has entered degraded mode\nPlease repair it");
+		$runs = iterator_to_array($om->find('WfExecution', [ 'wf' => $wf->_id, 'trigger' => 'synology-notification' ]), false);
+		$started = array_merge($started, $runs);
+		$this->check('synology: notification: a wrong key refused; DSM\'s test message answered, no run (not chosen); a storage one: one run with its title, category, problem', [
+		    401, [ 200, 'ignored', 'test' ], 200, 1, [ 'Volume 1 on NAS01 has entered degraded mode', 'storage', true ] ], [
+		    $status, [ $test, $testAnswer['state'] ?? null, $testAnswer['category'] ?? null ], $ok, count($runs),
+		    [ $runs[0]?->getVariable('ev')['title'] ?? null, $runs[0]?->getVariable('ev')['category'] ?? null, $runs[0]?->getVariable('ev')['problem'] ?? null ] ]);
+	    }
+	} finally {
+	    $S::$testing = false;
+	    [ $S::$poll, \plugins\ITOps\models\node\NodeAppSynoBackup::$poll ] = $pollBefore;
+	    foreach($started as $x) {
+		foreach($om->find('Job', [ 'job_spec' => '\\util\\Scheduler::start', 'job_data.exe' => (string)$x->_id ]) as $job)
+		    $job->delete();
+		$x->delete();
+	    }
+	    foreach($wfs as $wf) {
+		\models\TriggerState::beforeWorkflowDelete($wf);
+		foreach($om->find('WfVersion', [ 'wf' => $wf->_id ]) as $v)
+		    $v->delete();
+	    }
+	    foreach($files as $x)
+		$x->delete();
+	    foreach($creds as $c)
+		$c->delete();
+	    proc_terminate($proc);
+	    proc_close($proc);
+	    foreach(glob("{$dir}/*") as $x)
+		@unlink($x);
 	    @rmdir($dir);
 	}
     },

@@ -41,6 +41,8 @@ class WfNode extends \sys\NestedModel {
 	'database' => 'Databases',
 	'security' => 'Security',
 	'backup' => 'Backup',
+	//CLD: 2026-11-20T12:00:00+02:00: the Synology NAS steps
+	'storage' => 'Storage',
 	'monitoring' => 'Monitoring',
 	'virtualization' => 'Virtualization',
 	'domains' => 'Domains & DNS',
