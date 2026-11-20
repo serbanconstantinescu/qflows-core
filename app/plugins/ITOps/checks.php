@@ -3,7 +3,7 @@
 /*
     the ITOps plugin's checks, run by the core's check suite (commands\CheckCommand, hook check:suites: Plugin): each a closure run as a method of the check command (->check(),
     ->fail(), ->account, ->project, ->runFlow(), ->workflow(), ->startServer(), self::logLine()), one per product against its fake server in tests/:
-      gravityzone, veeam, fortigate, sophos, checkmk, vmware, proxmox, hyperV, zabbix, wazuh, namecheap, glpi, intune
+      gravityzone, veeam, fortigate, sophos, checkmk, patchmon, vmware, proxmox, hyperV, zabbix, wazuh, namecheap, glpi, intune
 */
 
 return [
@@ -872,6 +872,207 @@ return [
 	    $this->check('checkmk: problem trigger: Run in the designer: a current problem', [ 1, 'problem' ], [ count($now['executions'] ?? []), ($now['executions'][0] ?? null)?->getVariable('ev')['event'] ?? null ]);
 	} finally {
 	    $C::$testing = false;
+	    foreach($started as $x) {
+		foreach($om->find('Job', [ 'job_spec' => '\\util\\Scheduler::start', 'job_data.exe' => (string)$x->_id ]) as $job)
+		    $job->delete();
+		$x->delete();
+	    }
+	    foreach($wfs as $wf)
+		\models\TriggerState::beforeWorkflowDelete($wf);
+	    foreach($creds as $c)
+		$c->delete();
+	    proc_terminate($proc);
+	    proc_close($proc);
+	    foreach(glob("{$dir}/*") as $f)
+		@unlink($f);
+	    @rmdir($dir);
+	}
+    },
+
+    //PatchMon against a fake server (tests/PatchMonTestServer.php; plugins\ITOps\util\PatchMon::$testing: http, no address guard): the client (the address, the query, the
+    //errors for the token, the user and the session), the credential's form and test (the token's hosts; the user signs in and out; two-factor refused), the steps (hosts by state
+    //and group, a host by name, a delete refused to a read-only token, security updates of a host, a patch run waited for, submitted for approval, approved, stopped, without a
+    //user, runs, the API as token and as user), the host trigger (its first check notes the hosts; then security updates, a reboot, a new host, a host that stops reporting and one
+    //patched start runs, once; a host not enrolled yet does not)
+    'patchmon' => function() {
+	$P = \plugins\ITOps\util\PatchMon::class;
+	$om = \V::app()->om;
+	$n = [ self::class, 'node' ];
+	$e = [ self::class, 'edge' ];
+	$this->check('patchmon: the address (a pasted /api/v1/... dropped); the query; the errors of the token, the user and a session', [
+	    'https://pm.example', 'hostgroup=Web%20Servers%2CDB&updates_only=true', 'HTTP status 401: the API token key or secret is refused (or the token is disabled or expired)',
+	    'HTTP status 401: the PatchMon user or password is refused', 'HTTP status 409: This host already has a patch run in progress' ], [
+	    $P::baseUrl(' https://pm.example/api/v1/api/hosts/ '), $P::query([ 'hostgroup' => 'Web Servers,DB', 'include' => null, 'updates_only' => true ]),
+	    $P::errorText([ 'error' => 'Invalid API credentials' ], 401, 'key'), $P::errorText([ 'error' => 'Invalid credentials' ], 401, 'login'),
+	    $P::errorText([ 'error' => 'This host already has a patch run in progress' ], 409, 'user') ]);
+
+	$dir = sys_get_temp_dir() . '/qflows-check-pm-' . uniqid();
+	@mkdir($dir, 0700, true);
+	$server = $this->startServer('patchmon', '../../plugins/ITOps/tests/PatchMonTestServer.php', $dir, [ 'PM_STATE' => $dir ]);
+	if (!$server)
+	    return;
+	[ $port, $proc ] = $server;
+	$P::$testing = true;
+	$pollBefore = \plugins\ITOps\models\node\NodeAppPmPatching::$poll;
+	\plugins\ITOps\models\node\NodeAppPmPatching::$poll = 0;
+	$requests = function() use ($dir) {
+	    $list = array_map(fn($l) => json_decode($l, true), array_filter(explode("\n", (string)@file_get_contents("{$dir}/requests.jsonl"))));
+	    @unlink("{$dir}/requests.jsonl");
+	    return $list;
+	};
+	$H1 = '11111111-1111-4111-8111-111111111111';
+	$H2 = '22222222-2222-4222-8222-222222222222';
+	$H3 = '33333333-3333-4333-8333-333333333333';
+	$H4 = '44444444-4444-4444-8444-444444444444';
+	$host = fn($id, $name, $group, $update, $sec, $upd, $reboot, $reporting = 'reporting', $status = 'active') => [ 'id' => $id, 'friendly_name' => $name, 'hostname' => "{$name}.example.local",
+	    'ip' => '10.0.0.' . $id[0], 'host_groups' => [ [ 'id' => "g-{$group}", 'name' => $group ] ], 'os_type' => 'Ubuntu', 'os_version' => '24.04 LTS',
+	    'last_update' => gmdate('Y-m-d\TH:i:s.000\Z', time() - 600), 'status' => $status, 'effective_status' => $reporting === 'stale' ? 'inactive' : $status,
+	    'reporting_state' => $reporting, 'update_state' => $update, 'needs_reboot' => $reboot, 'updates_count' => $upd, 'security_updates_count' => $sec, 'total_packages' => 300,
+	    'packages' => [ [ 'name' => 'openssl', 'current_version' => '3.0.2-1', 'available_version' => '3.0.2-2', 'needs_update' => true, 'is_security_update' => true ],
+		[ 'name' => 'nginx', 'current_version' => '1.18', 'available_version' => '1.24', 'needs_update' => true, 'is_security_update' => false ],
+		[ 'name' => 'bash', 'current_version' => '5.2', 'available_version' => null, 'needs_update' => false, 'is_security_update' => false ] ] ];
+	$hosts = fn(array $list) => file_put_contents("{$dir}/hosts.json", json_encode($list));
+	$hosts([ $host($H1, 'web01', 'Production', 'up_to_date', 0, 0, false), $host($H2, 'db01', 'Production', 'security_required', 3, 5, true),
+	    $host($H3, 'app01', 'Development', 'up_to_date', 0, 0, false, 'stale', 'pending') ]);
+	$thrown = function(\Closure $f) {
+	    try {
+		$f();
+		return 'no error';
+	    } catch (\Throwable $e) {
+		return $e->getMessage();
+	    }
+	};
+	$creds = [];
+	$wfs = [];
+	$started = [];
+	try {
+	    $make = function($key, $user = '', $password = '') use ($om, $port, &$creds) {
+		$c = $om->create('CredentialPatchMon', [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'name' => 'Check: PatchMon ' . uniqid(),
+		    'serverUrl' => "https://127.0.0.1:{$port}", 'tokenKey' => $key, 'tokenSecret' => 's3cret', 'username' => $user, 'password' => $password ]);
+		if (!$c->validates() || !$c->save()) {
+		    $this->fail('patchmon: the credential was not saved: ' . json_encode($c->errors()));
+		    return null;
+		}
+		$creds[] = $c;
+		$c->serverUrl = "http://127.0.0.1:{$port}";
+		$c->save([ 'validate' => false ]);
+		return $om->findById('CredentialPatchMon', (string)$c->_id);
+	    };
+	    $cred = $make('patchmon_ae_test', 'admin', 'pw');
+	    $ro = $make('patchmon_ae_ro');
+	    $wrong = $make('patchmon_ae_nope');
+	    $tfa = $make('patchmon_ae_test', 'tfa', 'pw');
+	    if (!$cred || !$ro || !$wrong || !$tfa)
+		return;
+	    $bad = $om->create('CredentialPatchMon', [ 'name' => 'x', 'serverUrl' => 'https://pm.example/api/v1', 'tokenKey' => 'a b', 'tokenSecret' => 's' ]);
+	    $bad->validates();
+	    $requests();
+	    $test = $cred->test();
+	    $sent = $requests();
+	    $this->check('patchmon: the form (the server without a path, a key without spaces); Test: the token\'s hosts, the user signed in and out; a wrong secret, a user with '
+		. 'two-factor sign-in: said so; no user: the token only', [
+		[ 'serverUrl', 'tokenKey' ], 'connected: 3 hosts; signed in as admin', [ 'Basic ' . base64_encode('patchmon_ae_test:s3cret'), '/api/v1/auth/login', '/api/v1/auth/logout' ],
+		true, true, 'connected: 3 hosts' ], [
+		array_values(array_intersect([ 'serverUrl', 'tokenKey' ], array_keys((array)$bad->errors()))), $test, [ $sent[0]['auth'] ?? null, $sent[1]['path'] ?? null, $sent[2]['path'] ?? null ],
+		str_contains($thrown(fn() => $wrong->test()), 'the API token key or secret is refused'), str_contains($thrown(fn() => $tfa->test()), 'two-factor authentication'), $ro->test() ]);
+
+	    $id = (string)$cred->_id;
+	    $step = function($fq, $cfg, $vars = [], $credId = null) use ($n, $e, $id, $requests) {
+		$requests();
+		$exe = $this->runFlow("pm {$fq}", [ $n('m', 'trigger::manual'), $n('c', $fq, $cfg + [ 'credential' => $credId ?? $id, 'onError' => 'output' ]),
+		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 'c'), $e('e2', 'c', 'err', 1) ], $vars);
+		return [ $exe, $requests() ];
+	    };
+	    [ $exe, $sent ] = $step('app::pm-hosts', [ 'operation' => 'list', 'state' => 'security', 'stats' => false, 'hostgroup' => 'Production', 'variable' => 'h' ]);
+	    [ $all, ] = $step('app::pm-hosts', [ 'operation' => 'list', 'state' => 'not_reporting', 'variable' => 'h' ]);
+	    $this->check('patchmon: Hosts list: a State reads the stats; the groups sent; the hosts in that state; not reporting leaves out a host not enrolled yet', [
+		[ 'stats', 'Production' ], [ 'db01' ], 0 ], [
+		[ $sent[0]['query']['include'] ?? null, $sent[0]['query']['hostgroup'] ?? null ], array_column($exe?->getVariable('h')['items'] ?? [], 'friendly_name'),
+		$all?->getVariable('h')['count'] ?? null ]);
+	    [ $exe, $sent ] = $step('app::pm-hosts', [ 'operation' => 'system', 'host' => '{{ name }}', 'variable' => 's' ], [ 'name' => 'DB01.example.local' ]);
+	    [ $none, ] = $step('app::pm-hosts', [ 'operation' => 'get', 'host' => 'ghost' ]);
+	    $this->check('patchmon: a host by its host name (any case): looked up, then its system; an unknown name: the error output', [
+		[ '/api/v1/api/hosts', "/api/v1/api/hosts/{$H2}/system" ], true, 'error' ], [
+		array_column($sent, 'path'), $exe?->getVariable('s')['needs_reboot'] ?? null, $none?->getVariable('route') ]);
+	    [ $exe, ] = $step('app::pm-hosts', [ 'operation' => 'delete', 'host' => $H1 ], [], (string)$ro->_id);
+	    [ $ok, ] = $step('app::pm-hosts', [ 'operation' => 'delete', 'host' => $H1 ]);
+	    $this->check('patchmon: Hosts delete: refused to a read-only token (the error output, PatchMon\'s message); deleted with host: delete', [ 'error', true, 'end' ], [
+		$exe?->getVariable('route'), str_contains((string)self::logLine($exe, 'PatchMon Hosts delete: '), 'does not have permission to delete host'), $ok?->state ]);
+	    [ $exe, $sent ] = $step('app::pm-packages', [ 'operation' => 'packages', 'host' => $H2, 'which' => 'security', 'variable' => 'p' ]);
+	    [ $named, ] = $step('app::pm-packages', [ 'operation' => 'packages', 'host' => $H2, 'which' => 'all', 'name' => 'NG', 'variable' => 'p' ]);
+	    [ $rep, ] = $step('app::pm-packages', [ 'operation' => 'reports', 'host' => $H2, 'limit' => 3, 'variable' => 'r' ]);
+	    $this->check('patchmon: Packages: security updates (updates_only, then the security ones); all, by name; the last reports', [
+		'true', [ 'openssl' ], [ 'nginx' ], 3 ], [
+		$sent[0]['query']['updates_only'] ?? null, array_column($exe?->getVariable('p')['items'] ?? [], 'name'), array_column($named?->getVariable('p')['items'] ?? [], 'name'),
+		count($rep?->getVariable('r')['items'] ?? []) ]);
+
+	    //patching, signed in as the user
+	    [ $exe, $sent ] = $step('app::pm-patching', [ 'operation' => 'patch', 'host' => 'web01', 'what' => 'packages', 'packages' => "openssl\nnginx, openssl", 'when' => 'immediate',
+		'wait' => true, 'variable' => 'run' ]);
+	    $run = $exe?->getVariable('run');
+	    $trigger = array_values(array_filter($sent, fn($r) => $r['path'] === '/api/v1/patching/trigger'))[0] ?? [];
+	    $this->check('patchmon: Patching patch: signed in, the packages (each once) now; waited for: the run read until it ends; signed out last; the user\'s token on the web API', [
+		[ $H1, 'patch_package', [ 'openssl', 'nginx' ], 'immediate' ], 'completed', true, true, '/api/v1/auth/logout', 'Bearer tok-admin' ], [
+		[ $trigger['body']['host_id'] ?? null, $trigger['body']['patch_type'] ?? null, $trigger['body']['package_names'] ?? null, $trigger['body']['schedule_override'] ?? null ],
+		$run['status'] ?? null, $run['ok'] ?? null, $run['finished'] ?? null, end($sent)['path'] ?? null, $trigger['auth'] ?? null ]);
+	    [ $exe, $sent ] = $step('app::pm-patching', [ 'operation' => 'patch', 'host' => $H2, 'what' => 'all', 'when' => 'approval', 'wait' => true, 'variable' => 'run' ]);
+	    $pending = $exe?->getVariable('run');
+	    [ $appr, ] = $step('app::pm-patching', [ 'operation' => 'approve', 'run' => '{{ pending }}', 'variable' => 'a' ], [ 'pending' => $pending ]);
+	    [ $busy, ] = $step('app::pm-patching', [ 'operation' => 'patch', 'host' => $H2, 'variable' => 'x' ]);
+	    [ $stop, ] = $step('app::pm-patching', [ 'operation' => 'stop', 'run' => $appr?->getVariable('a')['patch_run_id'] ?? '', 'variable' => 's' ]);
+	    $this->check('patchmon: Patching: submitted for approval (not waited for); approved from the result: a new run; another run on the host meanwhile: the error output with '
+		. 'PatchMon\'s message; the new run stopped', [ [ false, 'Submitted for approval' ], true, 'error', true, 'end' ], [
+		[ $pending['queued'] ?? null, $pending['message'] ?? null ], ($appr?->getVariable('a')['validation_run_id'] ?? null) === ($pending['patch_run_id'] ?? 'x'),
+		$busy?->getVariable('route'), str_contains((string)self::logLine($busy, 'PatchMon Patching patch: '), 'already has a patch run in progress'), $stop?->state ]);
+	    [ $nouser, ] = $step('app::pm-patching', [ 'operation' => 'summary' ], [], (string)$ro->_id);
+	    [ $dry, ] = $step('app::pm-patching', [ 'operation' => 'patch', 'host' => $H1, 'what' => 'all', 'when' => 'dry' ]);
+	    [ $runs, $sent ] = $step('app::pm-patching', [ 'operation' => 'runs', 'host' => 'db01', 'status' => 'cancelled', 'variable' => 'l' ]);
+	    $this->check('patchmon: Patching: a credential without a user: said so; a dry run of all updates: refused before sending; List runs by host and status', [
+		true, true, [ 1, 'cancelled' ], $H2 ], [
+		str_contains((string)self::logLine($nouser, 'PatchMon Patching summary: '), 'the credential has no PatchMon user'),
+		str_contains((string)self::logLine($dry, 'PatchMon Patching patch: '), 'a dry run patches packages'),
+		[ $runs?->getVariable('l')['count'] ?? null, $runs?->getVariable('l')['items'][0]['status'] ?? null ],
+		(array_values(array_filter($sent, fn($r) => $r['path'] === '/api/v1/patching/runs'))[0] ?? [])['query']['host_id'] ?? null ]);
+	    [ $tok, ] = $step('app::pm-api', [ 'as' => 'token', 'method' => 'GET', 'path' => '/api/hosts', 'query' => '{"include": "stats"}', 'variable' => 'v' ]);
+	    [ $usr, ] = $step('app::pm-api', [ 'as' => 'user', 'method' => 'GET', 'path' => '/patching/dashboard', 'variable' => 'v' ]);
+	    [ $out, ] = $step('app::pm-api', [ 'as' => 'token', 'method' => 'GET', 'path' => '/patching/dashboard' ]);
+	    $this->check('patchmon: API: as the token (the integration API), as the user (the web API); the token outside /api: the error output', [ 3, true, 'error' ], [
+		$tok?->getVariable('v')['total'] ?? null, isset($usr?->getVariable('v')['summary']), $out?->getVariable('route') ]);
+
+	    //the host trigger
+	    $wf = $this->workflow('pm host', [ $n('t', 'trigger::patchmon', [ 'credential' => $id, 'events' => [ 'security', 'reboot', 'stale', 'new', 'patched' ], 'runs' => 'each',
+		'variable' => 'ev', 'mode' => 'interval', 'every' => 10, 'every_unit' => 'minutes' ]), $n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ ev.event }}' ]), $e('e1', 't', 's') ]);
+	    $this->check('patchmon: the host trigger\'s workflow is valid', true, $wf->validates());
+	    $wf->save();
+	    $this->created[] = $wf->_id;
+	    $wfs[] = $wf;
+	    $T = \plugins\ITOps\models\node\NodeTriggerPatchMon::class;
+	    $node = $wf->nodes['t'];
+	    $hosts([ $host($H1, 'web01', 'Production', 'up_to_date', 0, 0, false), $host($H2, 'db01', 'Production', 'security_required', 3, 5, true),
+		$host($H3, 'app01', 'Development', 'up_to_date', 0, 0, false, 'stale', 'pending') ]);
+	    [ $d0, $r0 ] = $T::check($wf, $node, []);
+	    $hosts([ $host($H1, 'web01', 'Production', 'security_required', 2, 4, true), $host($H2, 'db01', 'Production', 'security_required', 3, 5, true),
+		$host($H3, 'app01', 'Development', 'up_to_date', 0, 0, false, 'stale', 'pending'), $host($H4, 'mail01', 'Production', 'up_to_date', 0, 0, false) ]);
+	    [ $d1, $r1 ] = $T::check($wf, $node, $d0);
+	    [ $d2, $r2 ] = $T::check($wf, $node, $d1);
+	    $hosts([ $host($H1, 'web01', 'Production', 'security_required', 2, 4, true), $host($H2, 'db01', 'Production', 'up_to_date', 0, 0, false, 'stale'),
+		$host($H3, 'app01', 'Development', 'up_to_date', 0, 0, false, 'stale', 'pending'), $host($H4, 'mail01', 'Production', 'up_to_date', 0, 0, false) ]);
+	    [ $d3, $r3 ] = $T::check($wf, $node, $d2);
+	    $started = array_merge($started, $r0, $r1, $r2, $r3);
+	    $show = fn($runs) => array_map(fn($x) => [ $x->getVariable('ev')['event'] ?? null, $x->getVariable('ev')['friendly_name'] ?? null ], $runs);
+	    $this->check('patchmon: host trigger: the first check notes the hosts; then security updates and a reboot (one run each), a new host; nothing new: none; patched and stale; '
+		. 'a host not enrolled yet never stale', [
+		[], [ [ 'security', 'web01' ], [ 'reboot', 'web01' ], [ 'new', 'mail01' ] ], [], [ [ 'patched', 'db01' ], [ 'stale', 'db01' ] ] ],
+		[ $show($r0), $show($r1), $show($r2), $show($r3) ]);
+	    $this->check('patchmon: host trigger: the runs queued, at the trigger; the host\'s previous state given', [ 'new', 'patchmon', 0 ],
+		[ $r1[0]?->state, $r1[0]?->trigger, $r1[0]?->getVariable('ev')['previous']['security_updates_count'] ?? null ]);
+	    $now = $T::startNow($wf, $node);
+	    $started = array_merge($started, $now['executions'] ?? []);
+	    $this->check('patchmon: host trigger: Run in the designer: a host now in a chosen state', [ 1, 'security', 'web01' ], [ count($now['executions'] ?? []),
+		($now['executions'][0] ?? null)?->getVariable('ev')['event'] ?? null, ($now['executions'][0] ?? null)?->getVariable('ev')['friendly_name'] ?? null ]);
+	} finally {
+	    $P::$testing = false;
+	    \plugins\ITOps\models\node\NodeAppPmPatching::$poll = $pollBefore;
 	    foreach($started as $x) {
 		foreach($om->find('Job', [ 'job_spec' => '\\util\\Scheduler::start', 'job_data.exe' => (string)$x->_id ]) as $job)
 		    $job->delete();

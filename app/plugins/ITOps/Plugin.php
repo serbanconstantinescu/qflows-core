@@ -15,6 +15,7 @@
 	Backup            veeam        Veeam Backup & Replication (util\Veeam; event trigger)
 	Monitoring        checkmk      Checkmk (util\Checkmk; problem trigger)
 	                  zabbix       Zabbix (util\Zabbix; problem trigger)
+	                  patchmon     PatchMon (util\PatchMon: its integration API, and the web API signed in as a user for patching; host trigger)
 	Virtualization    vmware       VMware vCenter (util\VSphere, VSphereError; alarm trigger)
 	                  proxmox      Proxmox VE (util\Proxmox; task trigger)
 	                  hyperv       Hyper-V (util\WinRM: PowerShell over WinRM; VM state trigger)
@@ -304,6 +305,39 @@ class Plugin {
 		],
 		'NodeTriggerZabbix' => [
 		    'class' => __NAMESPACE__ . '\\models\\node\\NodeTriggerZabbix',
+		    'wfNode' => true,
+		],
+	    ],
+	],
+	//CLD: 2026-11-19T15:00:00+02:00: PatchMon (patchmon.net): hosts, packages, patch runs, the host trigger
+	'patchmon' => [
+	    'label' => 'PatchMon',
+	    'family' => [ 'prefix' => 'pm', 'capability' => 'patchmon', 'base' => models\node\NodeAppPatchMon::class ],
+	    'objects' => [
+		//a PatchMon server (the PatchMon steps and host trigger)
+		'CredentialPatchMon' => [
+		    'class' => __NAMESPACE__ . '\\models\\credential\\CredentialPatchMon',
+		    'variant-of' => 'Credential',
+		],
+		//PatchMon (one step per area, NodeAppPatchMon their base; the host trigger, polling)
+		'NodeAppPmHosts' => [
+		    'class' => __NAMESPACE__ . '\\models\\node\\NodeAppPmHosts',
+		    'wfNode' => true,
+		],
+		'NodeAppPmPackages' => [
+		    'class' => __NAMESPACE__ . '\\models\\node\\NodeAppPmPackages',
+		    'wfNode' => true,
+		],
+		'NodeAppPmPatching' => [
+		    'class' => __NAMESPACE__ . '\\models\\node\\NodeAppPmPatching',
+		    'wfNode' => true,
+		],
+		'NodeAppPmApi' => [
+		    'class' => __NAMESPACE__ . '\\models\\node\\NodeAppPmApi',
+		    'wfNode' => true,
+		],
+		'NodeTriggerPatchMon' => [
+		    'class' => __NAMESPACE__ . '\\models\\node\\NodeTriggerPatchMon',
 		    'wfNode' => true,
 		],
 	    ],
