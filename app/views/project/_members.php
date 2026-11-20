@@ -8,13 +8,27 @@ if ($project->personal) {
 }
 
 $canManage = \V::app()->user->can('Project::update', [ 'object' => $project ]);
+//CLD: 2026-11-21T09:00:00+02:00: the account's built-in roles say what they may do (an option's tooltip, the line under the members); the last member with the Owner role
+//cannot be removed or given another role (ProjectController::saveMembers refuses it): both disabled, with why; your own row is marked
+$roleDescs = [
+    'owner' => 'everything in the project, including its members and settings',
+    'member' => 'builds and runs workflows, manages credentials, tables and files',
+    'participant' => 'fills in forms and completes the tasks assigned to them',
+];
 $roles = [];
-foreach(\V::app()->om->find('Role', [ 'aid' => $project->aid ], [ 'sort' => [ 'name' => 1 ] ]) as $r)
+$roleTips = [];
+$ownerRole = null;
+foreach(\V::app()->om->find('Role', [ 'aid' => $project->aid ], [ 'sort' => [ 'name' => 1 ] ]) as $r) {
     $roles[(string)$r->_id] = (string)$r;
+    $roleTips[(string)$r->_id] = $roleDescs[(string)$r->iname] ?? 'its own permissions';
+    if ($r->iname === 'owner')
+	$ownerRole = (string)$r->_id;
+}
 $members = (array)$project->members;
+$owners = count(array_filter($members, fn($m) => $ownerRole && (string)($m['role'] ?? '') === $ownerRole));
 //the role select (`role`): one option per role of the account
 $roleSelectTpl = '<select name="role" class="form-select form-select-sm" {:attrs}>{:options}</select>';
-$roleOptionTpl = '<option value="{:value}"{:selected}>{:label}</option>';
+$roleOptionTpl = '<option value="{:value}" title="{:tip}"{:selected}>{:label}</option>';
 
 echo '<div class="w-100 mt-4"></div>';
 
@@ -34,7 +48,7 @@ if ($canManage) {
     //the role of who is added or invited: Member at first
     $roleOptions = '';
     foreach($roles as $id => $label)
-	$roleOptions .= \util\VString::insert($roleOptionTpl, [ 'value' => \V::app()->html->escape($id), 'selected' => $id === $memberRole ? ' selected' : '', 'label' => \V::app()->html->escape($label) ]);
+	$roleOptions .= \util\VString::insert($roleOptionTpl, [ 'value' => \V::app()->html->escape($id), 'tip' => \V::app()->html->escape($roleTips[$id]), 'selected' => $id === $memberRole ? ' selected' : '', 'label' => \V::app()->html->escape($label) ]);
     $addTpl = '
 <form method="post" action="{:action}" class="d-flex flex-wrap gap-2 align-items-end mb-1">
     <div style="min-width: 22rem">
@@ -104,30 +118,45 @@ echo "<div class='table-responsive'><table class='table table-sm align-middle'><
 $memberTpl = '<tr><td>{:name}</td><td>{:role}</td><td class="text-end">{:remove}</td></tr>';
 $roleFormTpl = '<form method="post" action="{:action}" class="m-0" style="max-width: 14rem">{:select}</form>';
 $removeTpl = '<a class="btn btn-sm btn-outline-danger" href="{:href}" data-method="post" data-confirm="{:confirm}"><i class="bi bi-person-dash me-1"></i>Remove</a>';
+//a disabled control shows no tooltip: the reason is on a wrapper
+$lockedTpl = '<span class="d-inline-block" title="A project needs at least one member with the Owner role" tabindex="0">{:control}</span>';
+$lockedRemove = '<button type="button" class="btn btn-sm btn-outline-danger" disabled><i class="bi bi-person-dash me-1"></i>Remove</button>';
 foreach($members as $key => $item) {
     $name = (string)\V::app()->om->findById('User', $key);
     $q = [ 'id' => (string)$project->_id, 'user' => (string)$key ];
+    $roleId = (string)($item['role'] ?? '');
+    $lastOwner = $ownerRole && $roleId === $ownerRole && $owners === 1;
     $roleOptions = '';
     foreach($roles as $id => $label)
-	$roleOptions .= \util\VString::insert($roleOptionTpl, [ 'value' => \V::app()->html->escape($id), 'selected' => $id === (string)($item['role'] ?? '') ? ' selected' : '', 'label' => \V::app()->html->escape($label) ]);
+	$roleOptions .= \util\VString::insert($roleOptionTpl, [ 'value' => \V::app()->html->escape($id), 'tip' => \V::app()->html->escape($roleTips[$id]), 'selected' => $id === $roleId ? ' selected' : '', 'label' => \V::app()->html->escape($label) ]);
+    $roleSelect = \util\VString::insert($roleFormTpl, [
+	'action' => \V::app()->createUrl('/project/member_role', $q),
+	'select' => \util\VString::insert($roleSelectTpl, [ 'attrs' => "onchange='this.form.requestSubmit()' aria-label='Role'" . ($lastOwner ? ' disabled' : ''), 'options' => $roleOptions ]),
+    ]);
     echo \util\VString::insert($memberTpl, [
-	'name' => \V::app()->html->escape($name),
-	'role' => $canManage
-	    ? \util\VString::insert($roleFormTpl, [
-		'action' => \V::app()->createUrl('/project/member_role', $q),
-		'select' => \util\VString::insert($roleSelectTpl, [ 'attrs' => "onchange='this.form.requestSubmit()' aria-label='Role'", 'options' => $roleOptions ]),
-	    ])
-	    : \V::app()->html->escape($roles[(string)($item['role'] ?? '')] ?? ''),
-	'remove' => $canManage
-	    ? \util\VString::insert($removeTpl, [
+	'name' => \V::app()->html->escape($name) . ((string)$key === (string)\V::app()->user->_id ? ' <span class="badge text-bg-light border fw-normal ms-1">you</span>' : ''),
+	'role' => !$canManage ? \V::app()->html->escape($roles[$roleId] ?? '')
+	    : ($lastOwner ? \util\VString::insert($lockedTpl, [ 'control' => $roleSelect ]) : $roleSelect),
+	'remove' => !$canManage ? ''
+	    : ($lastOwner ? \util\VString::insert($lockedTpl, [ 'control' => $lockedRemove ]) : \util\VString::insert($removeTpl, [
 		'href' => \V::app()->createUrl('/project/member_remove', $q),
 		//the confirmation is shown as HTML after the attribute is read: escaped for both
 		'confirm' => \V::app()->html->escape('Remove ' . \V::app()->html->escape($name) . ' from the project?'),
-	    ])
-	    : '',
+	    ])),
     ]);
 }
 echo '</tbody></table></div>';
+
+//what the built-in roles may do; other roles: their own permissions (the Roles page)
+$descs = [];
+foreach($roles as $id => $label)
+    if ($roleTips[$id] !== 'its own permissions')
+	$descs[] = \util\VString::insert('<b>{:role}</b>: {:desc}', [ 'role' => \V::app()->html->escape($label), 'desc' => \V::app()->html->escape($roleTips[$id]) ]);
+if ($descs)
+    echo \util\VString::insert('<p class="small text-body-secondary mb-0">{:descs}.{:others}</p>', [
+	'descs' => implode('. ', $descs),
+	'others' => count($descs) < count($roles) ? ' Other roles have their own permissions' . (\V::app()->user->can('Role::read') ? ' (<a href="/role/list">Roles</a>)' : '') . '.' : '',
+    ]);
 
 //the pending invitations (not joined yet): send again / cancel
 $invites = $canManage ? iterator_to_array(\models\user\ProjectInvite::pending($project), false) : [];

@@ -1,18 +1,13 @@
-<!-- header -->
-<div class="d-flex align-items-center w-100 align-items-top">
-    <h5 class="mb-0"><?= $project->schema['icon']->display() . ' ' . $project->schema['name']->display() ?></h5>
-    <div class="flex-fill"></div>
-</div>
-
 <?php
+//CLD: 2026-11-20T16:00:00+02:00: the tabs: General, Members (with their number), Export / import; the project's name is in the breadcrumb
 $navCfg = [
     'items' => [
 	'general' => [
-	    'label' => 'Settings',
+	    'label' => 'General',
 	    'href' => \V::app()->createUrl('/project/settings', [ 'id' => $project->_id, '__tab' => 'general' ]),
 	],
 	'members' => [
-	    'label' => 'Members',
+	    'label' => \util\VString::insert('Members <span class="badge rounded-pill text-bg-secondary ms-1">{:n}</span>', [ 'n' => count((array)$project->members) ]),
 	    'href' => \V::app()->createUrl('/project/settings', [ 'id' => $project->_id, '__tab' => 'members' ]),
 	],
     ],

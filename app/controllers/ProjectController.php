@@ -66,6 +66,45 @@ class ProjectController extends \sys\BaseController {
 
 
 
+    //CLD: 2026-11-21T09:00:00+02:00: delete a project (POST ?id, `confirm`: its name; Project::delete: account Owners, and members with the project's Owner role through
+    //Project::checkAccess). Not a personal project; only an empty one (no workflows, credentials, data tables, knowledge bases, files: what is tied to a workflow goes with it).
+    //Its MCP tokens and pending invitations are removed, what other projects share with it ends (removeShare: recorded); the delete itself is audited (model:after-delete). Members whose current project it was get their
+    //personal project at their next page (sys\Boot: a current project that is gone is chosen again)
+    public function delete($req, $resp) {
+	if (!$req->is('post'))
+	    \V::app()->error(405, 'Method not allowed');
+	$project = \V::app()->om->findOne('Project', [ '_id' => $this->getOidOrError() ]);
+	if (empty($project))
+	    \V::app()->error(404, 'Not found');
+	if (!\V::app()->user->can('Project::delete', [ 'object' => $project ]))
+	    \V::app()->error(403, 'Unauthorized');
+	if ($project->personal)
+	    $this->backTo($project, 'general', 'Not deleted', 'A personal project cannot be deleted');
+	if (trim((string)($req->data['confirm'] ?? '')) !== (string)$project->name)
+	    $this->backTo($project, 'general', 'Not deleted', 'Type the project\'s name exactly to confirm');
+
+	$om = \V::app()->om;
+	$inProject = [ 'aid' => $project->aid, 'project' => $project->_id ];
+	$left = [];
+	foreach([ 'Workflow' => 'workflows', 'Credential' => 'credentials', 'DataTableDef' => 'data tables', 'KnowledgeBase' => 'knowledge bases', 'File' => 'files' ] as $object => $label)
+	    if (($n = $om->count($object, $inProject)) > 0)
+		$left[] = $n . ' ' . $label;
+	if ($left)
+	    $this->backTo($project, 'general', 'Not deleted', 'Only an empty project can be deleted; it still has ' . implode(', ', $left));
+
+	foreach([ 'Workflow', 'Credential', 'DataTableDef' ] as $object)
+	    foreach($om->find($object, [ 'aid' => $project->aid, 'shares.project' => $project->_id ]) as $o)
+		$o->removeShare($project);
+	$om->deleteMany('McpToken', $inProject);
+	$om->deleteMany('ProjectInvite', $inProject);
+	$name = (string)$project->name;
+	if (!$project->delete())
+	    $this->backTo($project, 'general', 'Not deleted', 'The project could not be deleted');
+	$this->addToast('success', 'Deleted', 'Project `' . $name . '` deleted');
+	$this->addEvent('sidebar::refresh');
+	$this->redirect('/site/index');
+    }
+
     //Export / import (settings tab `transfer`, util\Transfer; Project::transfer): moves workflows, credentials and data tables to another server.
     //export (POST): the chosen items (each also needs its read permission; `used`: + the credentials / tables the chosen workflows use), the tables in `rows` with their rows;
     //a passphrase seals the file and puts the credentials' secrets in it. Sent as a download (the form is not pjax)

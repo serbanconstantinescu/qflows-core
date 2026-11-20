@@ -62,7 +62,8 @@ $dd_items = implode('', $dd_items);
 	    echo \V::app()->html->link(
 		'<i class="bi bi-gear"></i>',
 		\V::app()->createUrl('/project/settings'),
-		[ 'class' => 'p-1', 'escape' => false ]
+		//CLD: 2026-11-20T16:00:00+02:00: a tooltip: the gear alone did not say what it opens
+		[ 'class' => 'p-1', 'escape' => false, 'title' => 'Project settings' ]
 	    );
 	}
 	?>

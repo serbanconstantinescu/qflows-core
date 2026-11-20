@@ -7,8 +7,9 @@ $this->pageTitle = 'Project: ' . $project->name;
     <?= (new \sys\html\BtnExpandSidebar())->render() ?>
     <?= (new \sys\html\Breadcrumbs([ 'items' => [
 	[ 'label' => 'Home', 'href' => '/site/index' ],
-	//Breadcrumbs prints labels as HTML; escape the user-editable name
-	[ 'label' => $project->schema['icon']->display() . ' ' . \V::app()->html->escape((string)$project->name) ],
+	//CLD: 2026-11-20T16:00:00+02:00: Home > the project (icon, name: escaped by display()) > Settings; the tabs' header no longer repeats the name
+	[ 'label' => $project->schema['icon']->display() . ' ' . $project->schema['name']->display(), 'href' => \V::app()->createUrl('/project/settings', [ 'id' => $project->_id ]) ],
+	[ 'label' => 'Settings' ],
     ]]))->render() ?>
 </div>
 
