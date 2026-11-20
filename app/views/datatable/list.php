@@ -50,8 +50,8 @@ $script = "
 	grid: {
 	    createRowUrl: false,
 	    rowActions: {
-		//each with its tooltip; Delete asks with the table's name, rows and the workflows using it (item.confirm: HTML, escaped again for the attribute)
-		manage: `<a href='/datatable/manage/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' title='Open'><i class='bi bi-table'></i></a>`,
+		//CLD: 2026-11-21T12:00:00+02:00: no Open action: the name opens the table; each with its tooltip; Delete asks with the table's name, rows and the workflows
+		//using it (item.confirm: HTML, escaped again for the attribute)
 		{$shareAction}{$moveAction}update: `<a href='/datatable/update/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' title='Rename'><i class='bi bi-pencil'></i></a>`,
 		delete: `<a href='/datatable/delete/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' title='Delete' data-confirm='{{- item.confirm}}' data-method='post'><i class='bi bi-trash'></i></a>`,
 	    }
@@ -89,7 +89,7 @@ if ($sharedCount > 0) {
 	grid: {
 	    createRowUrl: false,
 	    rowActions: {
-		manage: `<a href='/datatable/manage/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' title='Open'><i class='bi bi-table'></i></a>`,
+		//none: the name opens the table
 	    }
 	},
     });
