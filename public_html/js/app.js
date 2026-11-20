@@ -453,11 +453,14 @@ app.template = (function() {
 })();
 
 //the theme, light, dark or auto (the system's), chosen per browser (localStorage qflows.theme; read first by the <head> script of
-//layouts/_webpage.php, which sets data-bs-theme / data-theme-choice on <html> before the styles load). The switcher: buttons [data-theme-value] (the sidebar's); auto follows
+//layouts/_webpage.php, which sets data-bs-theme / data-theme-choice on <html> before the styles load). CLD: 2026-11-21T10:00:00+02:00: the switcher: one button [data-theme-cycle]
+//(the sidebar's, as the website's) going auto > light > dark, its icon shown by the theme's CSS from data-theme-choice, its title said here; auto follows
 //the system's changes, another tab's choice is followed too; when the theme shown changes: `app:themechange` on document ({ detail: { theme } }), e.g. the overview's charts
 app.theme = (function() {
     const KEY = 'qflows.theme';
     const CHOICES = [ 'light', 'dark', 'auto' ];
+    const NEXT = { auto: 'light', light: 'dark', dark: 'auto' };
+    const LABELS = { auto: 'Theme: automatic (the system\'s)', light: 'Theme: light', dark: 'Theme: dark' };
     const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
     const choice = () => {
@@ -473,10 +476,9 @@ app.theme = (function() {
 	const theme = resolved(c);
 	html.setAttribute('data-theme-choice', c);
 	html.setAttribute('data-bs-theme', theme);
-	document.querySelectorAll('[data-theme-value]').forEach((b) => {
-	    const on = b.getAttribute('data-theme-value') === c;
-	    b.classList.toggle('active', on);
-	    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+	document.querySelectorAll('[data-theme-cycle]').forEach((b) => {
+	    b.title = LABELS[c] + ', click to change';
+	    b.setAttribute('aria-label', LABELS[c] + ' (change)');
 	});
 	if (before !== theme)
 	    document.dispatchEvent(new CustomEvent('app:themechange', { detail: { theme: theme } }));
@@ -486,11 +488,10 @@ app.theme = (function() {
 	init() {
 	    apply(choice());
 	    document.addEventListener('click', (e) => {
-		const b = e.target.closest('[data-theme-value]');
-		if (!b)
+		if (!e.target.closest('[data-theme-cycle]'))
 		    return;
 		e.preventDefault();
-		this.set(b.getAttribute('data-theme-value'));
+		this.set(NEXT[choice()]);
 	    });
 	    if (media)
 		media.addEventListener('change', () => {

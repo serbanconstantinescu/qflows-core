@@ -12120,6 +12120,18 @@ body {
   flex-shrink: 0;
   border-top: var(--bs-border-width) solid var(--bs-border-color-translucent);
 }
+.sidebar-bottom-menu .btn-outline-secondary {
+  --bs-btn-color: var(--bs-body-color);
+}
+.sidebar-bottom-menu [data-theme-cycle] .bi {
+  display: none;
+}
+
+html:not([data-theme-choice=light]):not([data-theme-choice=dark]) [data-theme-cycle] .theme-icon-auto,
+html[data-theme-choice=light] [data-theme-cycle] .theme-icon-light,
+html[data-theme-choice=dark] [data-theme-cycle] .theme-icon-dark {
+  display: inline-block;
+}
 
 .sidebar-resize-handle:hover, .sidebar-resize-handle.dragging {
   background: rgba(217, 119, 87, 0.35);

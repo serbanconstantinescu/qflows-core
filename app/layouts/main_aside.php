@@ -278,13 +278,12 @@ $dd_items = implode('', $dd_items);
 	<div class="sidebar-bottom-menu">
 	    <div class="d-flex align-items-center justify-content-between px-2 py-2">
 		<span class="small text-muted">v<?= \V::app()->html->escape(\data\Version::NUMBER) ?></span>
-		<?php //CLD: 2026-11-16T17:00:00+02:00: the documentation is an icon on the version + theme line; it opens the sidebar's Documentation view (as Settings) ?>
+		<?php //CLD: 2026-11-21T10:00:00+02:00: the documentation (opens the sidebar's Documentation view, as Settings) and the theme, one button that goes auto > light > dark
+		//(app.theme; the icon shown follows the choice, theme _app.scss), on the version line ?>
 		<a href="/docs/index" class="btn btn-sm btn-outline-secondary py-0 ms-auto me-1 open-docs-menu" title="Documentation"><i class="bi bi-book" aria-hidden="true"></i><span class="visually-hidden">Documentation</span></a>
-		<div class="btn-group btn-group-sm" role="group" aria-label="Theme">
-		    <button type="button" class="btn btn-outline-secondary py-0" data-theme-value="light" title="Light" aria-pressed="false"><i class="bi bi-sun" aria-hidden="true"></i><span class="visually-hidden">Light</span></button>
-		    <button type="button" class="btn btn-outline-secondary py-0" data-theme-value="dark" title="Dark" aria-pressed="false"><i class="bi bi-moon-stars" aria-hidden="true"></i><span class="visually-hidden">Dark</span></button>
-		    <button type="button" class="btn btn-outline-secondary py-0" data-theme-value="auto" title="Auto (the system's)" aria-pressed="false"><i class="bi bi-circle-half" aria-hidden="true"></i><span class="visually-hidden">Auto</span></button>
-		</div>
+		<button type="button" class="btn btn-sm btn-outline-secondary py-0" data-theme-cycle title="Theme: automatic, light or dark (click to change)" aria-label="Color theme (change)">
+		    <i class="bi bi-circle-half theme-icon-auto" aria-hidden="true"></i><i class="bi bi-sun theme-icon-light" aria-hidden="true"></i><i class="bi bi-moon-stars theme-icon-dark" aria-hidden="true"></i>
+		</button>
 	    </div>
 	</div>
 
