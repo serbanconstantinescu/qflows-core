@@ -559,6 +559,8 @@ if [ "$OPT_SELINUX" -eq 1 ]; then
 fi
 install_packages epel-release dnf-plugins-core
 install_packages git curl wget tar openssl polkit
+# CLD: 2026-11-21T22:30:00+02:00: the SSH step runs the system's OpenSSH client (ssh, ssh-keyscan)
+install_packages openssh-clients
 if ! rpm -q --quiet remi-release; then
     dnf -y install https://rpms.remirepo.net/enterprise/remi-release-9.rpm
 fi

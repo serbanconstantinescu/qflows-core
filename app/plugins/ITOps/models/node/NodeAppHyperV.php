@@ -2,7 +2,7 @@
 
 /*
     the base of the Hyper-V steps (VMs, Checkpoints, Host, PowerShell; not registered itself), through a Hyper-V credential of the project
-    (CredentialHyperV, provides `hyperv`; plugins\ITOps\util\WinRM: PowerShell over WinRM HTTPS, the Hyper-V module of the host). As NodeAppHyperV:
+    (CredentialHyperV, provides `hyperv`; util\WinRM: PowerShell over WinRM HTTPS, the Hyper-V module of the host). As NodeAppHyperV:
 	- the shape: one input, `success` (+ `error` when On error is "Continue on the `error` output")
 	- the settings every Hyper-V step has: credential, operation (static::OPERATIONS), the operation's own settings (operationFields(): each shown for its operations),
 	    At most (the lists), timeout, result variable, on error

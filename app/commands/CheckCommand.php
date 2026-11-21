@@ -15,7 +15,7 @@
 namespace commands;
 
 class CheckCommand extends \sys\BaseController {
-    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'demo' ];
+    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'demo', 'ssh', 'windows' ];
     //not run unless named in --only (demo: an account made and deleted, public services called)
     const SLOW = [ 'steps', 'demo' ];
 
@@ -8925,6 +8925,189 @@ class CheckCommand extends \sys\BaseController {
 		$setData($dataBefore);
 	    $token?->delete();
 	    $variable?->delete();
+	}
+    }
+
+    //CLD: 2026-11-21T22:00:00+02:00: SSH against a local OpenSSH server started here (sshd on 127.0.0.1, its own host key and authorized_keys in a temporary folder; util\Ssh::$testing:
+    //no address guard): the client (parameters as quoted shell variables, never run; key lines and fingerprints), the credential (trust on first use: the server's key learned and
+    //saved; a key that changed refused), the step (a script with parameters, a non-zero exit code as an error or not, disks, a unit's state, a restart that needs sudo, the journal),
+    //the AI tools' family (the writes). Skipped when sshd or ssh-keygen is not installed
+    private function suiteSsh() {
+	$X = \util\Ssh::class;
+	$this->check('ssh: quoting, the parameters as shell variables (values never run), a bad name refused', [ "'it'\\''s'", "P_a='x \$(id) `y`'\nP_n='3'\nP_j='{\"k\":1}'\necho\n", true ],
+	    [ $X::quote("it's"), $X::wrap('echo', [ 'a' => 'x $(id) `y`', 'n' => 3, 'j' => [ 'k' => 1 ] ]), (function() use ($X) { try { $X::wrap('x', [ 'a-b' => 1 ]); return false; } catch (\RuntimeException $e) { return true; } })() ]);
+	$this->check('ssh: a key line from known_hosts / ssh-keyscan text, its SHA256 fingerprint', [ 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl', '' ],
+	    [ $X::keyLine("# comment\n[h]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n"), $X::fingerprint('not a key') ]);
+	$families = \util\AgentTools::families();
+	$this->check('ssh / windows: AI tools families, the writes asked for approval by default', [ 'ssh', 'win', [ 'run', 'restart' ], [ 'run', 'start', 'stop', 'restart' ] ],
+	    [ $families['ssh']['prefix'] ?? null, $families['windows']['prefix'] ?? null, \models\node\NodeAppSsh::WRITES, \models\node\NodeAppWindows::WRITES ]);
+
+	if (!is_executable('/usr/sbin/sshd') || !is_executable('/usr/bin/ssh-keygen')) {
+	    echo "  (no sshd / ssh-keygen here: the SSH server checks are skipped)\n";
+	    return;
+	}
+	$om = \V::app()->om;
+	$work = sys_get_temp_dir() . '/qflows-check-ssh-' . bin2hex(random_bytes(4));
+	mkdir($work, 0700);
+	$proc = null;
+	$creds = [];
+	try {
+	    foreach([ 'host' => '', 'client' => '' ] as $k => $pass)
+		exec('ssh-keygen -q -t ed25519 -N ' . escapeshellarg($pass) . ' -f ' . escapeshellarg("{$work}/{$k}") . ' 2>&1');
+	    copy("{$work}/client.pub", "{$work}/authorized_keys");
+	    chmod("{$work}/authorized_keys", 0600);
+	    $port = 0;
+	    for ($i = 0; $i < 20 && !$port; $i++) {
+		$try = random_int(20000, 40000);
+		$s = @fsockopen('127.0.0.1', $try, $errno, $errstr, 0.2);
+		if ($s)
+		    fclose($s);
+		else
+		    $port = $try;
+	    }
+	    file_put_contents("{$work}/sshd_config", "Port {$port}\nListenAddress 127.0.0.1\nHostKey {$work}/host\nAuthorizedKeysFile {$work}/authorized_keys\nPidFile {$work}/sshd.pid\n"
+		. "UsePAM no\nStrictModes no\nPasswordAuthentication no\nKbdInteractiveAuthentication no\n");
+	    $proc = proc_open([ '/usr/sbin/sshd', '-D', '-e', '-f', "{$work}/sshd_config" ], [ 1 => [ 'file', '/dev/null', 'w' ], 2 => [ 'file', "{$work}/sshd.err", 'w' ] ], $pipes);
+	    $up = false;
+	    for ($i = 0; $i < 50 && !$up; $i++) {
+		usleep(100000);
+		$s = @fsockopen('127.0.0.1', $port, $errno, $errstr, 0.2);
+		if ($s) {
+		    fclose($s);
+		    $up = true;
+		}
+	    }
+	    if (!$up) {
+		$this->fail('ssh: the local sshd did not start: ' . trim((string)@file_get_contents("{$work}/sshd.err")));
+		return;
+	    }
+	    $X::$testing = true;
+	    $user = posix_getpwuid(posix_geteuid())['name'];
+	    $c = $om->create('CredentialSsh', [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'name' => 'Check: SSH ' . uniqid(), 'host' => '127.0.0.1', 'port' => $port,
+		'username' => $user, 'auth' => 'key', 'privateKey' => file_get_contents("{$work}/client"), 'hostKey' => '' ]);
+	    if (!$c->validates() || !$c->save()) {
+		$this->fail('ssh: the credential was not saved: ' . json_encode($c->errors()));
+		return;
+	    }
+	    $creds[] = $c;
+	    $bad = $om->create('CredentialSsh', [ 'name' => 'x', 'host' => 'a b', 'username' => 'u', 'auth' => 'key', 'privateKey' => file_get_contents("{$work}/client.pub"), 'hostKey' => 'nope' ]);
+	    $bad->validates();
+	    $test = $c->test();
+	    $saved = $om->findById('CredentialSsh', (string)$c->_id);
+	    $this->check('ssh: the form (a host, a private key not a public one, a key line); Test signs in and learns the server\'s key (saved, its fingerprint shown)',
+		[ [ 'host', 'privateKey', 'hostKey' ], true, true, true ],
+		[ array_values(array_intersect([ 'host', 'privateKey', 'hostKey' ], array_keys($bad->errors()))), str_contains($test, "signed in as {$user} on "),
+		    $saved->hostKey === $X::keyLine(file_get_contents("{$work}/host.pub")), str_contains($test, $X::fingerprint(file_get_contents("{$work}/host.pub"))) ]);
+
+	    $n = [ self::class, 'node' ];
+	    $e = [ self::class, 'edge' ];
+	    $step = fn($id, $cfg) => $n($id, 'app::ssh', $cfg + [ 'credential' => (string)$c->_id, 'timeout' => 30, 'onError' => 'output' ]);
+	    $exe = $this->runFlow('ssh steps', [
+		$n('start', 'trigger::manual'),
+		$step('run', [ 'operation' => 'run', 'script' => 'printf "%s|%s" "$P_name" "$P_obj"', 'parameters' => '{{ {"name": name, "obj": obj} }}', 'variable' => 'run' ]),
+		$step('exit', [ 'operation' => 'run', 'script' => 'echo out; echo bad >&2; exit 3', 'variable' => 'exited' ]),
+		$step('any', [ 'operation' => 'run', 'script' => 'exit 4', 'anyExit' => true, 'variable' => 'anyexit' ]),
+		$step('disks', [ 'operation' => 'disks', 'variable' => 'disks' ]),
+		$step('status', [ 'operation' => 'status', 'unit' => 'sshd', 'variable' => 'status' ]),
+		$step('badunit', [ 'operation' => 'status', 'unit' => 'x; rm', 'variable' => 'badunit' ]),
+		//a unit that does not exist: a restart of a real service is never tried here (sudo may work on this machine)
+		$step('restart', [ 'operation' => 'restart', 'unit' => 'qflows-check-no-such-unit', 'sudo' => true, 'variable' => 'restarted' ]),
+		//without sudo a user cannot restart sshd: refused, although sshd stays active (the restart's own exit code decides)
+		$step('refused', [ 'operation' => 'restart', 'unit' => 'sshd', 'sudo' => false, 'variable' => 'refused' ]),
+		$e('e1', 'start', 'run'), $e('e2', 'run', 'exit'), $e('e3', 'exit', 'any', 1), $e('e4', 'any', 'disks'), $e('e5', 'disks', 'status'), $e('e6', 'status', 'badunit'),
+		$e('e7', 'badunit', 'restart', 1), $e('e8', 'restart', 'refused', 1),
+	    ], [ 'name' => "it's \$(touch {$work}/pwned)", 'obj' => [ 'a' => 1 ] ]);
+	    $v = $exe ? (array)$exe->variables : [];
+	    $this->check('ssh step: a script with parameters (data, never run), a non-zero exit code: the error output, Any exit code: success', [ 'end', "it's \$(touch {$work}/pwned)|{\"a\":1}", false,
+		null, 4, false ], [ $exe?->state, $v['run']['stdout'] ?? null, file_exists("{$work}/pwned"), $v['exited'] ?? null, $v['anyexit']['exitCode'] ?? null, $v['anyexit']['ok'] ?? null ]);
+	    $this->check('ssh step: the log of the exit code, disks (df), a unit\'s state, a bad unit name refused, a restart of a unit that does not exist: an error', [ true, true, 'loaded', null, null ],
+		[ str_contains((string)self::logLine($exe, 'SSH run: exit code 3'), 'bad'), ($v['disks']['count'] ?? 0) > 0, $v['status']['load'] ?? null, $v['badunit'] ?? null, $v['restarted'] ?? null ]);
+	    $this->check('ssh step: a refused restart of a unit that stays active is an error (the restart\'s exit code), said in the log', [ null, true ],
+		[ $v['refused'] ?? null, str_contains((string)self::logLine($exe, 'SSH restart: '), 'the restart failed') ]);
+
+	    //another server key: refused
+	    exec('ssh-keygen -q -t ed25519 -N "" -f ' . escapeshellarg("{$work}/other") . ' 2>&1');
+	    $om->updateMany('CredentialSsh', [ '_id' => $c->_id ], [ '$set' => [ 'hostKey' => $X::keyLine(file_get_contents("{$work}/other.pub")) ] ]);
+	    $msg = '';
+	    try {
+		$om->findById('CredentialSsh', (string)$c->_id)->test();
+	    } catch (\Exception $ex) {
+		$msg = $ex->getMessage();
+	    }
+	    $this->check('ssh: a server whose key is not the one saved is refused', true, str_contains($msg, 'not the one trusted'));
+	} finally {
+	    $X::$testing = false;
+	    foreach($creds as $cr)
+		$cr->delete();
+	    if ($proc) {
+		proc_terminate($proc);
+		proc_close($proc);
+	    }
+	    \util\FileDecrypt::removeDir($work);
+	}
+    }
+
+    //CLD: 2026-11-21T22:00:00+02:00: the Windows step against a fake Windows server behind WinRM (commands/tests/WindowsTestServer.php; util\WinRM::$testing): the credential's test,
+    //a script with parameters (data) and PowerShell's error, disks, services (a pattern, the automatic ones stopped), a service restarted, recent events by level
+    private function suiteWindows() {
+	$W = \util\WinRM::class;
+	$om = \V::app()->om;
+	$dir = sys_get_temp_dir() . '/qflows-check-win-' . uniqid();
+	@mkdir($dir, 0700, true);
+	$server = $this->startServer('windows', 'WindowsTestServer.php', $dir, [ 'WIN_STATE' => $dir ]);
+	if (!$server)
+	    return;
+	[ $port, $proc ] = $server;
+	$W::$testing = true;
+	$cred = null;
+	try {
+	    $cred = $om->create('CredentialWindows', [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'name' => 'Check: Windows ' . uniqid(),
+		'serverUrl' => "https://127.0.0.1:{$port}", 'username' => 'app01\\ops', 'password' => 's3cret', 'authMethod' => 'basic' ]);
+	    if (!$cred->validates() || !$cred->save()) {
+		$this->fail('windows: the credential was not saved: ' . json_encode($cred->errors()));
+		$cred = null;
+		return;
+	    }
+	    $cred->serverUrl = "http://127.0.0.1:{$port}";
+	    $cred->save([ 'validate' => false ]);
+	    $cred = $om->findById('CredentialWindows', (string)$cred->_id);
+	    $bad = $om->create('CredentialWindows', [ 'name' => 'x', 'serverUrl' => 'http://app01:5985', 'username' => 'a', 'password' => 's' ]);
+	    $bad->validates();
+	    $this->check('windows: the form (an https address); Test: the server, its Windows, its uptime', [ [ 'serverUrl' ],
+		'signed in as app01\\ops on APP01 (Microsoft Windows Server 2022 Standard 10.0.20348), up for 75 hours' ],
+		[ array_values(array_intersect([ 'serverUrl' ], array_keys($bad->errors()))), $cred->test() ]);
+
+	    $n = [ self::class, 'node' ];
+	    $e = [ self::class, 'edge' ];
+	    $step = fn($id, $cfg) => $n($id, 'app::windows', $cfg + [ 'credential' => (string)$cred->_id, 'timeout' => 30, 'onError' => 'output' ]);
+	    $exe = $this->runFlow('windows steps', [
+		$n('start', 'trigger::manual'),
+		$step('run', [ 'operation' => 'run', 'script' => 'Get-Date', 'parameters' => '{{ {"x": x} }}', 'variable' => 'run' ]),
+		$step('fail', [ 'operation' => 'run', 'script' => 'Get-Thing', 'parameters' => '{"fail": true}', 'variable' => 'failed' ]),
+		$step('disks', [ 'operation' => 'disks', 'variable' => 'disks' ]),
+		$step('stopped', [ 'operation' => 'services', 'name' => '', 'stoppedAuto' => true, 'variable' => 'stopped' ]),
+		$step('pattern', [ 'operation' => 'services', 'name' => 'MSSQL*', 'variable' => 'sql' ]),
+		$step('restart', [ 'operation' => 'restart', 'service' => 'W3SVC', 'variable' => 'restarted' ]),
+		$step('nosuch', [ 'operation' => 'start', 'service' => 'Nope', 'variable' => 'nosuch' ]),
+		$step('events', [ 'operation' => 'events', 'log' => 'System', 'levels' => [ '1', '2' ], 'hours' => 24, 'max' => 10, 'variable' => 'events' ]),
+		$e('e1', 'start', 'run'), $e('e2', 'run', 'fail'), $e('e3', 'fail', 'disks', 1), $e('e4', 'disks', 'stopped'), $e('e5', 'stopped', 'pattern'), $e('e6', 'pattern', 'restart'),
+		$e('e7', 'restart', 'nosuch'), $e('e8', 'nosuch', 'events', 1),
+	    ], [ 'x' => "it's {{ x }}; Remove-Item" ]);
+	    $v = $exe ? (array)$exe->variables : [];
+	    $this->check('windows step: a script with parameters as data, PowerShell\'s error: the error output, disks, the automatic services stopped, a pattern', [ 'end',
+		[ 'x' => "it's {{ x }}; Remove-Item" ], null, [ 94, 38 ], [ 'W3SVC' ], [ 'MSSQLSERVER' ] ],
+		[ $exe?->state, $v['run']['echo'] ?? null, $v['failed'] ?? null, array_column($v['disks']['items'] ?? [], 'usePercent'), array_column($v['stopped']['items'] ?? [], 'name'),
+		    array_column($v['sql']['items'] ?? [], 'name') ]);
+	    $this->check('windows step: a service restarted (Running), an unknown one: an error, the events of the last day (Error, not the older Critical)', [ 'Running', null, [ 7034 ], true ],
+		[ $v['restarted']['status'] ?? null, $v['nosuch'] ?? null, array_column($v['events']['items'] ?? [], 'id'), str_contains((string)self::logLine($exe, 'Windows run: '), 'Access is denied') ]);
+	} finally {
+	    $W::$testing = false;
+	    $cred?->delete();
+	    proc_terminate($proc);
+	    proc_close($proc);
+	    foreach(glob("{$dir}/*") as $f)
+		@unlink($f);
+	    @rmdir($dir);
 	}
     }
 

@@ -357,6 +357,15 @@ class SysObjects {
 		'class' => 'models\credential\CredentialShopify',
 		'variant-of' => 'Credential',
 	    ],
+	    //CLD: 2026-11-21T21:00:00+02:00: servers the SSH and Windows steps run commands on, core for every account
+	    'CredentialSsh' => [
+		'class' => 'models\credential\CredentialSsh',
+		'variant-of' => 'Credential',
+	    ],
+	    'CredentialWindows' => [
+		'class' => 'models\credential\CredentialWindows',
+		'variant-of' => 'Credential',
+	    ],
 	    //an LDAP server (the LDAP step), core for every account
 	    'CredentialLdap' => [
 		'class' => 'models\credential\CredentialLdap',
@@ -713,6 +722,15 @@ class SysObjects {
 	    ],
 	    'NodeTriggerNextcloud' => [
 		'class' => 'models\node\NodeTriggerNextcloud',
+		'wfNode' => true,
+	    ],
+	    //CLD: 2026-11-21T21:00:00+02:00: commands on a server: SSH (Linux / Unix), Windows (PowerShell over WinRM), core for every account
+	    'NodeAppSsh' => [
+		'class' => 'models\node\NodeAppSsh',
+		'wfNode' => true,
+	    ],
+	    'NodeAppWindows' => [
+		'class' => 'models\node\NodeAppWindows',
 		'wfNode' => true,
 	    ],
 	    //LDAP (search and change a directory), core for every account

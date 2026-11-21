@@ -1860,13 +1860,13 @@ return [
 	}
     },
 
-    //Hyper-V against a fake host behind WinRM (tests/HyperVTestServer.php; plugins\ITOps\util\WinRM::$testing: http, no address guard): the client (the WS-Management
+    //Hyper-V against a fake host behind WinRM (tests/HyperVTestServer.php; util\WinRM::$testing: http, no address guard): the client (the WS-Management
     //address, PowerShell quoting, the script's wrapper with $P as data, PowerShell's errors from CLIXML; a shell made, the command run without cmd.exe, a Receive that timed out received
     //again, the output in parts, the shell deleted), the credential's test, the steps (VMs by name, * patterns; start when running is done; a shutdown that does not end: an error, or
     //turned off; delete refused while running; checkpoints: list, create, restore, remove, prune; volumes low on space; events; PowerShell with parameters, its error), the VM state
     //trigger (its first check notes the VMs; a VM that stops starts a run, once; passing states are no change; replication health; a recovery)
     'hyperV' => function() {
-	$W = \plugins\ITOps\util\WinRM::class;
+	$W = \util\WinRM::class;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
 	$e = [ self::class, 'edge' ];

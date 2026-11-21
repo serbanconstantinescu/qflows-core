@@ -1,11 +1,12 @@
 <?php
 
 /*
-    a Windows Remote Management client (WS-Management over HTTPS, port 5986) that runs PowerShell scripts on a Windows server, for the Hyper-V credential,
-    steps and trigger. A cmd shell (http://schemas.microsoft.com/wbem/wsman/1/windows/shell/cmd) is created, powershell.exe run in it with -EncodedCommand (UTF-16LE, base64; no
+    a Windows Remote Management client (WS-Management over HTTPS, port 5986) that runs PowerShell scripts on a Windows server: the Windows credential and step
+    (models\credential\CredentialWindows, NodeAppWindows) and the ITOps plugin's Hyper-V credential, steps and trigger. A credential gives it username, password,
+    authMethod (ntlm | basic) and trustCertificate. A cmd shell (http://schemas.microsoft.com/wbem/wsman/1/windows/shell/cmd) is created, powershell.exe run in it with -EncodedCommand (UTF-16LE, base64; no
     cmd.exe: up to about 12000 characters of script), its output received until the command is done, then the shell deleted. Signed in by curl: NTLM (domain or local accounts) or
-    Basic (local accounts, when the service allows it). Public addresses only, unless the account allows private network addresses (Account allow_private_addresses: a Hyper-V
-    host is on-premises; never this server itself); the certificate checked unless the credential trusts it (a self-signed one).
+    Basic (local accounts, when the service allows it). Public addresses only, unless the account allows private network addresses (Account allow_private_addresses: Windows
+    servers are usually on-premises; never this server itself); the certificate checked unless the credential trusts it (a self-signed one).
 
     The script runs in Windows PowerShell 5.1 wrapped by ps(): errors stop it ($ErrorActionPreference Stop), the parameters given are $P (JSON, read with ConvertFrom-Json from a
     quoted string: nothing of them is run), the script's value is written as JSON { ok, data } or { ok: false, error } on stdout (UTF-8). Its first line names it: # r22:<name>
@@ -17,7 +18,7 @@
     WinRM::$testing: the check suite's local server (http://127.0.0.1): no https, no address guard
 */
 
-namespace plugins\ITOps\util;
+namespace util;
 
 class WinRM {
     const NS = [

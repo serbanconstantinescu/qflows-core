@@ -29,6 +29,9 @@ class AgentTools {
     //the families: key => [ label, prefix (of the tools' names), capability (the credential's: the steps' own when null), base (the registered steps extending it) or steps (these
     //classes), alt: the steps are alternatives - one per type of credential (Database: the credential's type picks the step; the tools are named without the step) ]
     const FAMILIES = [
+	//CLD: 2026-11-21T21:00:00+02:00: commands on servers as tools (run a script, restart a service: writes, asked for approval by default)
+	'ssh' => [ 'label' => 'SSH', 'prefix' => 'ssh', 'capability' => 'ssh', 'steps' => [ \models\node\NodeAppSsh::class ] ],
+	'windows' => [ 'label' => 'Windows', 'prefix' => 'win', 'capability' => 'windows', 'steps' => [ \models\node\NodeAppWindows::class ] ],
 	//CLD: 2026-11-12T18:00:00+02:00: Salesforce's steps as tools
 	'salesforce' => [ 'label' => 'Salesforce', 'prefix' => 'salesforce', 'capability' => 'salesforce', 'base' => \models\node\NodeAppSalesforce::class ],
 	//CLD: 2026-11-12T16:00:00+02:00: HubSpot's steps as tools

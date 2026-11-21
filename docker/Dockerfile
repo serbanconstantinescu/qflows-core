@@ -33,7 +33,7 @@ RUN dnf -y install epel-release dnf-plugins-core \
       php${PHPV}-php-pecl-event php${PHPV}-php-pecl-igbinary php${PHPV}-php-pecl-imap php${PHPV}-php-pecl-mailparse php${PHPV}-php-pecl-mongodb2 \
       php${PHPV}-php-pecl-msgpack php${PHPV}-php-pecl-redis6 php${PHPV}-php-pecl-zip \
       php${PHPV}-php-pgsql php${PHPV}-php-pdo-dblib php${PHPV}-php-pdo-firebird php${PHPV}-php-odbc \
-      gnupg2 openssl git procps-ng tzdata \
+      gnupg2 openssl git procps-ng tzdata openssh-clients \
  && dnf clean all && rm -rf /var/cache/dnf
 
 RUN groupadd -g ${NFN_GID} nfn && useradd -u ${NFN_UID} -g nfn -d ${BASE} -M -s /sbin/nologin nfn

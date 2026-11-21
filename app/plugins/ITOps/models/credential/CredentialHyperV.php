@@ -1,7 +1,7 @@
 <?php
 
 /*
-    a Hyper-V host (Windows Server 2016 and later), for the Hyper-V steps and the Hyper-V VM state trigger (plugins\ITOps\util\WinRM: PowerShell over WinRM HTTPS):
+    a Hyper-V host (Windows Server 2016 and later), for the Hyper-V steps and the Hyper-V VM state trigger (util\WinRM: PowerShell over WinRM HTTPS):
     the host's WinRM HTTPS address (port 5986), a user of the host's Hyper-V Administrators and Remote Management Users groups (or an administrator) and its password (encrypted),
     NTLM or Basic, the certificate trusted or not. A host on a private address needs the account's "Integrations may connect to private network addresses". Test: the host's
     name, Windows version and its VMs. Provides `hyperv`
@@ -69,7 +69,7 @@ class CredentialHyperV extends \models\Credential {
     }
 
     public function client($aid, $timeout = 60) {
-	return new \plugins\ITOps\util\WinRM($this, $aid, $timeout);
+	return new \util\WinRM($this, $aid, $timeout);
     }
 
     //signs in, runs PowerShell: the host's name, its Windows, its VMs (Hyper-V's module there)
