@@ -33,8 +33,8 @@ class NodeAppFgtBanned extends NodeAppFortiGate {
 	return [
 	    self::field('ips', 'IP addresses', [ 'ban', 'unban' ], [ 'type' => 'textarea', 'required' => true, 'help' => 'A list, or separated by commas / lines (IPv4 or IPv6)',
 		'ui' => [ 'rows' => 2, 'expression' => true ] ]),
-	    self::field('minutes', 'For (minutes)', [ 'ban' ], [ 'type' => 'number', 'default' => 60, 'help' => '0: until unbanned',
-		'validate' => [ [ 'inRange', 'lower' => 0, 'upper' => 525600, 'skipEmpty' => true, 'message' => 'from 0 to 525600 (a year)' ] ], 'ui' => [ 'width' => 6, 'step' => 1 ] ]),
+	    //CLD: 2026-11-22T00:00:00+02:00: a number or an expression (a playbook's {{ minutes }}), checked when the step runs: 0 to 525600 (a year)
+	    self::field('minutes', 'For (minutes)', [ 'ban' ], [ 'default' => '60', 'help' => '0: until unbanned; up to 525600 (a year)', 'ui' => [ 'width' => 6, 'expression' => 'text' ] ]),
 	];
     }
 
@@ -44,7 +44,10 @@ class NodeAppFgtBanned extends NodeAppFortiGate {
 		return $this->listOf('/api/v2/monitor/user/banned', [], 'banned IP');
 	    case 'ban':
 		$ips = \util\Ip::addresses($value('ips'), 'IP addresses', self::MAX_IPS);
-		$minutes = max(0, (int)$this->cfg('minutes', 60));
+		$m = trim((string)$value('minutes'));
+		if ($m === '' || !preg_match('/^\d+$/', $m) || (int)$m > 525600)
+		    throw new \RuntimeException("For (minutes): from 0 to 525600, not `{$m}`");
+		$minutes = (int)$m;
 		$r = $this->change('POST', '/api/v2/monitor/user/banned/add_users', [ 'ip_addresses' => $ips, 'expiry' => $minutes * 60 ]);
 		return [ [ 'ips' => $ips, 'count' => count($ips), 'minutes' => $minutes, 'results' => $r ],
 		    \util\Format::plural(count($ips), 'IP') . ' banned ' . ($minutes ? "for {$minutes} min" : 'until unbanned') ];
