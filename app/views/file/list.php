@@ -15,6 +15,8 @@ if (\V::app()->user->can('File::create')) {
 
 //schema and filtering
 $sf = \util\WidgetsUtil::getSchema('File');
+//CLD: 2026-11-21T12:00:00+02:00: the filename opens the file's page (preview, download; link: app.GridView), no View row action
+$sf['schema']['filename']['link'] = '/file/view/{{item._id}}';
 $schema = \util\JSON::encode($sf['schema']);
 $filter = \util\JSON::encode($sf['filter']);
 
@@ -38,8 +40,6 @@ $script = "
 	grid: {
 	    createRowUrl: false,
 	    rowActions: {
-		//the view page (image preview, download)
-		view: `<a href='/file/view/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' title='View'><i class='bi bi-eye'></i></a>`,
 		delete: `<a href='/file/delete/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' data-confirm='Are you sure?' data-method='post'><i class='bi bi-trash'></i></a>`,
 	    }
 	},
