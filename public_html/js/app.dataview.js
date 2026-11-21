@@ -1025,9 +1025,9 @@ window.app.GridView = (function() {
 	//CLD: 2026-11-21T11:00:00+02:00: opts.sort (e.g. {}): a click on a column's name sorts by it (again: the other way), an arrow on the sorted one; sent as __sortField /
 	//__sortDir (also to the export); none: the server's order
 	this.sort = opts.sort ? { field: opts.sort.field || null, dir: opts.sort.dir || 'asc' } : null;
-	//CLD: 2026-11-21T13:00:00+02:00: opts.select ({ deleteUrl }): a checkbox per row and one for the page; a bar above the grid with how many are selected, "Select all
+	//CLD: 2026-11-21T15:00:00+02:00: opts.select ({ deleteUrl }): a checkbox per row and one for the page; a bar above the grid with how many are selected, "Select all
 	//N rows found" (the whole search / filter, every page) when the page is, Delete (a POST to deleteUrl + rows=<ids> or all=1 with the search and filter, after a
-	//confirmation) and Clear. The selection is of the rows shown: it ends when they are loaded again
+	//confirmation); unchecking the boxes clears it. The selection is of the rows shown: it ends when they are loaded again
 	this.select = opts.select || null;
 	this.selected = new Set();
 	this.allFound = false;
@@ -1085,17 +1085,6 @@ window.app.GridView = (function() {
 	    del.dataset.confirm = 'Delete ' + rows(n) + '? This cannot be undone.';
 	    del.innerHTML = '<i class="bi bi-trash me-1"></i>Delete';
 	    bar.appendChild(del);
-	    const clear = document.createElement('button');
-	    clear.type = 'button';
-	    clear.className = 'btn btn-link btn-sm p-0';
-	    clear.textContent = 'Clear';
-	    clear.addEventListener('click', () => {
-		this.selected.clear();
-		this.allFound = false;
-		this.container.querySelectorAll('.grid-select-row').forEach((b) => b.checked = false);
-		this.updateSelection();
-	    });
-	    bar.appendChild(clear);
 	}
 
 	widgetsUrl(url, except = []) {
