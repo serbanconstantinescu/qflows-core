@@ -15,6 +15,8 @@ ARG QFLOWS_BRANCH=main
 ARG QFLOWS_COMMIT=
 #CLD: 2026-11-17T00:30:00+02:00: plugins kept in their own repositories, cloned into app/plugins/ (docker.sh setup --plugins: "<Name>=<git URL> ..."; turned on by the entrypoint, NFN_PLUGINS)
 ARG QFLOWS_PLUGINS=
+#CLD: 2026-11-22T14:00:00+02:00: the tc-lib-pdf version of the PDF document step (scripts/tc-lib-pdf.sh install --version); empty: its newest release
+ARG TCLIBPDF_VERSION=
 
 ENV BASE=/srv/qflows \
     NFN_RUNTIME=docker \
@@ -33,7 +35,7 @@ RUN dnf -y install epel-release dnf-plugins-core \
       php${PHPV}-php-pecl-event php${PHPV}-php-pecl-igbinary php${PHPV}-php-pecl-imap php${PHPV}-php-pecl-mailparse php${PHPV}-php-pecl-mongodb2 \
       php${PHPV}-php-pecl-msgpack php${PHPV}-php-pecl-redis6 php${PHPV}-php-pecl-zip \
       php${PHPV}-php-pgsql php${PHPV}-php-pdo-dblib php${PHPV}-php-pdo-firebird php${PHPV}-php-odbc \
-      gnupg2 openssl git procps-ng tzdata openssh-clients \
+      gnupg2 openssl git procps-ng tzdata openssh-clients tar \
  && dnf clean all && rm -rf /var/cache/dnf
 
 RUN groupadd -g ${NFN_GID} nfn && useradd -u ${NFN_UID} -g nfn -d ${BASE} -M -s /sbin/nologin nfn
@@ -54,6 +56,9 @@ RUN for p in ${QFLOWS_PLUGINS}; do \
       case "$name" in *[!A-Za-z0-9]*|"") echo "QFLOWS_PLUGINS: \`$p\` is not <Name>=<git URL>"; exit 1 ;; esac; \
       git clone -q --depth 1 "$url" "${BASE}/app/plugins/${name}" && rm -rf "${BASE}/app/plugins/${name}/.git" && echo "plugin ${name}: ${url}" || exit 1; \
     done
+
+# tc-lib-pdf, the PDF document step's library: downloaded from GitHub into app/pkgs/tc-lib-pdf, its fonts built (scripts/tc-lib-pdf.sh, as root: root's files, as the code's)
+RUN ${BASE}/scripts/tc-lib-pdf.sh install ${TCLIBPDF_VERSION:+--version=${TCLIBPDF_VERSION}}
 
 # php.ini: qflows's (scripts/system/php.ini) with the image's time zone and the app's tmp/; the pool: docker/fpm-pool.conf (TCP :9000, the user nfn)
 RUN cp ${BASE}/scripts/system/php.ini ${PHP_ETC}/php.ini

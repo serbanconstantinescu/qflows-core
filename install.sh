@@ -9,6 +9,8 @@
 #  - Haraka (setup_haraka.sh install),
 #  - MongoDB's users and authorization (setup_mongo.sh secure),
 #  - the background services (daemon.sh install)
+#  - CLD: 2026-11-22T14:00:00+02:00: tc-lib-pdf, the PDF document step's library (scripts/tc-lib-pdf.sh install as the app's user, into app/pkgs/tc-lib-pdf; not in git),
+#    when it is not there yet (run again: kept; scripts/tc-lib-pdf.sh install updates it)
 #  - the web browser of the AI steps after the background services:
 #    scripts/playwright-mcp.sh install (its Chromium, its service, its server in mcp.json), which also adds it later;
 #  CLD: 2026-11-17T02:00:00+02:00: the plugins kept in their own repositories (PLUGIN_REPOS: RegionalRO, RegionalEU; asked, on by default) cloned into app/plugins/ with the
@@ -541,6 +543,7 @@ fi
 echo "  - set up PHP-FPM, nginx and the certificate for $DOMAIN$([ "$OPT_LE" -eq 1 ] && echo " (Let's Encrypt)")"
 [ "$SET_UP" -eq 0 ] && echo "  - set up the app (it asks the database, the outgoing email and the first account)$([ "$RESETUP" -eq 1 ] && echo "; app.env kept as app.env.bak-<time>")"
 [ "$MONGO_REAUTH" -eq 1 ] && echo "  - turn MongoDB's sign-in off until its users are made again"
+[ -f "$BASE/app/pkgs/tc-lib-pdf/autoload.php" ] || echo "  - install tc-lib-pdf (the PDF document step) from GitHub, with its fonts"
 [ "$OPT_BROWSER" -eq 1 ] && echo "  - install the web browser for the AI steps"
 [ "$OPT_MAIL" -eq 1 ] && echo "  - install inbound email for @$MAIL_DOMAIN"
 [ "$OPT_MONGO" -eq 1 ] && echo "  - give MongoDB its users and turn on sign-in"
@@ -857,6 +860,12 @@ if [ "$OPT_MONGO" -eq 1 ] && mongo_auth_off; then
     # scripts/setup_mongo.sh secure: the users, authorization in mongod.conf, mongod restarted and checked
     "$SCRIPTS/setup_mongo.sh" secure || echo "! MongoDB was not secured (above): sudo $SCRIPTS/setup_mongo.sh status, then secure (or users, auth) once fixed"
     MONGO_CHANGED=1
+fi
+
+# tc-lib-pdf (the PDF document step): downloaded and its fonts built by scripts/tc-lib-pdf.sh, as the app's user; when it is there, kept
+if [ ! -f "$BASE/app/pkgs/tc-lib-pdf/autoload.php" ]; then
+    step "tc-lib-pdf (the PDF document step)"
+    as_user "$SCRIPTS/tc-lib-pdf.sh" install || echo "! tc-lib-pdf was not installed (above): $SCRIPTS/tc-lib-pdf.sh install as $APP_USER, once fixed"
 fi
 
 step "The background services"

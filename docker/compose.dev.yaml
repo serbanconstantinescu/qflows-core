@@ -2,6 +2,7 @@
 #   the working tree's code mounted over the image's (a change is live without a build; NFN_UID / NFN_GID in .env: your user's, so the files stay readable),
 #   the site on http://127.0.0.1:8080 (a server's nginx keeps 80 / 443); only in the repository's working tree (docker.sh setup --code=working-tree).
 #   The database is the mongo container's own (not a server's: its daemon would run these jobs)
+#   CLD: 2026-11-22T14:00:00+02:00: the mounted app/ hides the image's app/pkgs/tc-lib-pdf: run scripts/tc-lib-pdf.sh install in the clone for the PDF document step
 services:
   app:
     volumes:
