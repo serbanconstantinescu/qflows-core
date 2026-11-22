@@ -18,6 +18,8 @@ $nodeInitUrl = \V::app()->createUrl('/workflow/node_init', [ 'id' => $wf->_id ])
 //the form of a step, asked when its dialog opens
 $nodeSchemaUrl = \V::app()->createUrl('/workflow/node_schema', [ 'id' => $wf->_id ]);
 $exprUrl = \V::app()->createUrl('/workflow/expression', [ 'id' => $wf->_id ]);
+//CLD: 2026-11-22T12:00:00+02:00: the PDF designer's preview (the PDF document step)
+$pdfPreviewUrl = \V::app()->createUrl('/workflow/pdf_preview', [ 'id' => $wf->_id ]);
 $runUrl = \V::app()->createUrl('/workflow/start', [ 'id' => $wf->_id ]);
 $runTriggers = \util\JSON::encode(array_keys(array_filter(\models\wf\WfNode::getAll(), fn($d) => $d['type'] === 'trigger' && !empty($d['canRun']))));
 $executionsUrl = \V::app()->createUrl('/workflow/executions', [ 'id' => $wf->_id ]);
@@ -409,6 +411,7 @@ $stepIssuesUrl = \V::app()->createUrl('/workflow/step_issues', array_filter([ 'i
 	nodeInitUrl: '{$nodeInitUrl}',
 	nodeSchemaUrl: '{$nodeSchemaUrl}',
 	exprUrl: '{$exprUrl}',
+	pdfPreviewUrl: '{$pdfPreviewUrl}',
     };
 
     if (canvas_zoom.length)

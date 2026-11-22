@@ -9,6 +9,8 @@ $js_assets = [
     'app.codeeditor.js',
     'app.formdesigner.js',
     'app.emaildesigner.js',
+    //CLD: 2026-11-22T12:00:00+02:00: the PDF designer (the PDF document step)
+    'app.pdfdesigner.js',
     'app.viewer.js',
     'app.overview.js',
     'app.smartform.js',

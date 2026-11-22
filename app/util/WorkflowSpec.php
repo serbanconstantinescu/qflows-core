@@ -103,6 +103,14 @@ class WorkflowSpec {
 		. 'values in {{ }} are shown as plain text; an AI step\'s answer is shown formatted with {{ ai.html }} (a field named html, alone in its {{ }}: its HTML cleaned) or '
 		. '{{ markdown2html(ai.text) }} (any Markdown text), e.g. <p>{{ ai.html }}</p>; '
 		. 'image blocks: { type: "image", file: <image file id (list_files)>, alt, width (px, at most ' . \models\EmailBlocks::WIDTH . '), align (left / center / right), href }';
+	//CLD: 2026-11-22T12:00:00+02:00: a document of the PDF designer (models\PdfDesign): its shape, so agents can write one
+	if (($f['type'] ?? '') === 'pdfdesigner')
+	    $s['format'] = '{ page: { format: "A4" | "A5" | "LETTER" | "LEGAL", orientation: "P" | "L", margins: { top, bottom, left, right, header, footer } (pt; top / bottom: '
+		. 'where the body starts / stops, header / footer: from the edge), font: ' . implode(' | ', array_keys(\models\PdfDesign::FONTS)) . ', size (pt), showHeader, showFooter }, '
+		. 'header: "<html>", body: "<html>", footer: "<html>" }: the body flows over pages, the header and footer are on every page; HTML of p, br, b, i, u, h1-h6, '
+		. 'ul / ol / li, hr, span style, table width="100%" with td width="..%" (tables lay things out), img src="/file/content/<image file id>" width / height in pt; '
+		. '{{ expression }} (escaped; {{ html(x) }} as HTML), {{#if expression}} … {{else}} … {{/if}}, a row repeated per item: <tr data-each="invoice.items" data-as="item">'
+		. '<td>{{ item.name }}</td><td>{{ loop.number }}</td></tr>, {PAGE} and {PAGES} the page number and count';
 	//required_if; a condition { key, operator, value } as it is (util\Conditions' operators)
 	foreach([ 'showIf' => 'shown_if', 'hideIf' => 'hidden_if', 'requiredIf' => 'required_if' ] as $k => $name) {
 	    if (!empty($f[$k]))

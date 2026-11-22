@@ -1767,7 +1767,8 @@ window.app.Workflow = (function() {
 	    //modal-fullscreen-sm-down: theme local/_modal.scss), else extra-large
 	    //CLD: 2026-11-15T16:00:00+02:00: only a designer always shown (Send email, Form, Human task) makes the dialog the designer; one shown for some settings (the email
 	    //services' send steps: Content "Designed") stays a field of an extra-large dialog
-	    const isDesigner = (f) => [ 'formdesigner', 'emaildesigner' ].includes(f.type) && !f.showIf && !f.hideIf;
+	    //CLD: 2026-11-22T12:00:00+02:00: and the PDF designer (PDF document)
+	    const isDesigner = (f) => [ 'formdesigner', 'emaildesigner', 'pdfdesigner' ].includes(f.type) && !f.showIf && !f.hideIf;
 	    const dialogSize = configSchema.some(isDesigner) ? 'modal-near-fullscreen' : 'modal-xl';
 	    el.tabIndex = -1;
 	    el.innerHTML = `
@@ -1819,6 +1820,8 @@ window.app.Workflow = (function() {
 		    n.style.cssText += 'display:flex; flex-direction:column; flex:1 1 auto; min-height:0; margin-bottom:0';
 		});
 		designerField.designer.o.fill = true;
+		//the PDF designer's preview (WorkflowController::pdf_preview)
+		designerField.designer.o.previewUrl = this.options.pdfPreviewUrl || null;
 		designerField.designer.setStepPanel(stepPanel);
 	    }
 

@@ -780,6 +780,36 @@ class WorkflowController extends \sys\BaseController {
 	$resp->sendJSON($response);
     }
 
+    //CLD: 2026-11-22T12:00:00+02:00: the PDF designer's preview (app.PdfDesigner): POST design (JSON: models\PdfDesign) -> the PDF made with its sample data as the variables
+    //(util\PdfDocument; the images: the workflow's project's files), application/pdf; else { error }. Workflow::read (nothing is saved)
+    public function pdf_preview($req, $resp) {
+	if (!$req->is('post'))
+	    \V::app()->error(405, 'Method not allowed');
+	$wf = $this->findWorkflow('Workflow::read');
+	$raw = (string)($req->data['design'] ?? '');
+	$design = strlen($raw) <= 2 * \models\PdfDesign::MAX_HTML ? json_decode($raw, true) : null;
+	if (!is_array($design))
+	    $resp->sendJSON([ 'error' => 'No document received' ], true, 400);
+	$design = \models\PdfDesign::normalize($design);
+	[ $vars, $error ] = \models\PdfDesign::sample($design);
+	if ($error !== null)
+	    $resp->sendJSON([ 'error' => $error ], true, 422);
+	if (!\util\PdfDocument::available())
+	    $resp->sendJSON([ 'error' => 'tc-lib-pdf is not installed on the server (scripts/tc-lib-pdf.sh install)' ], true, 503);
+	try {
+	    $r = \util\PdfDocument::render($design, $vars, [ 'aid' => $wf->aid, 'project' => $wf->project, 'title' => (string)$wf->name ]);
+	} catch (\Exception $e) {
+	    $resp->sendJSON([ 'error' => $e->getMessage() ], true, 422);
+	}
+	header('Content-Type: application/pdf');
+	header('Content-Length: ' . strlen($r['pdf']));
+	header('Content-Disposition: inline; filename="preview.pdf"');
+	header('X-Content-Type-Options: nosniff');
+	header('Cache-Control: no-store');
+	echo $r['pdf'];
+	exit(0);
+    }
+
     //version ?version=<id> of workflow $wf, else 400 / 404
     private function findVersion($wf) {
 	$vid = (string)(\V::app()->request->query['version'] ?? '');

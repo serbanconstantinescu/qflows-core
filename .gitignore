@@ -26,6 +26,9 @@ app.env
 /app/plugins/RegionalRO/
 /app/plugins/SAP/
 /app/plugins/RegionalEU/
+# tc-lib-pdf and its fonts: downloaded and built by scripts/tc-lib-pdf.sh
+/app/pkgs/tc-lib-pdf/
+/app/pkgs/.tc-lib-pdf.*
 *.key
 *.pem
 /haraka/

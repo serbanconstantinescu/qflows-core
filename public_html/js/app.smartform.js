@@ -82,6 +82,8 @@ if (!window.app)
  * Design nodes (no data; showIf / hideIf apply): { "type": "paragraph", "text": "..." } (line breaks kept), { "type": "divider" }; and the field
  * type "formdesigner": its value is a form schema ({ direction, fields }) edited with app.FormDesigner (forms of the Form trigger / Human task steps)
  * Type "emaildesigner": its value is an email of blocks ({ preheader, blocks }, models\EmailBlocks) edited with app.EmailDesigner (Send Email step)
+ * CLD: 2026-11-22T12:00:00+02:00: type "pdfdesigner": its value is a PDF document ({ page, header, body, footer, sample }, models\PdfDesign) edited with app.PdfDesigner
+ * (PDF document step)
  */
 
 window.app.smartform = (function() {
@@ -1875,14 +1877,21 @@ window.app.smartform = (function() {
 	}
     }
 
-    //a designer field: `formdesigner` (app.FormDesigner, the form of the Form / Human task steps: { direction, fields }) or `emaildesigner`
-    //(app.EmailDesigner, an email of blocks: the Send Email step); the designer edits the value (a hidden input holds it as JSON)
+    //a designer field: `formdesigner` (app.FormDesigner, the form of the Form / Human task steps: { direction, fields }), `emaildesigner`
+    //(app.EmailDesigner, an email of blocks: the Send Email step) or `pdfdesigner` (app.PdfDesigner, a PDF document: the PDF document step); the designer edits the
+    //value (a hidden input holds it as JSON)
     class DesignerField extends FieldBase {
 	get isEmail() {
 	    return this.schema.type === 'emaildesigner';
 	}
 
+	get isPdf() {
+	    return this.schema.type === 'pdfdesigner';
+	}
+
 	getEmptyValue() {
+	    if (this.isPdf)
+		return { page: null, header: '', body: '', footer: '', sample: '' };
     	    return this.isEmail ? { preheader: '', blocks: [] } : { direction: 'vertical', fields: [] };
 	}
 
@@ -1916,7 +1925,7 @@ window.app.smartform = (function() {
     		help.textContent = this.schema.helpText;
     		wrapper.appendChild(help);
     	    }
-    	    const Designer = this.isEmail ? window.app.EmailDesigner : window.app.FormDesigner;
+    	    const Designer = this.isPdf ? window.app.PdfDesigner : (this.isEmail ? window.app.EmailDesigner : window.app.FormDesigner);
     	    this.designer = new Designer(holder, {
     		value: this.currentValue,
     		readonly: !this.isEditable(),
@@ -1947,6 +1956,10 @@ window.app.smartform = (function() {
     	    if (!this.isVisible())
     		return true;
     	    const problem = this.designer ? this.designer.problem() : null;
+	    if (this.isPdf) {
+		this.feedbackEl.textContent = problem || '';
+		return !problem;
+	    }
     	    const list = this.currentValue && (this.isEmail ? this.currentValue.blocks : this.currentValue.fields);
     	    const empty = !(Array.isArray(list) && list.length);
     	    const message = problem || (this._required && empty ? (this.isEmail ? 'Add at least one block to the email.' : 'Add at least one field to the form.') : '');
@@ -2180,6 +2193,7 @@ window.app.smartform = (function() {
 	'formdesigner': DesignerField,
 	//the email designer (Send Email step)
 	'emaildesigner': DesignerField,
+	'pdfdesigner': DesignerField,
     };
 
     function createField(schema, api) {

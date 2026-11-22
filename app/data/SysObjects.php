@@ -468,6 +468,11 @@ class SysObjects {
 		'class' => 'models\node\NodeAppSpreadsheet',
 		'wfNode' => true,
 	    ],
+	    //CLD: 2026-11-22T12:00:00+02:00: PDF document (designed in the step, filled with the variables, made by tc-lib-pdf, saved in the project's Files; no credential)
+	    'NodeAppPdf' => [
+		'class' => 'models\node\NodeAppPdf',
+		'wfNode' => true,
+	    ],
 	    //Read a web page (the basic HTTP Request: a GET, the page's text or HTML)
 	    'NodeAppWebPage' => [
 		'class' => 'models\node\NodeAppWebPage',

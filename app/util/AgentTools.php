@@ -76,7 +76,8 @@ class AgentTools {
     //the settings of a step that are never arguments (the AI step's credential, the step's own handling)
     const NOT_ARGUMENTS = [ 'credential', 'operation', 'params', 'timeout', 'variable', 'onError' ];
     //the field types that cannot be arguments
-    const NOT_ARGUMENT_TYPES = [ 'formdesigner', 'emaildesigner', 'password' ];
+    //CLD: 2026-11-22T12:00:00+02:00: and the PDF designer's document
+    const NOT_ARGUMENT_TYPES = [ 'formdesigner', 'emaildesigner', 'pdfdesigner', 'password' ];
     //a step's limit (`limit` fields: At most, ...) larger than this has this default as a tool (the result is cut at NodeAppAi::MAX_TOOL_RESULT characters anyway)
     const LIMIT_DEFAULT = 100;
     //the AI step's settings of the approvals (section Approvals), the argument the model gives its reason in
