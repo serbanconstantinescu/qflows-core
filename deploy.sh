@@ -1,7 +1,8 @@
 #!/bin/bash
 
 #the installation updated to what is pushed (run it in the installation that is deployed to, e.g. /home/app): the repository with its submodules, the MultiTenant
-#plugin's own repository when it has it, the new indexes, the data migrations (sys::migrate), then PHP-FPM and the daemon restarted.
+#plugin's own repository when it has it, tc-lib-pdf when it is missing (scripts/tc-lib-pdf.sh), the new indexes, the data migrations (sys::migrate), then PHP-FPM and
+#the daemon restarted.
 #The repositories are fetched first and only fast-forwarded, so a remote that cannot be reached or a local commit stops it before anything changes.
 #Every step can be run again: after a failure, fix it and run it again.
 # new
@@ -122,6 +123,12 @@ run() {
         echo "   now: $(show_commit "$repo" HEAD)"
     done < <(repos)
     as_user git -C "$BASE" submodule update -q --init --recursive
+
+    #CLD: 2026-11-22T15:00:00+02:00: tc-lib-pdf (the PDF document step; not in git) when it is missing; there already: kept (scripts/tc-lib-pdf.sh install updates it)
+    if [ ! -f "$BASE/app/pkgs/tc-lib-pdf/autoload.php" ]; then
+        echo "== tc-lib-pdf"
+        as_user "$BASE/scripts/tc-lib-pdf.sh" install || echo "   not installed (above): the PDF document step fails until $BASE/scripts/tc-lib-pdf.sh install runs as $APP_USER"
+    fi
 
     echo "== indexes"
     (cd "$BASE/app/commands" && as_user ../v sys::indexes)
