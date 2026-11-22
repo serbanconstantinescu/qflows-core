@@ -571,8 +571,9 @@ class BaseModel {
 	if ($this->exists()) {
 	    //the arrays changed by reference are added to _updated BEFORE the update set is built
 	    //foreach key in _by_ref, check if values differ
+	    //CLD: 2026-11-22T12:00:00Z: a key already changed is saved with its current value without comparing it (a large array: serialized twice)
 	    foreach(array_unique($this->_by_ref) as $key) {
-		if (array_key_exists($key, $this->_data) && !$this->valuesAreIdentical($this->_data[$key], $this->_odata[$key] ?? null))
+		if (array_key_exists($key, $this->_data) && (array_key_exists($key, $this->_updated) || !$this->valuesAreIdentical($this->_data[$key], $this->_odata[$key] ?? null)))
 		    $this->_updated[$key] = $this->_data[$key];
 	    }
 

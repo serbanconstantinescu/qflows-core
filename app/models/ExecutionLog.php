@@ -145,21 +145,41 @@ class ExecutionLog extends \sys\BaseModel {
 	    $fields['workflow'] = $exe->wf;
 	    $fields['execution'] = $exe->_id ? (string)$exe->_id : null;
 	    $fields['step'] = static::$step;
-	    $user = $exe->trigger == 'manual' && !empty($exe->input['user']) ? \V::app()->om->findById('User', $exe->input['user']) : null;
-	    $fields['started_by'] = $user ? (string)$user : null;
+	    //CLD: 2026-11-22T12:00:00Z: who started it and the projects of the data tables its steps change are looked up once per execution (memo): a loop
+	    //upserting 13000 rows took three lookups per row
+	    if (self::$memo['exe'] !== $exe)
+		self::$memo = [ 'exe' => $exe, 'user' => null, 'projects' => [], 'from' => null ];
+	    if (self::$memo['user'] === null) {
+		$user = $exe->trigger == 'manual' && !empty($exe->input['user']) ? \V::app()->om->findById('User', $exe->input['user']) : null;
+		self::$memo['user'] = [ $user ? (string)$user : null ];
+	    }
+	    $fields['started_by'] = self::$memo['user'][0];
 	    if (!$o)
 		$fields['project'] = $exe->project;
-	    //the entry is in the log of the object's project: when the run is of another project (a shared table), it says which
-	    elseif (empty($fields['details'])) {
-		$home = static::projectOf($o, $data ?? $o->data());
-		if ($home && (string)$home !== (string)$exe->project)
-		    $fields['details'] = 'By a workflow of project ' . \V::app()->om->findById('Project', $exe->project);
+	    else {
+		$fields['project'] = self::projectMemo($o, $data ?? $o->data());
+		//the entry is in the log of the object's project: when the run is of another project (a shared table), it says which
+		if (empty($fields['details']) && $fields['project'] && (string)$fields['project'] !== (string)$exe->project)
+		    $fields['details'] = 'By a workflow of project ' . (self::$memo['from'] ??= (string)\V::app()->om->findById('Project', $exe->project));
 	    }
 	}
 	if ($o instanceof \models\Workflow)
 	    $fields['workflow'] = $o->_id;
 
 	static::write($action, $o, $data, $fields);
+    }
+
+    //the running execution (record) and what was looked up for it: [ user name ], data table iname => project, the name of its project
+    private static $memo = [ 'exe' => null, 'user' => null, 'projects' => [], 'from' => null ];
+
+    //projectOf, kept per execution for the objects without their own `project` (data table rows: their table's)
+    private static function projectMemo($o, $data) {
+	if ($o instanceof \models\Project || $o instanceof \sys\fields\Field || !empty($data['project']))
+	    return static::projectOf($o, $data);
+	$name = (string)$o->getObjectName();
+	if (!array_key_exists($name, self::$memo['projects']))
+	    self::$memo['projects'][$name] = static::projectOf($o, $data);
+	return self::$memo['projects'][$name];
     }
 
     //what acts: the running execution's trigger, else what was set (daemon), else by app mode (console; web: a webhook call or another request without a user)

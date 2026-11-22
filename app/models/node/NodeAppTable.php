@@ -370,13 +370,18 @@ class NodeAppTable extends \models\wf\WfNode {
 
     //the operation's result; \ErrorException with a message for the user
     protected function run($op) {
-	$table = self::findTable((string)$this->cfg('table', ''), $this->exec->aid, $this->exec->project);
-	if (!$table)
+	//CLD: 2026-11-22T12:00:00Z: the table and its columns looked up once per run of the execution (this step object), not at each pass of a loop
+	$key = json_encode([ (string)$this->cfg('table', ''), (string)$this->exec->aid, (string)$this->exec->project ]);
+	if (!$this->tableCache || $this->tableCache[0] !== $key) {
+	    $found = self::findTable((string)$this->cfg('table', ''), $this->exec->aid, $this->exec->project);
+	    $this->tableCache = $found ? [ $key, $found, $found->columns() ] : null;
+	}
+	if (!$this->tableCache)
 	    throw new \ErrorException('the table is not a data table of this project (deleted, or no longer shared?)');
+	[ , $table, $columns ] = $this->tableCache;
 	//checked again at each run: the level may have changed since the workflow was saved
 	if (!in_array($op, self::READ_OPERATIONS, true) && !$table->shareAllows($this->exec->project, 'DataTable::writeData'))
 	    throw new \ErrorException("the table {$table->name} is shared with this project for reading only");
-	$columns = $table->columns();
 	$iname = $table->iname;
 	$aid = $this->exec->aid;
 	//with the project variables (vars)
@@ -453,6 +458,7 @@ class NodeAppTable extends \models\wf\WfNode {
 		if (!array_key_exists($key, $values))
 		    throw new \ErrorException("Values: give a value for `{$key}` (the column rows are matched by)");
 		$match = $columns[$key]->cast($values[$key]);
+		$this->indexColumn($iname, $key);
 		$row = \V::app()->om->findOne($iname, [ 'aid' => $aid, $key => $match ]);
 		$operation = $row ? 'update' : 'insert';
 		$row = $row ?: \V::app()->om->create($iname, [ 'aid' => $aid ]);
@@ -503,6 +509,23 @@ class NodeAppTable extends \models\wf\WfNode {
 
     //the variables of renderValue(), set by run()
     private $renderVars = [];
+
+    //[ key, table, columns ] of the run (run()); the indexes made in this process ("collection.column" => true)
+    private $tableCache = null;
+    private static $indexed = [];
+
+    //CLD: 2026-11-22T12:00:00Z: the column an upsert matches by is indexed (with aid, as the query), once per process: without it each upsert reads the whole
+    //collection. Creating an index that exists does nothing; one that cannot be made is logged and the upsert goes on without it
+    private function indexColumn($iname, $column) {
+	if (isset(self::$indexed["{$iname}.{$column}"]))
+	    return;
+	self::$indexed["{$iname}.{$column}"] = true;
+	try {
+	    \V::app()->mongo->selectCollection(\sys\BaseModel::_database(), $iname)->createIndex([ 'aid' => 1, $column => 1 ]);
+	} catch (\Throwable $e) {
+	    \V::app()->log->debug("Data Table: index {$iname}.{$column}: " . $e->getMessage());
+	}
+    }
 
     //value $v with its {{ }} rendered against the run's variables
     private function renderValue($v) {

@@ -141,8 +141,10 @@ trait LogTrait {
 		'type' => $objectName ? (is_array($def) && !empty($def['name']) ? $def['name'] : $objectName) : null,
 		'oid' => isset($data['_id']) ? (string)$data['_id'] : null,
 		'name' => $o ? static::nameOf($o, $data) : null,
-		'project' => $o ? static::projectOf($o, $data) : null,
 	    ];
+	    //CLD: 2026-11-22T12:00:00Z: the project, unless the caller gave it (models\ExecutionLog::record: looked up once per execution)
+	    if (!array_key_exists('project', $fields))
+		$fields['project'] = $o ? static::projectOf($o, $data) : null;
 	    if (empty($fields['aid']))
 		$fields['aid'] = $data['aid'] ?? (($o instanceof \models\Account) ? ($data['_id'] ?? null) : (\V::app()->var('rt.account')->_id ?? null));
 	    if (isset($fields['details']))

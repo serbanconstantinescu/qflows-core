@@ -489,22 +489,26 @@ class WfExecution extends \sys\BaseModel {
     //execution: a resumed run sees their current values)
     private $projectVars = null;
 
+    //CLD: 2026-11-22T12:00:00Z: the variables are read and written here without the model's change check (BaseModel::__get / __set compare the whole array,
+    //serialized: ~20-40 ms per call with a list of 13000 items, three calls per loop pass); a write marks them changed, the save writes them
     //the project variables are credentials of type Variable (models\credential\CredentialVariable)
     public function expressionVariables() {
 	if ($this->projectVars === null)
 	    $this->projectVars = \models\credential\CredentialVariable::expressionValues($this->aid, $this->project);
-	return array_merge(is_array($this->variables) ? $this->variables : [], [ \models\credential\CredentialVariable::EXPRESSION_NAME => $this->projectVars ]);
+	return array_merge(is_array($this->_data['variables'] ?? null) ? $this->_data['variables'] : [], [ \models\credential\CredentialVariable::EXPRESSION_NAME => $this->projectVars ]);
     }
 
     public function getVariable($name, $default = null) {
-	$vars = $this->variables;
+	$vars = is_array($this->_data['variables'] ?? null) ? $this->_data['variables'] : [];
 	return array_key_exists($name, $vars) ? $vars[$name] : $default;
     }
 
     public function setVariable($name, $value) {
-	$vars = $this->variables;
+	$vars = is_array($this->_data['variables'] ?? null) ? $this->_data['variables'] : [];
 	$vars[$name] = $value;
-	$this->variables = $vars;
+	$this->_data['variables'] = $vars;
+	if ($this->_trackChanges)
+	    $this->_updated['variables'] = $vars;
     }
 
     public function log($nodeId, $message) {
