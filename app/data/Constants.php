@@ -38,6 +38,8 @@ class Constants {
     //CLD: 2026-11-22T00:00:00Z: the Data table step's limits (models\node\NodeAppTable): rows of a query, rows of a list insert
     const TABLE_MAX_LIMIT = 10000;
     const TABLE_MAX_INSERT = 10000;
+    //CLD: 2026-11-22T00:00:00Z: the Code step's longest timeout (seconds; models\node\NodeAppCode)
+    const CODE_MAX_TIMEOUT = 300;
 
     //the objects of a project that can be shared with other projects of the account and moved to another one (ShareController: the `object` parameter)
     const PROJECT_KINDS = [

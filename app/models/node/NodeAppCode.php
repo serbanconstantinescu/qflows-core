@@ -25,8 +25,7 @@ class NodeAppCode extends \models\wf\WfNode {
     public static $outputs = 1;
     public static $outPorts = [ 'field' => 'onError', 'values' => [ 'output' => [ 'success', 'error' ] ] ];
 
-    //the time limit (seconds) and the J steps (statements + calls) of a run
-    const MAX_TIMEOUT = 30;
+    //the J steps (statements + calls) of a run; the time limit is \data\Constants::CODE_MAX_TIMEOUT
     const MAX_STEPS = 1000000;
     //largest code (characters) and console lines logged
     const MAX_CODE = 100000;
@@ -56,7 +55,7 @@ class NodeAppCode extends \models\wf\WfNode {
 		'label' => 'Timeout (seconds)',
 		'required' => true,
 		'default' => 5,
-		'validate' => [ [ 'inRange', 'lower' => 1, 'upper' => self::MAX_TIMEOUT, 'skipEmpty' => true, 'message' => 'Between 1 and ' . self::MAX_TIMEOUT ] ],
+		'validate' => [ [ 'inRange', 'lower' => 1, 'upper' => \data\Constants::CODE_MAX_TIMEOUT, 'skipEmpty' => true, 'message' => 'Between 1 and ' . \data\Constants::CODE_MAX_TIMEOUT ] ],
 		//min / max from the validate rule (util\WidgetsUtil)
 		'ui' => [ 'step' => 1, 'width' => 6 ],
 	    ],
@@ -100,7 +99,7 @@ class NodeAppCode extends \models\wf\WfNode {
 	    }
 	    $before = $this->exec->expressionVariables();
 	    //dates are J Dates (hostValue with dates), given back as expressions give them (dateFormat, util\Expression::LIMITS); readOnly: CredentialVariable::EXPRESSION_NAME
-	    $vm = new \sys\J\Interpreter([ 'maxSteps' => self::MAX_STEPS, 'timeLimit' => (float)max(1, min(self::MAX_TIMEOUT, (int)$this->cfg('timeout', 5))),
+	    $vm = new \sys\J\Interpreter([ 'maxSteps' => self::MAX_STEPS, 'timeLimit' => (float)max(1, min(\data\Constants::CODE_MAX_TIMEOUT, (int)$this->cfg('timeout', 5))),
 		'writable' => true, 'readOnly' => [ \models\credential\CredentialVariable::EXPRESSION_NAME ], 'implicitGlobals' => true, 'dateFormat' => \util\Expression::LIMITS['dateFormat'] ]);
 	    $context = [];
 	    foreach($before as $name => $value)
