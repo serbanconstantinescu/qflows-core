@@ -33,15 +33,17 @@ trait FieldTraitCast {
 	if (!is_string($value))
 	    throw new \ErrorException('invalid value');
 
-	$value = htmlspecialchars_decode($value, ENT_QUOTES);
-	$value = trim($value);
-	$value = str_replace("\r", '', $value);
+	$value = str_replace("\r", '', trim($value));
 
-	$value = json_decode($value, true);
-	if (json_last_error() != JSON_ERROR_NONE)
-	    throw new \ErrorException('invalid value');
+	//CLD: 2026-11-22T14:45:00+02:00: the raw JSON first; the entity-decoded form only when that fails (decoding first turned a `&quot;` inside a string, e.g. in a Code step, into a bare quote: invalid JSON, 500 on save)
+	$decoded = json_decode($value, true);
+	if (json_last_error() != JSON_ERROR_NONE) {
+	    $decoded = json_decode(htmlspecialchars_decode($value, ENT_QUOTES), true);
+	    if (json_last_error() != JSON_ERROR_NONE)
+		throw new \ErrorException('invalid value');
+	}
 
-	return $value;
+	return $decoded;
     }
 
     public function __cast_oid($value, $multiple = false) {
