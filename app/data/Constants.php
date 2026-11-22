@@ -36,7 +36,7 @@ class Constants {
     //CLD: 2026-11-22T00:00:00Z: the largest response body kept by the HTTP request step (bytes; models\node\NodeAppHttp)
     const HTTP_MAX_RESPONSE = 20 * 1024 * 1024;
     //CLD: 2026-11-22T12:00:00Z: the Data table step's limits (models\node\NodeAppTable): rows of a query, rows of a list insert or upsert (as many as a Loop takes)
-    const TABLE_MAX_LIMIT = 10000;
+    const TABLE_MAX_LIMIT = 20000;
     const TABLE_MAX_INSERT = 20000;
     //CLD: 2026-11-22T00:00:00Z: the Code step's limits (models\node\NodeAppCode): the longest timeout (seconds), the J steps (statements + calls) of a run
     const CODE_MAX_TIMEOUT = 300;
