@@ -39,8 +39,7 @@ class NodeAppHttp extends \models\wf\WfNode {
     //the JSON-RPC request proposed when JSON-RPC is switched on
     const JSON_RPC_TEMPLATE = "{\n    \"jsonrpc\": \"2.0\",\n    \"method\": \"\",\n    \"params\": {},\n    \"id\": 1\n}";
 
-    //the largest response body kept, and the timeout limits (seconds)
-    const MAX_RESPONSE = 5 * 1024 * 1024;
+    //the timeout limits (seconds); the largest response body kept is \data\Constants::HTTP_MAX_RESPONSE
     const MAX_TIMEOUT = 120;
 
     //a header name (RFC 7230 token)
@@ -338,7 +337,7 @@ class NodeAppHttp extends \models\wf\WfNode {
 	    'headers' => array_merge([ 'Accept: application/json, text/plain, */*' ], $headers),
 	    'body' => $body,
 	    'timeout' => $timeout,
-	    'maxBytes' => self::MAX_RESPONSE,
+	    'maxBytes' => \data\Constants::HTTP_MAX_RESPONSE,
 	    'redirects' => 5,
 	    'compressed' => true,
 	]);
@@ -369,7 +368,7 @@ class NodeAppHttp extends \models\wf\WfNode {
 
 	$error = null;
 	if ($r['tooLarge'])
-	    $error = 'the response is larger than ' . (self::MAX_RESPONSE >> 20) . ' MB';
+	    $error = 'the response is larger than ' . (\data\Constants::HTTP_MAX_RESPONSE >> 20) . ' MB';
 	elseif ($r['error'] !== null)
 	    $error = $r['error'];
 	elseif ($r['status'] >= 400)

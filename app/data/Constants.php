@@ -33,6 +33,12 @@ class Constants {
     //the largest request body accepted by the public endpoints (bytes): webhooks (HookController), MCP (McpController), the FortiGate push (plugins\ITOps\controllers\FortigateController)
     const MAX_REQUEST_BODY = 1048576;
 
+    //CLD: 2026-11-22T00:00:00Z: the largest response body kept by the HTTP request step (bytes; models\node\NodeAppHttp)
+    const HTTP_MAX_RESPONSE = 20 * 1024 * 1024;
+    //CLD: 2026-11-22T00:00:00Z: the Data table step's limits (models\node\NodeAppTable): rows of a query, rows of a list insert
+    const TABLE_MAX_LIMIT = 10000;
+    const TABLE_MAX_INSERT = 10000;
+
     //the objects of a project that can be shared with other projects of the account and moved to another one (ShareController: the `object` parameter)
     const PROJECT_KINDS = [
 	'DataTableDef',

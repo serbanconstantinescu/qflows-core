@@ -51,10 +51,6 @@ class NodeAppTable extends \models\wf\WfNode {
 	'schema' => 'Get the columns',
     ];
 
-    //rows of a query / a list insert at most
-    const MAX_LIMIT = 1000;
-    const MAX_INSERT = 10000;
-
     //the operations using the filter / the row data (validateIf and showIf of `filter` / `data`, the column checks of validates())
     const FILTER_OPERATIONS = [ 'query', 'updateMany', 'deleteMany' ];
     //the operations that do not change rows: all a table shared at level `read` allows
@@ -154,7 +150,7 @@ class NodeAppTable extends \models\wf\WfNode {
 		'label' => 'Limit',
 		'required' => true,
 		'default' => 100,
-		'validate' => [ [ 'inRange', 'lower' => 1, 'upper' => self::MAX_LIMIT, 'skipEmpty' => true, 'message' => 'from 1 to ' . self::MAX_LIMIT ] ],
+		'validate' => [ [ 'inRange', 'lower' => 1, 'upper' => \data\Constants::TABLE_MAX_LIMIT, 'skipEmpty' => true, 'message' => 'from 1 to ' . \data\Constants::TABLE_MAX_LIMIT ] ],
 		//min / max from the validate rule (util\WidgetsUtil); a condition array (app.smartform evaluates it)
 		'ui' => [ 'width' => 3, 'showIf' => [ 'key' => 'operation', 'operator' => 'eq', 'value' => 'query' ] ],
 	    ],
@@ -398,7 +394,7 @@ class NodeAppTable extends \models\wf\WfNode {
 
 	    case 'query':
 		$query = \models\datatable\DataTableDef::conditionsQuery((array)$this->cfg('filter', []), $this->cfg('match', 'all'), $columns, $this->renderValue(...), $aid);
-		$options = [ 'skip' => max(0, (int)$this->cfg('offset', 0)), 'limit' => max(1, min(self::MAX_LIMIT, (int)$this->cfg('limit', 100))) ];
+		$options = [ 'skip' => max(0, (int)$this->cfg('offset', 0)), 'limit' => max(1, min(\data\Constants::TABLE_MAX_LIMIT, (int)$this->cfg('limit', 100))) ];
 		$sortBy = trim((string)$this->cfg('sortBy', ''));
 		if ($sortBy !== '')
 		    $options['sort'] = [ ($sortBy === 'id' ? '_id' : $sortBy) => $this->cfg('sortDir', 'asc') === 'desc' ? -1 : 1 ];
@@ -427,8 +423,8 @@ class NodeAppTable extends \models\wf\WfNode {
 		$list = $this->renderValue($this->cfg('rows', ''));
 		if (!is_array($list) || !array_is_list($list))
 		    throw new \ErrorException('Rows: the expression must give a list of objects');
-		if (count($list) > self::MAX_INSERT)
-		    throw new \ErrorException('Rows: at most ' . self::MAX_INSERT . ' rows at once');
+		if (count($list) > \data\Constants::TABLE_MAX_INSERT)
+		    throw new \ErrorException('Rows: at most ' . \data\Constants::TABLE_MAX_INSERT . ' rows at once');
 		$models = [];
 		foreach($list as $i => $item) {
 		    if (!is_array($item) || array_is_list($item))
