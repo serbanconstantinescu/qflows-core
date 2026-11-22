@@ -6,6 +6,9 @@
 //a pass ends when no token is left inside the loop (WfExecution::stepLoops). On error inside a pass: stop the workflow (default) or skip the item (the error collected).
 //Collect (optional): an expression evaluated at the end of each pass, its values listed. After the last pass the loop continues on its output, with variable `loop` (name
 //editable) = { count, results, errors }; the item / index variables are removed. Wait steps inside work: the list and the position are kept with the execution
+//CLD: 2026-11-22T00:00:00Z: the list is saved with the execution only while it sleeps (data()): running, it stays in memory (the variable it comes from is saved anyway).
+//A run continued from a save without it (the daemon restarted meanwhile) evaluates List again: a list of another length fails the loop. When done, the results are in the
+//variable only (not in the step's data too)
 */
 
 namespace models\node;
@@ -24,9 +27,6 @@ class NodeCoreLoop extends \models\wf\WfNode {
     public static $minWidth = 240; //px
     public static $minHeight = 160; //px
 
-    //items per loop
-    const MAX_ITEMS = 1000;
-
     const ON_ERROR = [ 'stop' => 'Stop the workflow', 'skip' => 'Skip the item and continue' ];
 
     public static function configSchema() {
@@ -39,7 +39,7 @@ class NodeCoreLoop extends \models\wf\WfNode {
 		'type' => 'text',
 		'label' => 'List',
 		'required' => true,
-		'help' => 'One expression giving a list, at most ' . self::MAX_ITEMS . ' items',
+		'help' => 'One expression giving a list, at most ' . \data\Constants::LOOP_MAX_ITEMS . ' items',
 		'ui' => [ 'expression' => 'value', 'placeholder' => 'e.g. {{ mail.attachments }}' ],
 	    ],
 	    [
@@ -137,10 +137,11 @@ class NodeCoreLoop extends \models\wf\WfNode {
 	$items = \util\Expression::render((string)$this->cfg('list', ''), $this->exec->expressionVariables(), 'value');
 	if (!is_array($items) || !array_is_list($items))
 	    throw new \ErrorException('Loop: List does not give a list (it gives ' . (is_array($items) ? 'an object' : get_debug_type($items)) . ')');
-	if (count($items) > self::MAX_ITEMS)
-	    throw new \ErrorException('Loop: the list has ' . count($items) . ' items, at most ' . self::MAX_ITEMS);
+	if (count($items) > \data\Constants::LOOP_MAX_ITEMS)
+	    throw new \ErrorException('Loop: the list has ' . count($items) . ' items, at most ' . \data\Constants::LOOP_MAX_ITEMS);
 
 	$this->items = $items;
+	$this->itemCount = count($items);
 	$this->index = -1;
 	$this->results = [];
 	$this->failures = [];
@@ -152,7 +153,14 @@ class NodeCoreLoop extends \models\wf\WfNode {
     //the end of a pass (or the start, index -1): Collect, then the next item -> 'enter' (the caller starts the inner flow), or the end -> the output ports
     public function next() {
 	$vars = $this->exec->expressionVariables();
-	$items = is_array($this->items) ? array_values($this->items) : [];
+	//the list not saved (data()): evaluated again, the same length
+	if (!is_array($this->items)) {
+	    $again = \util\Expression::render((string)$this->cfg('list', ''), $vars, 'value');
+	    if (!is_array($again) || !array_is_list($again) || count($again) !== (int)$this->itemCount)
+		throw new \ErrorException('Loop: the run was continued after a restart and List no longer gives the same list (' . (int)$this->itemCount . ' items before)');
+	    $this->items = $again;
+	}
+	$items = array_values($this->items);
 	$index = (int)$this->index;
 	if ($index >= 0 && empty($this->skipped) && trim((string)$this->cfg('collect', '')) !== '') {
 	    $results = is_array($this->results) ? $this->results : [];
@@ -179,11 +187,21 @@ class NodeCoreLoop extends \models\wf\WfNode {
 	$this->exec->setVariable((string)$this->cfg('variable', 'loop'), [ 'count' => count($items), 'results' => is_array($this->results) ? $this->results : [], 'errors' => $failures ]);
 	$this->exec->log($this->wfid, 'loop: done, ' . count($items) . ' pass(es)' . ($failures ? ', ' . count($failures) . ' skipped' : ''));
 	$this->items = null;
+	$this->results = null;
+	$this->failures = null;
 	$this->active = false;
 	$this->state = 'done';
 	$this->runs = (int)$this->runs + 1;
 	$this->end_at = new \MongoDB\BSON\UTCDateTime();
 	return [ 0 ];
+    }
+
+    //the step's data saved with the execution: without the list unless the execution sleeps (see above)
+    public function data($data = null) {
+	$d = parent::data($data);
+	if ($data === null && is_array($d) && ($this->exec->state ?? null) !== 'sleep')
+	    unset($d['items']);
+	return $d;
     }
 
     //a step inside failed and the loop skips the item: the error is listed, the pass ends (its Collect is not evaluated)

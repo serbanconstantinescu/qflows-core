@@ -3,6 +3,11 @@
 namespace controllers;
 
 class WorkflowController extends \sys\BaseController {
+    //CLD: 2026-11-22T00:00:00Z: the Executions panel's variables (variablesView): entries of an open object / list at first (and per Show more), characters of a text at
+    //first, of a text shown in full at most
+    const VIEW_PAGE = 100;
+    const VIEW_TEXT = 2000;
+    const VIEW_TEXT_ALL = 100000;
 
     public function _init() {
 	parent::_init();
@@ -519,8 +524,44 @@ class WorkflowController extends \sys\BaseController {
 	}
 	//run: where each step and connection is (the designer shows it on the canvas: runStatus); traces: its AI steps' visits without their rounds (execution_trace), traces_total
 	[ $traces, $tracesTotal ] = \models\agent\AgentTrace::ofExecution($exe);
-	$resp->sendJSON([ 'execution' => $this->executionSummary($exe) + [ 'variables' => (object)(is_array($exe->variables) ? $exe->variables : []), 'log' => $log, 'run' => $this->runStatus($exe),
+	//CLD: 2026-11-22T00:00:00Z: the variables as a view (variablesView): only the objects / lists open in the panel (?open: their paths, JSON) with their entries, as many as
+	//shown (?more: [ [ path, count ], ... ]), long texts cut; a closed one is its size only (a large run's variables are not sent at each refresh)
+	$open = json_decode((string)($req->query['open'] ?? '[]'), true);
+	$more = json_decode((string)($req->query['more'] ?? '{}'), true);
+	$open = is_array($open) ? array_flip(array_map(fn($p) => json_encode(array_map('strval', (array)$p)), $open)) : [];
+	$shown = [];
+	foreach((is_array($more) ? $more : []) as $pair) {
+	    if (is_array($pair) && count($pair) == 2)
+		$shown[json_encode(array_map('strval', (array)$pair[0]))] = (int)$pair[1];
+	}
+	$more = $shown;
+	$view = [];
+	foreach((is_array($exe->variables) ? $exe->variables : []) as $name => $value)
+	    $view[] = [ (string)$name, $this->variablesView($value, [ (string)$name ], $open, $more) ];
+	$resp->sendJSON([ 'execution' => $this->executionSummary($exe) + [ 'variables' => $view, 'log' => $log, 'run' => $this->runStatus($exe),
 	    'traces' => array_map(fn($t) => $this->traceSummary($t, $exe), $traces), 'traces_total' => $tracesTotal ] ]);
+    }
+
+    //CLD: 2026-11-22T00:00:00Z: value $v at $path (its keys) of an execution's variables, for the Executions panel: [ 'v' => scalar, 'cut' => full length of a text cut, 'more' => it can be shown in full ] or
+    //[ 'list' => bool, 'n' => entries, 'e' => [ [ key, view ], ... ] ] (`e` only when open: the first VIEW_PAGE entries, or as many as $more says; a text: VIEW_TEXT
+    //characters, VIEW_TEXT_ALL when $more has it)
+    private function variablesView($v, $path, $open, $more) {
+	$p = json_encode($path);
+	if ($v instanceof \stdClass)
+	    $v = (array)$v;
+	if (!is_array($v)) {
+	    if (!is_string($v) || mb_strlen($v) <= self::VIEW_TEXT)
+		return [ 'v' => $v ];
+	    $all = !empty($more[$p]);
+	    return [ 'v' => mb_substr($v, 0, $all ? self::VIEW_TEXT_ALL : self::VIEW_TEXT), 'cut' => mb_strlen($v), 'more' => !$all ];
+	}
+	$view = [ 'list' => array_is_list($v), 'n' => count($v) ];
+	if (isset($open[$p])) {
+	    $view['e'] = [];
+	    foreach(array_slice($v, 0, max(self::VIEW_PAGE, (int)($more[$p] ?? 0)), true) as $k => $x)
+		$view['e'][] = [ (string)$k, $this->variablesView($x, array_merge($path, [ (string)$k ]), $open, $more) ];
+	}
+	return $view;
     }
 
     //one trace of an execution, its rounds and calls, for the timeline of the Executions panel (?execution=<id>&trace=<id>). Workflow::read, as the execution

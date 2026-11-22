@@ -21,6 +21,8 @@ if (!window.app)
 //An AI step's trace in the details (urls.trace: WorkflowController::execution_trace): its visits, opened one loaded and followed while it runs; rounds collapsed, a tool call
 //opens on its arguments and result (what is open stays over the refreshes: traceKeys); Run again with the same inputs (urls.again: execution_again, asked again in place); openTrace(execution, trace).
 //The variables as a tree: each object / list opens and closes as the trace's rounds (closed at first; what is open stays over the refreshes: traceKeys)
+//CLD: 2026-11-22T00:00:00Z: the server sends a view of them (WorkflowController::variablesView): a closed object / list is its size only, an open one its first 100 entries
+//(Show more: 100 more, varMore), a long text its start (Show all); the paths open and the counts shown go with each load (varsQuery), so a large run stays light to refresh
 window.app.WfExecutions = (function() {
     //the one of the current designer page
     let current = null;
@@ -84,6 +86,8 @@ window.app.WfExecutions = (function() {
 	    this.traceOpen = new Map();
 	    this.traceKeys = new Set();
 	    this.traceToShow = null;
+	    //the variables: entries shown of an open object / list, a text shown in full (key => count; 1 for a text)
+	    this.varMore = new Map();
 	    //the elements its listeners are on (removed by destroy)
 	    this.bound = [];
 
@@ -188,10 +192,19 @@ window.app.WfExecutions = (function() {
 			this.loadTraces(this.detail);
 		} else if (open) {
 		    this.traceKeys.add(d.dataset.key);
+		    //a variable's entries: loaded now
+		    if (d.dataset.key.startsWith('v:') && this.selected)
+			this.loadDetail(this.selected);
 		} else {
 		    this.traceKeys.delete(d.dataset.key);
 		}
 	    }, 'details[data-key] > summary');
+	    this.on($panel, 'click', (e) => {
+		e.preventDefault();
+		this.varMore.set(e.currentTarget.dataset.key, Number(e.currentTarget.dataset.n));
+		if (this.selected)
+		    this.loadDetail(this.selected);
+	    }, '.btn-var-more');
 	}
 
 	//a listener removed by destroy() (selector: delegated)
@@ -340,7 +353,7 @@ window.app.WfExecutions = (function() {
 
 	//the details of the one selected (the panel) and / or of the one on the canvas (its marks, the chip)
 	loadDetail(id) {
-	    $.getJSON(this.o.urls.detail, { execution: id }).done((resp) => {
+	    $.getJSON(this.o.urls.detail, Object.assign({ execution: id }, this.varsQuery(id))).done((resp) => {
 		const e = resp.execution;
 		if (this.selected === id) {
 		    this.detail = e;
@@ -479,27 +492,39 @@ window.app.WfExecutions = (function() {
 	}
 
 	/* ---------------- the variables ---------------- */
-	//the variables of execution `e`, each one a line; an object or a list a <details> (its keys / items inside)
+	//the variables of execution `e` (a view: [ [ name, view ], ... ]), each one a line; an object or a list a <details> (its keys / items inside)
 	varsHtml(e) {
-	    const vars = e.variables || {};
-	    const names = Object.keys(vars);
-	    if (!names.length)
+	    const vars = Array.isArray(e.variables) ? e.variables : [];
+	    if (!vars.length)
 		return muted('(none)');
-	    return `<div class='small' style='font-family: var(--bs-font-monospace)'>${names.map((name) => this.valueHtml(`v:${e.id}:${encodeURIComponent(name)}`, name, vars[name])).join('')}</div>`;
+	    return `<div class='small' style='font-family: var(--bs-font-monospace)'>${vars.map(([ name, v ]) => this.valueHtml(`v:${e.id}:${encodeURIComponent(name)}`, name, v)).join('')}</div>`;
 	}
 
-	//value `v` named `name` (a key, an index); `key`: where it is in the variables (traceKeys)
+	//what the server is to send of execution `id`'s variables: the paths open, the counts shown ({ open, more }, JSON)
+	varsQuery(id) {
+	    const pre = `v:${id}:`;
+	    const path = (key) => key.slice(pre.length).split('/').map(decodeURIComponent);
+	    const open = [ ...this.traceKeys ].filter((k) => k.startsWith(pre)).map(path);
+	    const more = [ ...this.varMore ].filter(([ k ]) => k.startsWith(pre)).map(([ k, n ]) => [ path(k), n ]);
+	    return { open: JSON.stringify(open), more: JSON.stringify(more) };
+	}
+
+	//view `v` (variablesView) of the value named `name` (a key, an index); `key`: where it is in the variables (traceKeys)
 	valueHtml(key, name, v) {
 	    const label = `<span class='tag'>${app.utils.escapeHtml(name)}</span>`;
-	    if (v === null || typeof v !== 'object')
-		return `<div style='white-space: pre-wrap; word-break: break-word'>${label}: ${app.utils.escapeHtml(JSON.stringify(v))}</div>`;
-	    const list = Array.isArray(v);
-	    const entries = list ? v.map((x, i) => [ i, x ]) : Object.entries(v);
-	    if (!entries.length)
-		return `<div>${label}: ${muted(list ? '[]' : '{}')}</div>`;
-	    return `<details data-key='${app.utils.escapeHtml(key)}'${this.traceKeys.has(key) ? ' open' : ''}>
-		<summary style='cursor: pointer'>${label} ${muted(list ? `[ ${entries.length} item(s) ]` : `{ ${entries.length} key(s) }`)}</summary>
-		<div class='ps-3'>${entries.map(([k, x]) => this.valueHtml(`${key}/${encodeURIComponent(k)}`, k, x)).join('')}</div>
+	    const ekey = app.utils.escapeHtml(key);
+	    if (!('n' in v)) {
+		const cut = v.cut ? ` ${muted(`... ${app.utils.escapeHtml(v.cut)} characters`)}` + (v.more ? ` <a href='#' class='btn-var-more' data-key='${ekey}' data-n='1'>Show all</a>` : '') : '';
+		return `<div style='white-space: pre-wrap; word-break: break-word'>${label}: ${app.utils.escapeHtml(JSON.stringify(v.v))}${cut}</div>`;
+	    }
+	    if (!v.n)
+		return `<div>${label}: ${muted(v.list ? '[]' : '{}')}</div>`;
+	    const open = this.traceKeys.has(key);
+	    const entries = v.e || [];
+	    const more = entries.length < v.n && v.e ? `<a href='#' class='btn-var-more' data-key='${ekey}' data-n='${entries.length + 100}'>Show more (${app.utils.escapeHtml(entries.length)} of ${app.utils.escapeHtml(v.n)})</a>` : '';
+	    return `<details data-key='${ekey}'${open ? ' open' : ''}>
+		<summary style='cursor: pointer'>${label} ${muted(v.list ? `[ ${v.n} item(s) ]` : `{ ${v.n} key(s) }`)}</summary>
+		<div class='ps-3'>${v.e ? entries.map(([k, x]) => this.valueHtml(`${key}/${encodeURIComponent(k)}`, k, x)).join('') + more : (open ? muted('loading...') : '')}</div>
 	    </details>`;
 	}
 

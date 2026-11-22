@@ -34,6 +34,8 @@ class WfExecution extends \sys\BaseModel {
 
     //log entries kept per execution
     const MAX_LOG = 500;
+    //CLD: 2026-11-22T00:00:00Z: an execution too large to save (save()): its variables larger than this (bytes, as JSON) are replaced by a note
+    const SAVE_VALUE_MAX = 1048576;
 
     //runtime objects, keyed by wfid
     public $__nodes = [];
@@ -157,11 +159,47 @@ class WfExecution extends \sys\BaseModel {
 
 	//nodes and edges back into `nodes`, with their runtime state
 	$nodes = [];
-	foreach($this->__nodes as $wfid => $node)
+	foreach($this->__nodes as $wfid => $node) {
+	    //CLD: 2026-11-22T00:00:00Z: a step's data can depend on the execution (models\node\NodeCoreLoop::data: the list kept only while it sleeps), also one saved without running
+	    $node->exec = $this;
 	    $nodes[$wfid] = $node->data();
+	}
 	foreach($this->__edges as $wfid => $edge)
 	    $nodes[$wfid] = $edge->data();
 	$this->nodes = $nodes;
+    }
+
+    //CLD: 2026-11-22T00:00:00Z: an execution is one document (MongoDB: 16 MB at most). One too large to save fails with the size and its largest variables, those
+    //over SAVE_VALUE_MAX replaced by a note and the loops' lists and results dropped, so that the failed state can be saved (not a run left `run` with the daemon's error)
+    public function save($options = []) {
+	try {
+	    return parent::save($options);
+	} catch (\ErrorException $e) {
+	    if (!preg_match('/too large|larger than|BSONObj size/i', $e->getMessage()))
+		throw $e;
+	}
+	$mb = fn($bytes) => number_format($bytes / 1048576, 1) . ' MB';
+	$sizes = [];
+	foreach((is_array($this->variables) ? $this->variables : []) as $name => $value)
+	    $sizes[$name] = strlen((string)json_encode($value, JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR));
+	arsort($sizes);
+	$total = preg_match('/Document is (\d+) bytes/', $e->getMessage(), $m) ? (int)$m[1] : array_sum($sizes);
+	$largest = implode(', ', array_map(fn($name) => $name . ' (' . $mb($sizes[$name]) . ')', array_slice(array_keys($sizes), 0, 3)));
+	$vars = $this->variables;
+	foreach($sizes as $name => $bytes) {
+	    if ($bytes > self::SAVE_VALUE_MAX)
+		$vars[$name] = '(removed: ' . $mb($bytes) . ', too large to keep)';
+	}
+	$this->variables = $vars;
+	foreach($this->__nodes as $node) {
+	    if ($node instanceof \models\node\NodeCoreLoop) {
+		$node->items = null;
+		$node->results = null;
+		$node->active = false;
+	    }
+	}
+	$this->fail(null, 'the execution\'s data is too large to save (' . $mb($total) . ', at most 16 MB)' . ($largest !== '' ? '; the largest variables: ' . $largest : ''));
+	return parent::save($options);
     }
 
     public function getSchema() {
@@ -383,6 +421,9 @@ class WfExecution extends \sys\BaseModel {
 			$this->save();
 			$saved = $recent[] = microtime(true);
 			$savedTokens = json_encode($this->tokens);
+			//CLD: 2026-11-22T00:00:00Z: failed by save() (too large to save): no more steps
+			if (!$this->canRun())
+			    break;
 		    }
 		}
 		$progress = $this->advance();

@@ -41,6 +41,8 @@ class Constants {
     //CLD: 2026-11-22T00:00:00Z: the Code step's limits (models\node\NodeAppCode): the longest timeout (seconds), the J steps (statements + calls) of a run
     const CODE_MAX_TIMEOUT = 300;
     const CODE_MAX_STEPS = 10000000;
+    //CLD: 2026-11-22T00:00:00Z: the items of a Loop's list at most (models\node\NodeCoreLoop)
+    const LOOP_MAX_ITEMS = 10000;
 
     //the objects of a project that can be shared with other projects of the account and moved to another one (ShareController: the `object` parameter)
     const PROJECT_KINDS = [
