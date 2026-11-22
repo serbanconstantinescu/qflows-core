@@ -674,6 +674,11 @@ window.app.SelectPlus = (function() {
     	    clearTimeout(this._timer);
     	    if (this._abort)
     		this._abort.abort();
+    	    if (this._popper) {
+    		this._popper.destroy();
+    		this._popper = null;
+    		this.menu.style.width = this.menu.style.margin = '';
+    	    }
     	    this.root.classList.remove('open');
     	    this.menu.classList.remove('show', 'sp-up');
     	    this.box.setAttribute('aria-expanded', 'false');
@@ -827,12 +832,23 @@ window.app.SelectPlus = (function() {
     		this.close();
 	}
 
+	//CLD: 2026-11-22T12:00:00Z: the open list is placed by Popper, fixed on the screen: inside a box that scrolls (an edit grid's .table-responsive, a scrollable
+	//modal body) it is no longer clipped. Below the field, above it when there is no room; as wide as the field; it follows the field while the page scrolls
 	_place() {
-    	    this.menu.classList.remove('sp-up');
-    	    const r = this.box.getBoundingClientRect();
-    	    const h = this.menu.offsetHeight;
-    	    if (window.innerHeight - r.bottom < h + 8 && r.top > h + 8)
-    		this.menu.classList.add('sp-up');
+    	    this.menu.style.width = this.box.offsetWidth + 'px';
+    	    this.menu.style.margin = '0';
+    	    if (this._popper) {
+    		this._popper.update();
+    		return;
+    	    }
+    	    this._popper = Popper.createPopper(this.box, this.menu, {
+    		strategy: 'fixed',
+    		placement: 'bottom-start',
+    		modifiers: [
+    		    { name: 'offset', options: { offset: [ 0, 2 ] } },
+    		    { name: 'flip', options: { fallbackPlacements: [ 'top-start' ] } },
+    		],
+    	    });
 	}
 
 	/* ---------- selection display ---------- */
