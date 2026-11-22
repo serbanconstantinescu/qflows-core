@@ -36,12 +36,21 @@ class WfExecution extends \sys\BaseModel {
     const MAX_LOG = 500;
     //CLD: 2026-11-22T00:00:00Z: an execution too large to save (save()): its variables larger than this (bytes, as JSON) are replaced by a note
     const SAVE_VALUE_MAX = 1048576;
+    //CLD: 2026-11-22T00:00:00Z: a variable or a step's field larger than this (bytes, as BSON) is stored in GridFS bucket VALUE_BUCKET, the document keeps a marker
+    //(storageDocument, afterFind, storedValue)
+    const STORE_VALUE_MIN = 262144;
+    const VALUE_BUCKET = 'execution_values';
 
     //runtime objects, keyed by wfid
     public $__nodes = [];
     public $__edges = [];
     //a test case running (util\AgentEvalContext; test_run says it is one): never saved
     public $__test = null;
+
+    //the values stored in GridFS (path => [ hash, id ]: an unchanged one is not stored again), those uploaded by the save going on, those to delete after it
+    private $storedFiles = [];
+    private $uploaded = [];
+    private $garbage = [];
 
     //node executions in the current run()
     private $steps = 0;
@@ -119,6 +128,133 @@ class WfExecution extends \sys\BaseModel {
     public function beforeDelete() {
 	parent::beforeDelete();
 	\V::app()->hooks->applyHook('execution:before-delete', [ $this ]);
+	//CLD: 2026-11-22T00:00:00Z: its values stored in GridFS (also those of a find that left the variables out: stored_values)
+	$ids = array_merge(array_column($this->storedFiles, 'id'), is_array($this->stored_values) ? $this->stored_values : []);
+	self::deleteStored($ids);
+    }
+
+    //CLD: 2026-11-22T00:00:00Z: the values stored in GridFS (STORE_VALUE_MIN): read back, so the execution has them as saved
+    public function afterFind() {
+	parent::afterFind();
+	if (is_array($this->_data['variables'] ?? null)) {
+	    $vars = $this->_data['variables'];
+	    foreach($vars as $name => $v) {
+		if (self::isStored($v))
+		    $vars[$name] = $this->loadStored(json_encode([ 'v', (string)$name ]), $v);
+	    }
+	    $this->loadValue('variables', $vars);
+	}
+	if (is_array($this->_data['nodes'] ?? null)) {
+	    $nodes = $this->_data['nodes'];
+	    foreach($nodes as $wfid => $n) {
+		foreach((is_array($n) ? $n : []) as $k => $v) {
+		    if (!self::isStored($v))
+			continue;
+		    $nodes[$wfid][$k] = $this->loadStored(json_encode([ 'n', (string)$wfid, (string)$k ]), $v);
+		    //the step objects were made from the markers (_init)
+		    if (isset($this->__nodes[$wfid]))
+			$this->__nodes[$wfid]->loadValue($k, $nodes[$wfid][$k]);
+		}
+	    }
+	    $this->loadValue('nodes', $nodes);
+	}
+    }
+
+    //the document written: the variables and the steps' fields larger than STORE_VALUE_MIN stored in GridFS (storeValue), their ids in stored_values
+    public function storageDocument(array $doc) {
+	$doc = parent::storageDocument($doc);
+	$paths = [];
+	if (is_array($doc['variables'] ?? null)) {
+	    foreach($doc['variables'] as $name => $v)
+		$doc['variables'][$name] = $this->storeValue($paths[] = json_encode([ 'v', (string)$name ]), $v);
+	    $this->dropStored('v', $paths);
+	}
+	if (is_array($doc['nodes'] ?? null)) {
+	    foreach($doc['nodes'] as $wfid => $n) {
+		foreach((is_array($n) ? $n : []) as $k => $v)
+		    $doc['nodes'][$wfid][$k] = $this->storeValue($paths[] = json_encode([ 'n', (string)$wfid, (string)$k ]), $v);
+	    }
+	    $this->dropStored('n', $paths);
+	}
+	if (array_key_exists('variables', $doc) || array_key_exists('nodes', $doc))
+	    $doc['stored_values'] = array_values(array_column($this->storedFiles, 'id'));
+	return $doc;
+    }
+
+    //value $v at $path: as it is, or (larger than STORE_VALUE_MIN) uploaded, unless unchanged since stored, and a marker in its place
+    private function storeValue($path, $v) {
+	if (!is_array($v) && !(is_string($v) && strlen($v) > self::STORE_VALUE_MIN))
+	    $bson = null;
+	else
+	    $bson = (string)\MongoDB\BSON\Document::fromPHP([ 'v' => $v ]);
+	$have = $this->storedFiles[$path] ?? null;
+	if ($bson === null || strlen($bson) < self::STORE_VALUE_MIN) {
+	    if ($have) {
+		$this->garbage[] = $have['id'];
+		unset($this->storedFiles[$path]);
+	    }
+	    return $v;
+	}
+	$hash = md5($bson);
+	if (!$have || $have['hash'] !== $hash) {
+	    $id = new \MongoDB\BSON\ObjectId();
+	    $stream = \V::app()->mongo->selectDatabase(static::_database())->selectGridFSBucket([ 'bucketName' => self::VALUE_BUCKET ])->openUploadStream($path, [ '_id' => $id, 'metadata' => [ 'execution' => $this->_id, 'aid' => $this->aid ] ]);
+	    fwrite($stream, $bson);
+	    fclose($stream);
+	    $this->uploaded[] = $id;
+	    if ($have)
+		$this->garbage[] = $have['id'];
+	    $this->storedFiles[$path] = [ 'hash' => $hash, 'id' => $id ];
+	}
+	return [ '__stored' => $this->storedFiles[$path]['id'], 'bytes' => strlen($bson), 'list' => is_array($v) ? array_is_list($v) : null, 'n' => is_array($v) ? count($v) : null ];
+    }
+
+    //the stored values under $kind ('v' variables, 'n' steps) no longer in $paths (a variable removed): deleted after the save
+    private function dropStored($kind, $paths) {
+	$keep = array_flip($paths);
+	foreach($this->storedFiles as $path => $f) {
+	    if (json_decode($path, true)[0] === $kind && !isset($keep[$path])) {
+		$this->garbage[] = $f['id'];
+		unset($this->storedFiles[$path]);
+	    }
+	}
+    }
+
+    //marker $m read back (its hash kept: not stored again unless it changes)
+    private function loadStored($path, $m) {
+	$bson = self::readStored($m['__stored']);
+	if ($bson === null)
+	    return '(the stored value is missing)';
+	$this->storedFiles[$path] = [ 'hash' => md5($bson), 'id' => $m['__stored'] ];
+	return \MongoDB\BSON\Document::fromBSON($bson)->toPHP(\sys\Mongo::TYPEMAP)['v'];
+    }
+
+    //a marker of a value stored in GridFS (storeValue)
+    public static function isStored($v) {
+	return is_array($v) && count($v) == 4 && ($v['__stored'] ?? null) instanceof \MongoDB\BSON\ObjectId;
+    }
+
+    //the value of marker $m (the Executions panel reads the markers itself: WorkflowController::variablesView)
+    public static function storedValue($m) {
+	$bson = self::readStored($m['__stored']);
+	return $bson === null ? '(the stored value is missing)' : \MongoDB\BSON\Document::fromBSON($bson)->toPHP(\sys\Mongo::TYPEMAP)['v'];
+    }
+
+    private static function readStored($id) {
+	try {
+	    return stream_get_contents(\V::app()->mongo->selectDatabase(static::_database())->selectGridFSBucket([ 'bucketName' => self::VALUE_BUCKET ])->openDownloadStream($id));
+	} catch (\MongoDB\GridFS\Exception\FileNotFoundException $e) {
+	    return null;
+	}
+    }
+
+    private static function deleteStored($ids) {
+	foreach($ids as $id) {
+	    try {
+		\V::app()->mongo->selectDatabase(static::_database())->selectGridFSBucket([ 'bucketName' => self::VALUE_BUCKET ])->delete($id);
+	    } catch (\MongoDB\GridFS\Exception\FileNotFoundException $e) {
+	    }
+	}
     }
 
     //a new execution (not saved) of workflow $wf's draft with the inputs of this finished one: the same trigger, input and first variables, so a change of the steps (e.g. a prompt)
@@ -169,11 +305,12 @@ class WfExecution extends \sys\BaseModel {
 	$this->nodes = $nodes;
     }
 
-    //CLD: 2026-11-22T00:00:00Z: an execution is one document (MongoDB: 16 MB at most). One too large to save fails with the size and its largest variables, those
-    //over SAVE_VALUE_MAX replaced by a note and the loops' lists and results dropped, so that the failed state can be saved (not a run left `run` with the daemon's error)
+    //CLD: 2026-11-22T00:00:00Z: an execution is one document (MongoDB: 16 MB at most), its values over STORE_VALUE_MIN in GridFS (saveStored). One still too large to save
+    //(many smaller values) fails with the size and its largest variables, those over SAVE_VALUE_MAX replaced by a note and the loops' lists and results dropped, so that
+    //the failed state can be saved (not a run left `run` with the daemon's error)
     public function save($options = []) {
 	try {
-	    return parent::save($options);
+	    return $this->saveStored($options);
 	} catch (\ErrorException $e) {
 	    if (!preg_match('/too large|larger than|BSONObj size/i', $e->getMessage()))
 		throw $e;
@@ -199,7 +336,25 @@ class WfExecution extends \sys\BaseModel {
 	    }
 	}
 	$this->fail(null, 'the execution\'s data is too large to save (' . $mb($total) . ', at most 16 MB)' . ($largest !== '' ? '; the largest variables: ' . $largest : ''));
-	return parent::save($options);
+	return $this->saveStored($options);
+    }
+
+    //CLD: 2026-11-22T00:00:00Z: a save and its GridFS values (storageDocument): saved, the replaced ones are deleted; not saved, those just uploaded are (as before it)
+    private function saveStored($options) {
+	$before = $this->storedFiles;
+	try {
+	    $ok = parent::save($options);
+	} catch (\Throwable $e) {
+	    $ok = $e;
+	}
+	$drop = $ok === true ? $this->garbage : $this->uploaded;
+	if ($ok !== true)
+	    $this->storedFiles = $before;
+	$this->uploaded = $this->garbage = [];
+	self::deleteStored($drop);
+	if ($ok instanceof \Throwable)
+	    throw $ok;
+	return $ok;
     }
 
     public function getSchema() {

@@ -503,9 +503,11 @@ class WorkflowController extends \sys\BaseController {
 	$eid = (string)($req->query['execution'] ?? '');
 	if (!\util\Validator::rule('oid', $eid))
 	    \V::app()->error(400, 'malformed request: not oid');
-	$exe = \V::app()->om->findOne('WfExecution', [ '_id' => $eid, 'wf' => $wf->_id, 'aid' => $wf->aid ]);
+	//CLD: 2026-11-22T00:00:00Z: the variables as stored (raw: a value in GridFS is its marker, read only when open: variablesView), not with the execution
+	$exe = \V::app()->om->findOne('WfExecution', [ '_id' => $eid, 'wf' => $wf->_id, 'aid' => $wf->aid ], [ 'projection' => [ 'variables' => 0 ] ]);
 	if (empty($exe))
 	    \V::app()->error(404, 'Not found');
+	$raw = \V::app()->om->findOne('WfExecution', [ '_id' => $exe->_id, 'aid' => $wf->aid ], [ 'arrays' => true, 'projection' => [ 'variables' => 1 ] ]);
 
 	$titles = [];
 	foreach((is_array($exe->nodes) ? $exe->nodes : []) as $wfid => $n) {
@@ -536,7 +538,7 @@ class WorkflowController extends \sys\BaseController {
 	}
 	$more = $shown;
 	$view = [];
-	foreach((is_array($exe->variables) ? $exe->variables : []) as $name => $value)
+	foreach((is_array($raw['variables'] ?? null) ? $raw['variables'] : []) as $name => $value)
 	    $view[] = [ (string)$name, $this->variablesView($value, [ (string)$name ], $open, $more) ];
 	$resp->sendJSON([ 'execution' => $this->executionSummary($exe) + [ 'variables' => $view, 'log' => $log, 'run' => $this->runStatus($exe),
 	    'traces' => array_map(fn($t) => $this->traceSummary($t, $exe), $traces), 'traces_total' => $tracesTotal ] ]);
@@ -547,6 +549,12 @@ class WorkflowController extends \sys\BaseController {
     //characters, VIEW_TEXT_ALL when $more has it)
     private function variablesView($v, $path, $open, $more) {
 	$p = json_encode($path);
+	//stored in GridFS (models\wf\WfExecution::storeValue): a closed object / list is the marker's size, else read
+	if (\models\wf\WfExecution::isStored($v)) {
+	    if ($v['n'] !== null && !isset($open[$p]))
+		return [ 'list' => (bool)$v['list'], 'n' => (int)$v['n'] ];
+	    $v = \models\wf\WfExecution::storedValue($v);
+	}
 	if ($v instanceof \stdClass)
 	    $v = (array)$v;
 	if (!is_array($v)) {
