@@ -43,6 +43,8 @@ class Constants {
     const CODE_MAX_STEPS = 10000000;
     //CLD: 2026-11-22T00:00:00Z: the items of a Loop's list at most (models\node\NodeCoreLoop)
     const LOOP_MAX_ITEMS = 20000;
+    //CLD: 2026-11-22T00:00:00Z: the step executions of a run (one run() call), and of one pass of a loop (models\wf\WfExecution: protects against endless loops)
+    const RUN_MAX_STEPS = 100000;
 
     //the objects of a project that can be shared with other projects of the account and moved to another one (ShareController: the `object` parameter)
     const PROJECT_KINDS = [

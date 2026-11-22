@@ -21,8 +21,7 @@ class WfExecution extends \sys\BaseModel {
     ];
 
 
-    //node executions allowed per run() call (protects against endless loops)
-    const MAX_STEPS = 10000;
+    //node executions allowed per run() call: \data\Constants::RUN_MAX_STEPS
     //a running execution is saved after a pass at most this often (s), so its progress shows (run())
     const SAVE_EVERY = 2;
     //and before a pass whose steps are not the ones saved (the designer shows the step running, not the one before it during a long step), at most this many
@@ -748,9 +747,9 @@ class WfExecution extends \sys\BaseModel {
 	    $loop = $this->activeLoop($nodeId);
 	    if ($loop !== null) {
 		$this->passSteps[$loop->wfid] = ($this->passSteps[$loop->wfid] ?? 0) + 1;
-		if ($this->passSteps[$loop->wfid] > self::MAX_STEPS)
+		if ($this->passSteps[$loop->wfid] > \data\Constants::RUN_MAX_STEPS)
 		    return $this->fail($nodeId, 'too many steps in one pass of the loop `' . ($loop->title ?? $loop->wfid) . '` (endless cycle?)');
-	    } elseif (++$this->steps > self::MAX_STEPS) {
+	    } elseif (++$this->steps > \data\Constants::RUN_MAX_STEPS) {
 		return $this->fail($nodeId, 'too many steps (endless loop?)');
 	    }
 
