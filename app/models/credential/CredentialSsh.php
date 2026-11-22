@@ -3,7 +3,8 @@
 /*
     CLD: 2026-11-21T21:00:00+02:00: an SSH server (Linux, Unix, network devices with a shell) for the SSH step (models\node\NodeAppSsh; util\Ssh: the system's OpenSSH client).
     Provides `ssh`. Signs in with a password or a private key (OpenSSH or PEM, + its passphrase). The server's key is pinned: its key line (`ssh-ed25519 AAAA...`); empty, the
-    first connection (Test, or the first run) learns it and saves it (trust on first use, as the SFTP credential); a server whose key changed afterwards is refused. A server on a
+    first connection (Test, or the first run) learns it and saves it (trust on first use, as the SFTP credential); a server whose key changed afterwards is refused. Log folders
+    (CLD: 2026-11-22T12:00:00+02:00): the only folders whose files the SSH step's "Read a log file" and the Log watch trigger read (util\LogFiles; empty: /var/log). A server on a
     private network needs the account's "Integrations may connect to private network addresses". test() signs in and reads the host's name, its system and its uptime
 */
 
@@ -38,6 +39,8 @@ class CredentialSsh extends \models\Credential {
 		'ui' => [ 'rows' => 6, 'showIf' => [ 'key' => 'auth', 'operator' => 'eq', 'value' => 'key' ] ] ],
 	    [ 'key' => 'passphrase', 'type' => 'password', 'label' => 'Key passphrase', 'encrypt' => true, 'help' => 'Empty when the key has none',
 		'ui' => [ 'showIf' => [ 'key' => 'auth', 'operator' => 'eq', 'value' => 'key' ] ] ],
+	    [ 'key' => 'logFolders', 'type' => 'textarea', 'label' => 'Log folders', 'default' => '/var/log',
+		'help' => 'One per line: Read a log file and Log watch read only files under them (empty: /var/log)', 'ui' => [ 'rows' => 2, 'placeholder' => '/var/log' ] ],
 	    [ 'key' => 'hostKey', 'type' => 'textarea', 'label' => 'Server key', 'default' => '',
 		'help' => 'Its public key line (ssh-ed25519 AAAA...; ssh-keyscan gives it). Empty: the first connection (Test) learns it and saves it; later connections to a server with another key are refused',
 		'ui' => [ 'rows' => 2, 'placeholder' => 'ssh-ed25519 AAAAC3Nza...' ] ],
@@ -48,6 +51,12 @@ class CredentialSsh extends \models\Credential {
 	$valid = parent::validates($options);
 	if ($this->auth === 'password' ? (string)$this->password === '' : trim((string)$this->privateKey) === '') {
 	    $this->errors($this->auth === 'password' ? 'password' : 'privateKey', 'required');
+	    $valid = false;
+	}
+	try {
+	    \util\LogFiles::folders($this->logFolders ?? '');
+	} catch (\RuntimeException $e) {
+	    $this->errors('logFolders', 'absolute folders, one per line (no .. part)');
 	    $valid = false;
 	}
 	if (trim((string)$this->hostKey) !== '' && \util\Ssh::keyLine($this->hostKey) === '') {

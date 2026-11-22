@@ -738,6 +738,15 @@ class SysObjects {
 		'class' => 'models\node\NodeAppWindows',
 		'wfNode' => true,
 	    ],
+	    //CLD: 2026-11-22T12:00:00+02:00: log files: the Log watch trigger (new lines through SSH) and Log patterns (lines grouped, known ones matched), core for every account
+	    'NodeTriggerLog' => [
+		'class' => 'models\node\NodeTriggerLog',
+		'wfNode' => true,
+	    ],
+	    'NodeAppLogPatterns' => [
+		'class' => 'models\node\NodeAppLogPatterns',
+		'wfNode' => true,
+	    ],
 	    //LDAP (search and change a directory), core for every account
 	    'NodeAppLdap' => [
 		'class' => 'models\node\NodeAppLdap',

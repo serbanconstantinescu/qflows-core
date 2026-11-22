@@ -7,6 +7,8 @@
 	status    a systemd unit's state (systemctl show): { unit, load, active, sub, enabled, pid, since }
 	restart   a systemd unit restarted (systemctl restart; with sudo -n when "Use sudo" is on: the user needs a NOPASSWD rule for it), then its state: { unit, active, sub }
 	journal   a unit's journal lines (journalctl -u, the newest N, since a time): { lines, count }
+	log       CLD: 2026-11-22T12:00:00+02:00: log files (paths, shell patterns) read from a position, only under the credential's log folders (util\LogFiles: rotation,
+	          truncation, whole lines, a filter): { lines: [ { file, text } ], count, more, position, notes }; the position goes back into Position for the next read
     See NodeAppRemote for the shape, the settings and the errors. As an AI step's tools (family `ssh`): run and restart change things and ask for approval by default
 */
 
@@ -19,11 +21,12 @@ class NodeAppSsh extends NodeAppRemote {
     public static $capability = 'ssh';
     public static $credentialLabel = 'SSH credential';
 
-    const OPERATIONS = [ 'run' => 'Run a script', 'disks' => 'Disk usage', 'status' => 'A service\'s state', 'restart' => 'Restart a service', 'journal' => 'A service\'s log' ];
+    const OPERATIONS = [ 'run' => 'Run a script', 'disks' => 'Disk usage', 'status' => 'A service\'s state', 'restart' => 'Restart a service', 'journal' => 'A service\'s log', 'log' => 'Read a log file' ];
     const WRITES = [ 'run', 'restart' ];
     const UNIT_RE = '/^[A-Za-z0-9@._:\\-]{1,200}$/';
 
     protected $ssh = null;
+    protected $cred = null;
     protected $timeout = 120;
 
     protected static function operationFields() {
@@ -38,6 +41,18 @@ class NodeAppSsh extends NodeAppRemote {
 	    self::field('sudo', 'Use sudo', [ 'restart', 'journal' ], [ 'type' => 'switch', 'default' => true, 'help' => 'sudo -n: the user needs a NOPASSWD rule for the command',
 		'ui' => [ 'width' => 6 ] ]),
 	    self::field('lines', 'Lines', [ 'journal' ], [ 'type' => 'number', 'default' => 100, 'ui' => [ 'width' => 6, 'step' => 1 ] ]),
+	    self::field('paths', 'Log files', [ 'log' ], [ 'type' => 'textarea', 'required' => true, 'default' => '/var/log/messages',
+		'help' => 'One path per line, shell patterns allowed (/var/log/nginx/*.log); only under the credential\'s log folders; compressed files are left out',
+		'ui' => [ 'rows' => 2, 'expression' => true, 'code' => true ] ]),
+	    self::field('filter', 'Only lines matching', [ 'log' ], [ 'help' => 'A regular expression, e.g. (?i)error|warn (empty: every line)', 'ui' => [ 'width' => 6, 'expression' => 'text' ] ]),
+	    self::field('from', 'Read', [ 'log' ], [ 'type' => 'select', 'default' => 'position', 'choices' => \util\LogFiles::FROM, 'ui' => [ 'width' => 6 ] ]),
+	    self::field('position', 'Position', [ 'log' ], [ 'help' => 'The position of the last read (its result\'s position, e.g. {{ logs.position }}); empty: the last lines',
+		'ui' => [ 'expression' => true, 'hideIf' => [ 'key' => 'from', 'operator' => 'eq', 'value' => 'end' ] ] ]),
+	    self::field('maxLines', 'Lines at most', [ 'log' ], [ 'type' => 'number', 'default' => 1000, 'help' => 'More: the next read goes on (more is true)',
+		'validate' => [ [ 'inRange', 'lower' => 1, 'upper' => \util\LogFiles::MAX_LINES, 'skipEmpty' => true, 'message' => 'from 1 to ' . \util\LogFiles::MAX_LINES ] ],
+		'ui' => [ 'width' => 6, 'step' => 1 ] ]),
+	    self::field('logSudo', 'Read with sudo', [ 'log' ], [ 'type' => 'switch', 'default' => false,
+		'help' => 'Off: the user reads them (on most systems: in group adm); on: sudo -n readlink, stat, find, tail need a NOPASSWD rule', 'ui' => [ 'width' => 6 ] ]),
 	    self::field('since', 'Since', [ 'journal' ], [ 'help' => 'e.g. -1h, today, 2026-11-21 08:00 (empty: no limit)', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
 	];
     }
@@ -50,11 +65,22 @@ class NodeAppSsh extends NodeAppRemote {
 	    'status' => [ 'type' => 'object', 'info' => '{ unit, load, active, sub, enabled, pid, since }' ],
 	    'restart' => [ 'type' => 'object', 'info' => '{ unit, active, sub }' ],
 	    'journal' => [ 'type' => 'object', 'info' => '{ lines, count }' ],
+	    'log' => self::logInfo(),
 	    default => parent::resultInfo($op),
 	};
     }
 
+    //what a read of log files gives (the step's variable, the Log watch trigger's)
+    public static function logInfo() {
+	return [ 'type' => 'object', 'info' => '{ lines: [ { file, text } ], count, more, position, notes }', 'fields' => [
+	    'lines' => [ 'type' => 'array', 'items' => [ 'type' => 'object', 'fields' => [ 'file' => [ 'type' => 'string' ], 'text' => [ 'type' => 'string' ] ] ] ],
+	    'count' => [ 'type' => 'number' ], 'more' => [ 'type' => 'boolean', 'info' => 'more lines are waiting: the next read goes on' ],
+	    'position' => [ 'type' => 'array', 'info' => 'where this read stopped: give it to the next one' ],
+	    'notes' => [ 'type' => 'array', 'items' => [ 'type' => 'string' ], 'info' => 'rotated, truncated, lost, not in the log folders, no file' ] ] ];
+    }
+
     protected function connect($cred, $timeout) {
+	$this->cred = $cred;
 	$this->ssh = $cred->client($this->exec->aid);
 	$this->timeout = $timeout;
     }
@@ -147,6 +173,13 @@ class NodeAppSsh extends NodeAppRemote {
 		    throw new \RuntimeException('journalctl failed: ' . self::tail($err));
 		$list = array_values(array_filter(preg_split('/\R/', rtrim($out)), fn($l) => $l !== '' && !str_starts_with($l, '-- ')));
 		return [ [ 'lines' => $list, 'count' => count($list) ], \util\Format::plural(count($list), 'line') ];
+
+	    case 'log':
+		$r = \util\LogFiles::read($this->ssh, \util\LogFiles::paths($text('paths')), [ 'folders' => \util\LogFiles::folders($this->cred->logFolders ?? ''),
+		    'filter' => \util\LogFiles::filter($text('filter')), 'from' => $this->cfg('from', 'position') === 'end' ? 'end' : 'position',
+		    'position' => $this->cfg('from', 'position') === 'end' ? [] : \util\LogFiles::position($value('position')),
+		    'lines' => (int)$this->cfg('maxLines', 1000), 'sudo' => (bool)$this->cfg('logSudo', false), 'timeout' => $this->timeout ]);
+		return [ $r, \util\Format::plural($r['count'], 'line') . ($r['more'] ? ', more waiting' : '') . ($r['notes'] ? '; ' . implode('; ', $r['notes']) : '') ];
 	}
 	throw new \RuntimeException("unknown operation {$operation}");
     }

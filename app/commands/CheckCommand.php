@@ -15,7 +15,7 @@
 namespace commands;
 
 class CheckCommand extends \sys\BaseController {
-    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'demo', 'ssh', 'windows' ];
+    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'demo', 'ssh', 'windows', 'logpatterns' ];
     //not run unless named in --only (demo: an account made and deleted, public services called)
     const SLOW = [ 'steps', 'demo' ];
 
@@ -8931,7 +8931,7 @@ class CheckCommand extends \sys\BaseController {
     //CLD: 2026-11-21T22:00:00+02:00: SSH against a local OpenSSH server started here (sshd on 127.0.0.1, its own host key and authorized_keys in a temporary folder; util\Ssh::$testing:
     //no address guard): the client (parameters as quoted shell variables, never run; key lines and fingerprints), the credential (trust on first use: the server's key learned and
     //saved; a key that changed refused), the step (a script with parameters, a non-zero exit code as an error or not, disks, a unit's state, a restart that needs sudo, the journal),
-    //the AI tools' family (the writes). Skipped when sshd or ssh-keygen is not installed
+    //the AI tools' family (the writes), Read a log file and the Log watch trigger (since 0.99.919). Skipped when sshd or ssh-keygen is not installed
     private function suiteSsh() {
 	$X = \util\Ssh::class;
 	$this->check('ssh: quoting, the parameters as shell variables (values never run), a bad name refused', [ "'it'\\''s'", "P_a='x \$(id) `y`'\nP_n='3'\nP_j='{\"k\":1}'\necho\n", true ],
@@ -9025,6 +9025,57 @@ class CheckCommand extends \sys\BaseController {
 	    $this->check('ssh step: a refused restart of a unit that stays active is an error (the restart\'s exit code), said in the log', [ null, true ],
 		[ $v['refused'] ?? null, str_contains((string)self::logLine($exe, 'SSH restart: '), 'the restart failed') ]);
 
+	    //CLD: 2026-11-22T12:00:00+02:00: Read a log file and the Log watch trigger: the credential's log folders, the last lines, a position, a filter, a line still being
+	    //written, rotation by renaming, a file outside the folders; the trigger: the first check only notes the ends, then one run with the new lines
+	    $logs = "{$work}/logs";
+	    mkdir($logs, 0700);
+	    $log = "{$logs}/app.log";
+	    file_put_contents($log, "a1 info\na2 ERROR one\na3 info\n");
+	    $om->updateMany('CredentialSsh', [ '_id' => $c->_id ], [ '$set' => [ 'logFolders' => $logs ] ]);
+	    $lstep = fn($id, $cfg) => $step($id, $cfg + [ 'operation' => 'log', 'paths' => "{$logs}/*.log" ]);
+	    $exe = $this->runFlow('ssh log', [
+		$n('start', 'trigger::manual'),
+		$lstep('last', [ 'from' => 'end', 'maxLines' => 2, 'variable' => 'last' ]),
+		$step('grow', [ 'operation' => 'run', 'script' => 'printf "a4 ERROR two\\na5 info\\npart" >> "$P_f"', 'parameters' => '{{ {"f": f} }}', 'variable' => 'grow' ]),
+		$lstep('next', [ 'from' => 'position', 'position' => '{{ last.position }}', 'filter' => 'ERROR|part', 'variable' => 'next' ]),
+		$step('rotate', [ 'operation' => 'run', 'script' => 'printf "ial\\n" >> "$P_f"; mv "$P_f" "$P_f.1"; printf "b1 new\\n" > "$P_f"', 'parameters' => '{{ {"f": f} }}', 'variable' => 'rot' ]),
+		$lstep('after', [ 'from' => 'position', 'position' => '{{ next.position }}', 'variable' => 'after' ]),
+		$lstep('denied', [ 'paths' => "/etc/passwd\n{$logs}/../sshd_config\n{$logs}/none-*.log", 'from' => 'end', 'variable' => 'denied' ]),
+		$e('e1', 'start', 'last'), $e('e2', 'last', 'grow'), $e('e3', 'grow', 'next'), $e('e4', 'next', 'rotate'), $e('e5', 'rotate', 'after'), $e('e6', 'after', 'denied'),
+	    ], [ 'f' => $log ]);
+	    $v = $exe ? (array)$exe->variables : [];
+	    $texts = fn($r) => array_column((array)($r['lines'] ?? []), 'text');
+	    $this->check('ssh log: the last lines; from the position, filtered, a line being written waits; after a rotation the rest of the old file, then the new one', [
+		'end', [ 'a2 ERROR one', 'a3 info' ], [ 'a4 ERROR two' ], [ 'partial', 'b1 new' ], true ],
+		[ $exe?->state, $texts($v['last'] ?? []), $texts($v['next'] ?? []), $texts($v['after'] ?? []),
+		    (bool)array_filter((array)($v['after']['notes'] ?? []), fn($x) => str_starts_with($x, 'rotated: ')) ]);
+	    $dn = (array)($v['denied']['notes'] ?? []);
+	    $this->check('ssh log: only files under the log folders (resolved: ../ does not leave them), a pattern matching nothing said in the notes', [ [], 2, true ],
+		[ $texts($v['denied'] ?? []), count(array_filter($dn, fn($x) => str_starts_with($x, 'not in the log folders: '))), in_array("no file: {$logs}/none-*.log", $dn, true) ]);
+	    $wf = $this->workflow('log watch', [ $n('t', 'trigger::log', [ 'credential' => (string)$c->_id, 'paths' => $log, 'filter' => '', 'runs' => 'batch', 'variable' => 'log',
+		'mode' => 'interval', 'every' => 1, 'every_unit' => 'minutes' ]), $n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ log.count }}' ]), $e('e1', 't', 's') ]);
+	    $this->check('log watch: the workflow is valid', true, $wf->validates());
+	    $wf->save();
+	    $this->created[] = $wf->_id;
+	    $TL = \models\node\NodeTriggerLog::class;
+	    $watched = [];
+	    try {
+		[ $d0, $none ] = $TL::check($wf, $wf->nodes['t'], []);
+		file_put_contents($log, "c1 one\nc2 two\n", FILE_APPEND);
+		[ $d1, $runs ] = $TL::check($wf, $wf->nodes['t'], $d0);
+		[ , $again ] = $TL::check($wf, $wf->nodes['t'], $d1);
+		$watched = array_merge($none, $runs, $again);
+		$this->check('log watch: the first check only notes where the files end; then one run with the new lines, queued; checked again: none', [ [], 1, [ 'c1 one', 'c2 two' ], 'log', [] ],
+		    [ $none, count($runs), $texts(($runs[0] ?? null)?->getVariable('log') ?? []), ($runs[0] ?? null)?->trigger, $again ]);
+	    } finally {
+		foreach($watched as $x) {
+		    foreach($om->find('Job', [ 'job_spec' => '\\util\\Scheduler::start', 'job_data.exe' => (string)$x->_id ]) as $job)
+			$job->delete();
+		    $x->delete();
+		}
+		\models\TriggerState::beforeWorkflowDelete($wf);
+	    }
+
 	    //another server key: refused
 	    exec('ssh-keygen -q -t ed25519 -N "" -f ' . escapeshellarg("{$work}/other") . ' 2>&1');
 	    $om->updateMany('CredentialSsh', [ '_id' => $c->_id ], [ '$set' => [ 'hostKey' => $X::keyLine(file_get_contents("{$work}/other.pub")) ] ]);
@@ -9045,6 +9096,52 @@ class CheckCommand extends \sys\BaseController {
 	    }
 	    \util\FileDecrypt::removeDir($work);
 	}
+    }
+
+    //CLD: 2026-11-22T12:00:00+02:00: Log patterns (util\LogPatterns; no server): the formats (syslog, access, JSON, plain with a time), secrets masked, the variable parts
+    //masked, similar lines grouped (Drain), known patterns kept (signature and template), the step in a flow (a list of { file, text }, the error output)
+    private function suiteLogpatterns() {
+	$P = \util\LogPatterns::class;
+	$this->check('log patterns: parse: syslog (program), access (method, path, status kept, 5xx error), JSON (msg, level, service), plain (a leading time left out, the level named)', [
+	    [ 'Failed password for root', '', 'sshd' ], [ "GET /a/1 " . \util\LogPatterns::KEEP . "502", 'error', '' ], [ 'cache miss', 'warning', 'cart' ], [ 'ERROR boom', 'error', '' ] ], [
+	    $P::parse('Nov 22 10:00:04 web01 sshd[1234]: Failed password for root'), $P::parse('1.2.3.4 - - [22/Nov/2026:10:00:06 +0200] "GET /a/1?x=1 HTTP/1.1" 502 512'),
+	    $P::parse('{"level":"warn","msg":"cache miss","service":"cart"}'), $P::parse('2026-11-22 10:00:01,123 ERROR boom') ]);
+	$this->check('log patterns: secrets masked (password=, token:, Authorization, a JWT, an AWS key, a URL\'s password, an email); IPs only when asked', [
+	    'login password=*** token: *** Authorization: Bearer *** *** *** https://u:***@h/x <email> 10.1.2.3', 'from <ip>' ], [
+	    $P::redact('login password=hunter2 token: abc Authorization: Bearer xyz eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdefgh AKIAABCDEFGHIJKLMNOP https://u:pw@h/x bob@example.com 10.1.2.3'),
+	    $P::redact('from 10.1.2.3', true) ]);
+	$this->check('log patterns: tokens: numbers (inside a token too), IPs with a port, UUIDs, hex, times; a word with digits in it kept', [
+	    [ 'user', '<num>', '/users/<num>', 'pid=<num>', '<ip>', '<uuid>', '<hex>', '<hex>', '<time>', 'took', '<num>ms', 'v2' ] ],
+	    [ $P::tokens('user 42 /users/17 pid=99 10.0.0.1:8080 3f2a9c1d-1111-2222-3333-444455556666 0xdead a1b2c3d4e5f6 12:00:01 took 15ms v2') ]);
+	$lines = [ 'payment 1 failed for user 7', 'payment 2 failed for user 8', 'payment 3 failed for user alice', 'cache warmed in 3s', 'payment 4 failed for user bob' ];
+	$r = $P::mine($lines);
+	$first = $r['patterns'][0] ?? [];
+	$this->check('log patterns: similar lines grouped (the words that differ become <*>), the most frequent first, all new', [ 'payment <num> failed for user <*>', 4, 2, 5, 2 ],
+	    [ $first['template'] ?? null, $first['count'] ?? null, $r['count'], $r['lines'], $r['newPatterns'] ]);
+	$known = [ [ 'template' => 'payment <num> failed for user <*>', 'signature' => 'cafe000000000001' ], 'disk <*> is full' ];
+	$r2 = $P::mine([ 'payment 9 failed for user zed', 'disk /var is full', 'brand new failure here' ], [ 'known' => $known ]);
+	$by = array_column($r2['patterns'], null, 'template');
+	$this->check('log patterns: known patterns: lines join them, their signature and template kept (a template\'s own signature when none is given); others new', [
+	    'cafe000000000001', true, $P::signature('', 'disk <*> is full'), 1, false ], [ $by['payment <num> failed for user <*>']['signature'] ?? null,
+	    $by['payment <num> failed for user <*>']['known'] ?? null, $by['disk <*> is full']['signature'] ?? null, $r2['newPatterns'], $by['brand new failure here']['known'] ?? null ]);
+	$r3 = $P::mine([ [ 'file' => '/var/log/app/orders.log', 'text' => 'ERROR order 5 lost' ], [ 'file' => '/var/log/app/orders.log', 'text' => 'WARN order 6 slow' ],
+	    'Nov 22 10:00:04 web01 cron[1]: ERROR order 7 lost' ]);
+	$this->check('log patterns: per service (the file\'s name, the syslog program), each line\'s level', [ [ 'orders', 'orders', 'cron' ], [ 'error', 'warning', 'error' ] ],
+	    [ array_column($r3['patterns'], 'service'), array_column($r3['patterns'], 'level') ]);
+
+	$n = [ self::class, 'node' ];
+	$e = [ self::class, 'edge' ];
+	$exe = $this->runFlow('log patterns', [
+	    $n('start', 'trigger::manual'),
+	    $n('p', 'app::logpatterns', [ 'lines' => '{{ log.lines }}', 'known' => '{{ catalog }}', 'variable' => 'patterns' ]),
+	    $n('bad', 'app::logpatterns', [ 'lines' => '{{ log.count }}', 'variable' => 'bad', 'onError' => 'output' ]),
+	    $e('e1', 'start', 'p'), $e('e2', 'p', 'bad'),
+	], [ 'log' => [ 'lines' => [ [ 'file' => '/var/log/a.log', 'text' => 'x 1 password=secret' ], [ 'file' => '/var/log/a.log', 'text' => 'x 2 password=other' ] ], 'count' => 2 ],
+	    'catalog' => [ [ 'template' => 'y <num>', 'service' => 'a' ] ] ]);
+	$v = $exe ? (array)$exe->variables : [];
+	$this->check('log patterns step: { file, text } lines, the known ones from a variable, the sample masked; Lines not a list: the error output', [
+	    'end', 1, 'x <num> password=***', 'x 1 password=***', 1, true ], [ $exe?->state, $v['patterns']['count'] ?? null, $v['patterns']['patterns'][0]['template'] ?? null,
+	    $v['patterns']['patterns'][0]['sample'] ?? null, $v['patterns']['newPatterns'] ?? null, str_contains((string)($v['error'] ?? ''), 'Lines: not a list') ]);
     }
 
     //CLD: 2026-11-21T22:00:00+02:00: the Windows step against a fake Windows server behind WinRM (commands/tests/WindowsTestServer.php; util\WinRM::$testing): the credential's test,
