@@ -4,7 +4,7 @@
     - query rows (filter, sort, limit, offset),
     - get / insert / update / delete a row
     - insert a list of rows
-    - insert or update by a column (upsert)
+    - insert or update by a column (upsert), also a list of rows (upsertMany: one bulk write)
     - update / delete the rows a filter matches
     - get the columns.
 
@@ -17,6 +17,7 @@
 	query { rows, count, total },
 	get / insert / update { row },
 	upsert { row, operation },
+	upsertMany { inserted, updated, unchanged },
 	insertMany { inserted },
 	updateMany { updated },
 	delete / deleteMany { deleted },
@@ -44,6 +45,7 @@ class NodeAppTable extends \models\wf\WfNode {
 	'insert' => 'Insert a row',
 	'insertMany' => 'Insert rows (a list)',
 	'upsert' => 'Insert or update (by a column)',
+	'upsertMany' => 'Insert or update rows (a list, by a column)',
 	'update' => 'Update a row (by id)',
 	'updateMany' => 'Update rows (filter)',
 	'delete' => 'Delete a row (by id)',
@@ -186,9 +188,9 @@ class NodeAppTable extends \models\wf\WfNode {
 		'label' => 'Match by column',
 		'help' => 'Same value in this column: updated, else inserted',
 		//required in the browser from the requiredIf rule (util\WidgetsUtil; a field property: Field adds the rule)
-		'requiredIf' => [ 'if' => 'operation', 'in' => [ 'upsert' ] ],
+		'requiredIf' => [ 'if' => 'operation', 'in' => [ 'upsert', 'upsertMany' ] ],
 		//a condition array (app.smartform evaluates it)
-		'ui' => [ 'width' => 6, 'newRow' => true, 'showIf' => [ 'key' => 'operation', 'operator' => 'eq', 'value' => 'upsert' ] ],
+		'ui' => [ 'width' => 6, 'newRow' => true, 'showIf' => [ 'key' => 'operation', 'operator' => 'in', 'value' => [ 'upsert', 'upsertMany' ] ] ],
 	    ],
 	    [
 		'key' => 'rows',
@@ -196,9 +198,9 @@ class NodeAppTable extends \models\wf\WfNode {
 		'label' => 'Rows',
 		'help' => 'An expression giving a list of objects keyed by column, e.g. {{ response.body.items }}',
 		//required in the browser from the requiredIf rule (util\WidgetsUtil; a field property: Field adds the rule)
-		'requiredIf' => [ 'if' => 'operation', 'in' => [ 'insertMany' ] ],
+		'requiredIf' => [ 'if' => 'operation', 'in' => [ 'insertMany', 'upsertMany' ] ],
 		//a condition array (app.smartform evaluates it)
-		'ui' => [ 'rows' => 3, 'expression' => true, 'showIf' => [ 'key' => 'operation', 'operator' => 'eq', 'value' => 'insertMany' ] ],
+		'ui' => [ 'rows' => 3, 'expression' => true, 'showIf' => [ 'key' => 'operation', 'operator' => 'in', 'value' => [ 'insertMany', 'upsertMany' ] ] ],
 	    ],
 	    [
 		'key' => 'variable',
@@ -258,7 +260,7 @@ class NodeAppTable extends \models\wf\WfNode {
     public static function outputVariables($config) {
 	$name = is_array($config) ? (string)($config['variable'] ?? 'table') : 'table';
 	$op = is_array($config) ? (string)($config['operation'] ?? 'query') : 'query';
-	$shape = [ 'query' => '{ rows, count, total }', 'get' => '{ row }', 'insert' => '{ row }', 'update' => '{ row }', 'upsert' => '{ row, operation }', 'insertMany' => '{ inserted }',
+	$shape = [ 'query' => '{ rows, count, total }', 'get' => '{ row }', 'insert' => '{ row }', 'update' => '{ row }', 'upsert' => '{ row, operation }', 'upsertMany' => '{ inserted, updated, unchanged }', 'insertMany' => '{ inserted }',
 	    'updateMany' => '{ updated }', 'delete' => '{ deleted }', 'deleteMany' => '{ deleted }', 'schema' => '{ columns }' ][$op] ?? '';
 	if (!\util\Validator::isIdentifier($name))
 	    return [];
@@ -279,6 +281,7 @@ class NodeAppTable extends \models\wf\WfNode {
 	$fields = [
 	    'query' => [ 'rows' => [ 'type' => 'array', 'items' => $row ], 'count' => $number, 'total' => $number ],
 	    'get' => [ 'row' => $row ], 'insert' => [ 'row' => $row ], 'update' => [ 'row' => $row ], 'upsert' => [ 'row' => $row, 'operation' => [ 'type' => 'string', 'info' => 'insert or update' ] ],
+	    'upsertMany' => [ 'inserted' => $number, 'updated' => $number, 'unchanged' => $number ],
 	    'insertMany' => [ 'inserted' => $number ], 'updateMany' => [ 'updated' => $number ], 'delete' => [ 'deleted' => $number ], 'deleteMany' => [ 'deleted' => $number ],
 	    'schema' => [ 'columns' => [ 'type' => 'array', 'items' => [ 'type' => 'object', 'fields' => [ 'key' => [ 'type' => 'string' ], 'label' => [ 'type' => 'string' ],
 		'type' => [ 'type' => 'string' ], 'required' => [ 'type' => 'boolean' ] ] ] ] ],
@@ -322,7 +325,7 @@ class NodeAppTable extends \models\wf\WfNode {
 	    }
 	}
 
-	$checks = [ 'sortBy' => [ 'query' ], 'upsertKey' => [ 'upsert' ] ];
+	$checks = [ 'sortBy' => [ 'query' ], 'upsertKey' => [ 'upsert', 'upsertMany' ] ];
 	foreach($checks as $key => $ops) {
 	    $column = trim((string)$this->cfg($key, ''));
 	    if (in_array($op, $ops, true) && $column !== '' && !self::knownColumn($columns, $column)) {
@@ -425,19 +428,9 @@ class NodeAppTable extends \models\wf\WfNode {
 		return [ 'row' => \models\datatable\DataTableDef::rowValue($row, $columns) ];
 
 	    case 'insertMany':
-		$list = $this->renderValue($this->cfg('rows', ''));
-		if (!is_array($list) || !array_is_list($list))
-		    throw new \ErrorException('Rows: the expression must give a list of objects');
-		if (count($list) > \data\Constants::TABLE_MAX_INSERT)
-		    throw new \ErrorException('Rows: at most ' . \data\Constants::TABLE_MAX_INSERT . ' rows at once');
+		$list = $this->rowsList($columns);
 		$models = [];
 		foreach($list as $i => $item) {
-		    if (!is_array($item) || array_is_list($item))
-			throw new \ErrorException('Rows: item ' . ($i + 1) . ' is not an object (column: value)');
-		    foreach(array_keys($item) as $c) {
-			if (!isset($columns[$c]))
-			    throw new \ErrorException('Rows: item ' . ($i + 1) . ": the table has no column `{$c}`");
-		    }
 		    $row = \V::app()->om->create($iname, [ 'aid' => $aid ]);
 		    \models\datatable\DataTableDef::assignRow($row, $item, 'item ' . ($i + 1) . ': ');
 		    $models[] = $row;
@@ -469,6 +462,68 @@ class NodeAppTable extends \models\wf\WfNode {
 		$row->save();
 		$this->exec->log($this->wfid, "table {$label}: upsert by {$key} -> {$operation} row {$row->_id}");
 		return [ 'row' => \models\datatable\DataTableDef::rowValue($row, $columns), 'operation' => $operation ];
+
+	    //CLD: 2026-11-22T12:00:00Z: a list upserted in one go: the rows already there read with a few queries (by the match column, indexed), the new ones inserted
+	    //and the changed ones updated in bulk writes; all items checked first (an error: nothing written). An item whose value repeats an earlier one's changes the
+	    //same row. No execution log entry per row (as Insert rows)
+	    case 'upsertMany':
+		$key = trim((string)$this->cfg('upsertKey', ''));
+		if (!isset($columns[$key]))
+		    throw new \ErrorException("Match by column: the table has no column `{$key}`");
+		$list = $this->rowsList($columns);
+		//a value as the key of its rows: numbers as MongoDB compares them (1 = 1.0)
+		$keyOf = fn($v) => json_encode(is_int($v) || is_float($v) ? (float)$v : \util\Expression::hostValue($v));
+		$matches = [];
+		foreach($list as $i => $item) {
+		    if (!array_key_exists($key, $item))
+			throw new \ErrorException('Rows: item ' . ($i + 1) . ": no value for `{$key}` (the column rows are matched by)");
+		    $m = $columns[$key]->cast($item[$key]);
+		    $matches[$i] = [ $keyOf($m), $m ];
+		}
+		$values = array_column($matches, 1, 0);
+		$this->indexColumn($iname, $key);
+		//the first row of each value, as Insert or update finds it
+		$rows = [];
+		foreach(array_chunk(array_values($values), 1000) as $chunk) {
+		    foreach(\V::app()->om->find($iname, [ 'aid' => $aid, $key => [ '$in' => $chunk ] ]) as $row) {
+			$k = $keyOf($row->$key);
+			if (array_key_exists($k, $values))
+			    $rows[$k] ??= $row;
+		    }
+		}
+		$new = [];
+		foreach($list as $i => $item) {
+		    $k = $matches[$i][0];
+		    if (!isset($rows[$k])) {
+			$rows[$k] = \V::app()->om->create($iname, [ 'aid' => $aid ]);
+			$new[$k] = $rows[$k];
+		    }
+		    \models\datatable\DataTableDef::assignRow($rows[$k], $item, 'item ' . ($i + 1) . ': ');
+		}
+		//the tier's limit of rows in a data table (util\Tiers): all the new ones, or none
+		\util\Tiers::check($aid, 'datatable_records', count($new), $iname);
+		$ops = [];
+		$unchanged = 0;
+		$now = new \MongoDB\BSON\UTCDateTime();
+		foreach($rows as $k => $row) {
+		    if (isset($new[$k]))
+			continue;
+		    $set = $row->updated();
+		    if (!$set) {
+			$unchanged++;
+			continue;
+		    }
+		    $ops[] = [ 'updateOne' => [ [ '_id' => $row->_id, 'aid' => $aid ], [ '$set' => $row->storageDocument($set) + [ 'updated_at' => $now ] ] ] ];
+		}
+		$inserted = 0;
+		foreach(array_chunk(array_values($new), 500) as $batch)
+		    $inserted += \V::app()->om->insertMany($iname, $batch);
+		$updated = 0;
+		$coll = \V::app()->mongo->selectCollection(\sys\BaseModel::_database(), $iname);
+		foreach(array_chunk($ops, 500) as $batch)
+		    $updated += $coll->bulkWrite($batch, [ 'ordered' => false ])->getMatchedCount();
+		$this->exec->log($this->wfid, "table {$label}: upsert by {$key} -> {$inserted} inserted, {$updated} updated, {$unchanged} unchanged");
+		return [ 'inserted' => $inserted, 'updated' => $updated, 'unchanged' => $unchanged ];
 
 	    case 'update':
 		$row = $this->rowById($iname, $this->renderValue($this->cfg('rowId', '')), $aid, true);
@@ -539,6 +594,24 @@ class NodeAppTable extends \models\wf\WfNode {
 	if (!$row && $required)
 	    throw new \ErrorException("Row id: no row `{$id}`");
 	return $row;
+    }
+
+    //the list of Rows (insertMany, upsertMany): objects keyed by the table's columns, at most TABLE_MAX_INSERT; \ErrorException naming the item
+    protected function rowsList(array $columns) {
+	$list = $this->renderValue($this->cfg('rows', ''));
+	if (!is_array($list) || !array_is_list($list))
+	    throw new \ErrorException('Rows: the expression must give a list of objects');
+	if (count($list) > \data\Constants::TABLE_MAX_INSERT)
+	    throw new \ErrorException('Rows: at most ' . \data\Constants::TABLE_MAX_INSERT . ' rows at once');
+	foreach($list as $i => $item) {
+	    if (!is_array($item) || array_is_list($item))
+		throw new \ErrorException('Rows: item ' . ($i + 1) . ' is not an object (column: value)');
+	    foreach(array_keys($item) as $c) {
+		if (!isset($columns[$c]))
+		    throw new \ErrorException('Rows: item ' . ($i + 1) . ": the table has no column `{$c}`");
+	    }
+	}
+	return $list;
     }
 
     //the row data: [ column => value ] (expressions evaluated; a single one keeps its type)
