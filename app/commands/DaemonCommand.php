@@ -10,7 +10,11 @@
 	--max-per-account=max - 1  running jobs of one account (models\Job::aid); 0 = no limit
 	--max-per-project=max - 1  running jobs of one project (models\Job::project); 0 = no limit
 	--job-timeout=0            seconds a job may run before its worker is killed; 0 = no limit
-	--max-worker-memory=512 (MB): a worker over it (after a job, or while idle) exits and the master starts a new one;
+	--max-worker-memory=256 (MB): a worker over it (after a job, or while idle) exits and the master starts a new one;
+	--worker-memory-limit=     PHP memory_limit of the workers (e.g. 1024M, -1 = none); default: php.ini. A job over it is a PHP fatal error: its executions end as error
+	--debug                    DEBUG messages in the logs
+    CLD: 2026-11-23T14:00:00Z: each option also in app.env as DAEMON_<OPTION> (e.g. DAEMON_MAX_WORKER_MEMORY=512, DAEMON_DEBUG=true; config.php app.daemon); the command line wins.
+    app/v.php daemon::settings     the settings the daemon starts with (scripts/setup_daemon.sh status)
 */
 namespace commands;
 
@@ -510,43 +514,8 @@ class DaemonCommand extends \sys\BaseController {
     public function run_master() {
 	//what this process changes is recorded in the execution log as the daemon's
 	\models\ExecutionLog::$source = 'daemon';
-    	//parse params, set some defaults
-	//min / max workers, per account / project limits, idle and job timeouts
-	$this->config = [
-	    'debug' => false,
-	    'logfile' => 'daemon',
-	    'worker-logfile' => 'daemon_worker',
-	    'min-workers' => 2,
-	    'max-workers' => 2 * self::cpu_count() - 1,
-	    'max-per-account' => null,
-	    'max-per-project' => null,
-	    'idle-timeout' => 60,
-	    'job-timeout' => 0,
-	    //memory (MB) a worker may use before it is replaced
-	    'max-worker-memory' => 512,
-	];
-	$params = [ 'logfile', 'worker-logfile', 'debug', 'min-workers', 'max-workers', 'max-per-account', 'max-per-project', 'idle-timeout', 'job-timeout', 'max-worker-memory' ];
-	foreach($params as $p) {
-	    if (isset(\V::app()->request->params[$p]))
-		$this->config[$p] = \V::app()->request->params[$p];
-	}
-
-	//numbers; max >= min >= 1; per account / project default to max - 1 (at least 1), 0 = no limit
-	foreach([ 'min-workers', 'max-workers', 'idle-timeout', 'job-timeout', 'max-worker-memory' ] as $k) {
-	    if (!is_numeric($this->config[$k]) || $this->config[$k] < 0)
-		throw new \ErrorException("--{$k} must be a number >= 0");
-	    $this->config[$k] = (int)$this->config[$k];
-	}
-
-	$this->config['min-workers'] = max(1, $this->config['min-workers']);
-	$this->config['max-workers'] = max($this->config['min-workers'], $this->config['max-workers']);
-	foreach([ 'max-per-account', 'max-per-project' ] as $k) {
-	    if ($this->config[$k] === null)
-		$this->config[$k] = max(1, $this->config['max-workers'] - 1);
-	    if (!is_numeric($this->config[$k]) || $this->config[$k] < 0)
-		throw new \ErrorException("--{$k} must be a number >= 0 (0 = no limit)");
-	    $this->config[$k] = (int)$this->config[$k];
-	}
+	//CLD: 2026-11-23T14:00:00Z: the settings: defaults, app.env, the command line (readSettings)
+	$this->config = $this->readSettings();
 
 	//raise level to DEBUG if intructed
 	\V::app()->log->setLevel('INFO');
@@ -557,7 +526,10 @@ class DaemonCommand extends \sys\BaseController {
 	\V::app()->log->prefixWithCaller(false);
 
 	//workers are this command with --worker
-	$this->worker_cmd = 'exec ' . escapeshellarg(PHP_BINARY) . ' -f ' . escapeshellarg(BASE . '/app/v.php') . " daemon::run --worker --logfile=" . escapeshellarg($this->config['worker-logfile']);
+	//CLD: 2026-11-23T14:00:00Z: with their PHP memory_limit when set (--worker-memory-limit)
+	$this->worker_cmd = 'exec ' . escapeshellarg(PHP_BINARY)
+	    . ($this->config['worker-memory-limit'] !== '' ? ' -d ' . escapeshellarg('memory_limit=' . $this->config['worker-memory-limit']) : '')
+	    . ' -f ' . escapeshellarg(BASE . '/app/v.php') . " daemon::run --worker --logfile=" . escapeshellarg($this->config['worker-logfile']);
 	if ($this->config['max-worker-memory'] > 0)
 	    $this->worker_cmd .= ' --max-memory=' . (int)$this->config['max-worker-memory'];
 	if ($this->config['debug'])
@@ -663,7 +635,13 @@ class DaemonCommand extends \sys\BaseController {
 	$this->scheduler();
 
 	\V::app()->log->info("WMGR: ready: min-workers={$this->config['min-workers']}, max-workers={$this->config['max-workers']}, "
-	    . "max-per-account={$this->config['max-per-account']}, max-per-project={$this->config['max-per-project']}, max-worker-memory={$this->config['max-worker-memory']} MB");
+	    . "max-per-account={$this->config['max-per-account']}, max-per-project={$this->config['max-per-project']}, max-worker-memory={$this->config['max-worker-memory']} MB, "
+	    . "worker-memory-limit=" . $this->workerMemoryLimit() . ", job-timeout={$this->config['job-timeout']} s");
+	//CLD: 2026-11-23T14:00:00Z: a worker is replaced only after its job: with memory_limit not above --max-worker-memory, it fails a job (PHP fatal error) before it is replaced
+	$limit = self::bytes($this->workerMemoryLimit());
+	if ($this->config['max-worker-memory'] > 0 && $limit > 0 && $limit <= $this->config['max-worker-memory'] * 1048576)
+	    \V::app()->log->warn("WMGR: the workers' memory_limit (" . $this->workerMemoryLimit() . ") is not above --max-worker-memory ({$this->config['max-worker-memory']} MB): "
+		. "a worker reaches it (a PHP fatal error, its job's executions end as error) before it is replaced; raise DAEMON_WORKER_MEMORY_LIMIT or lower DAEMON_MAX_WORKER_MEMORY");
 	$this->loop->run();
 
 	//stop the workers and wait (up to 5 s) for them to exit, so their running events are queued again
@@ -701,6 +679,97 @@ class DaemonCommand extends \sys\BaseController {
 
     //-------------------------------------------------------------------
     //master or worker
+    //CLD: 2026-11-23T14:00:00Z: the master's settings: the defaults, over them app.env's DAEMON_<OPTION> (config.php app.daemon; empty: the default), over them the command line;
+    //checked (an exception says which is wrong and where it came from)
+    protected function readSettings() {
+	//min / max workers, per account / project limits, idle and job timeouts
+	$config = [
+	    'debug' => false,
+	    'logfile' => 'daemon',
+	    'worker-logfile' => 'daemon_worker',
+	    'min-workers' => 2,
+	    'max-workers' => 2 * self::cpu_count() - 1,
+	    'max-per-account' => null,
+	    'max-per-project' => null,
+	    'idle-timeout' => 60,
+	    'job-timeout' => 0,
+	    //memory (MB) a worker may use before it is replaced
+	    'max-worker-memory' => 256,
+	    //the workers' PHP memory_limit ('': php.ini's)
+	    'worker-memory-limit' => '',
+	];
+	$from = [];
+	foreach((array)\V::app()->config('app.daemon') as $k => $v) {
+	    if (in_array($k, \DAEMON_OPTIONS, true) && trim((string)$v) !== '') {
+		$config[$k] = trim((string)$v);
+		$from[$k] = 'DAEMON_' . strtoupper(str_replace('-', '_', $k)) . ' of app.env';
+	    }
+	}
+	foreach(array_merge([ 'logfile', 'worker-logfile' ], \DAEMON_OPTIONS) as $p) {
+	    if (isset(\V::app()->request->params[$p])) {
+		$config[$p] = \V::app()->request->params[$p];
+		$from[$p] = "--{$p}";
+	    }
+	}
+	$where = fn($k) => $from[$k] ?? "--{$k}";
+
+	//true / false (app.env: true, false, 1, 0, yes, no; the command line: --debug)
+	$debug = filter_var($config['debug'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+	if ($debug === null)
+	    throw new \ErrorException($where('debug') . ' must be true or false');
+	$config['debug'] = $debug;
+
+	//numbers; max >= min >= 1; per account / project default to max - 1 (at least 1), 0 = no limit
+	foreach([ 'min-workers', 'max-workers', 'idle-timeout', 'job-timeout', 'max-worker-memory' ] as $k) {
+	    if (!is_numeric($config[$k]) || $config[$k] < 0)
+		throw new \ErrorException($where($k) . ' must be a number >= 0');
+	    $config[$k] = (int)$config[$k];
+	}
+
+	$config['min-workers'] = max(1, $config['min-workers']);
+	$config['max-workers'] = max($config['min-workers'], $config['max-workers']);
+	foreach([ 'max-per-account', 'max-per-project' ] as $k) {
+	    if ($config[$k] === null)
+		$config[$k] = max(1, $config['max-workers'] - 1);
+	    if (!is_numeric($config[$k]) || $config[$k] < 0)
+		throw new \ErrorException($where($k) . ' must be a number >= 0 (0 = no limit)');
+	    $config[$k] = (int)$config[$k];
+	}
+
+	//PHP's notation: a number of bytes, with K / M / G, or -1 (no limit)
+	$config['worker-memory-limit'] = (string)$config['worker-memory-limit'];
+	if ($config['worker-memory-limit'] !== '' && preg_match('/^(-1|[1-9]\d*[KMG]?)$/i', $config['worker-memory-limit']) !== 1)
+	    throw new \ErrorException($where('worker-memory-limit') . ' must be a PHP memory_limit, e.g. 1024M, 2G or -1 (no limit)');
+	return $config;
+    }
+
+    //CLD: 2026-11-23T14:00:00Z: the workers' memory_limit: --worker-memory-limit, else php.ini's (the master's)
+    protected function workerMemoryLimit() {
+	return $this->config['worker-memory-limit'] !== '' ? $this->config['worker-memory-limit'] : (string)ini_get('memory_limit');
+    }
+
+    //CLD: 2026-11-23T14:00:00Z: a memory_limit in bytes (-1: 0, no limit)
+    protected static function bytes($limit) {
+	if (preg_match('/^([1-9]\d*)([KMG]?)$/i', trim((string)$limit), $m) !== 1)
+	    return 0;
+	return (int)$m[1] * [ '' => 1, 'K' => 1024, 'M' => 1048576, 'G' => 1073741824 ][strtoupper($m[2])];
+    }
+
+    //CLD: 2026-11-23T14:00:00Z: daemon::settings: what the daemon starts with (each setting, where it comes from) and the warning of run_master; changes nothing
+    public function settings() {
+	$this->config = $this->readSettings();
+	$env = array_filter((array)\V::app()->config('app.daemon'), fn($v) => trim((string)$v) !== '');
+	foreach(\DAEMON_OPTIONS as $k) {
+	    $v = $this->config[$k];
+	    $v = is_bool($v) ? ($v ? 'true' : 'false') : ($k == 'worker-memory-limit' && $v === '' ? $this->workerMemoryLimit() . ' (php.ini)' : (string)$v);
+	    $src = isset(\V::app()->request->params[$k]) ? "--{$k}" : (isset($env[$k]) ? 'DAEMON_' . strtoupper(str_replace('-', '_', $k)) : 'default');
+	    printf("%-22s %-16s %s\n", $k, $v, $src);
+	}
+	$limit = self::bytes($this->workerMemoryLimit());
+	if ($this->config['max-worker-memory'] > 0 && $limit > 0 && $limit <= $this->config['max-worker-memory'] * 1048576)
+	    echo "warning: worker-memory-limit is not above max-worker-memory: a worker fails a job (PHP fatal error) before it is replaced\n";
+    }
+
     public function run() {
 	if (!empty(\V::app()->request->params['worker']))
 	    return $this->run_worker();

@@ -5,12 +5,14 @@
 #the polkit rule of the installation, 49-qflows-services-<user>.rules: the app's user (the web server's PHP: the Services page) may start / stop / restart
 #its units, nfn-<name>-<user>.service (the daemon, the web browser's nfn-playwright-<user>, ...), and nfn-haraka.service when the installation has it.
 #The other services write their own units (scripts/setup_haraka.sh, scripts/playwright-mcp.sh install) and the rule again (rule).
+#CLD: 2026-11-23T14:00:00Z: the daemon's settings are in app.env, DAEMON_<OPTION> (DAEMON_MAX_WORKER_MEMORY, DAEMON_WORKER_MEMORY_LIMIT, DAEMON_DEBUG, ...: app.env.example),
+#not in the unit: changed, the daemon is restarted (restart, or the Services page); install is needed once
 # commands, as the other scripts
 #Run as root:
-#   sudo scripts/daemon.sh install                          the unit and the rule, start at boot, start now (a daemon started by hand: stopped first)
-#   sudo scripts/daemon.sh start | stop | restart | uninstall
-#   sudo scripts/daemon.sh rule                             the polkit rule written again
-#   scripts/daemon.sh status                                the installation's services and the rule
+#   sudo scripts/setup_daemon.sh install                    the unit and the rule, start at boot, start now (a daemon started by hand: stopped first)
+#   sudo scripts/setup_daemon.sh start | stop | restart | uninstall
+#   sudo scripts/setup_daemon.sh rule                       the polkit rule written again
+#   scripts/setup_daemon.sh status                          the installation's services, the rule and the daemon's settings (app/v.php daemon::settings)
 #polkit must be installed (minimal systems leave it out: dnf install polkit).
 
 set -euo pipefail
@@ -104,7 +106,7 @@ Wants=network-online.target
 User=$APP_USER
 Group=$APP_USER
 WorkingDirectory=$BASE/app
-ExecStart=$php -d display_errors -d session.save_path=/tmp $BASE/app/v.php daemon::run --debug
+ExecStart=$php -d display_errors -d session.save_path=/tmp $BASE/app/v.php daemon::run
 StandardOutput=append:$BASE/logs/daemon.log
 StandardError=inherit
 Restart=on-failure
@@ -117,6 +119,29 @@ TimeoutStopSec=60
 WantedBy=multi-user.target
 EOF
     chmod 644 "$UNIT"
+}
+
+#CLD: 2026-11-23T14:00:00Z: the daemon's settings it starts with, read as the app's user (app/v.php daemon::settings; a wrong one: its error)
+show_settings() {
+    local php
+    php=$(command -v php || echo /usr/bin/php)
+    echo "daemon settings (app.env DAEMON_<OPTION>, else the default):"
+    if [ "$(id -un)" = "$APP_USER" ]; then
+        (cd "$BASE/app" && "$php" v.php daemon::settings 2>&1 | grep -v '^#') || true
+    elif [ "$(id -u)" -eq 0 ]; then
+        (cd "$BASE/app" && sudo -H -u "$APP_USER" "$php" v.php daemon::settings 2>&1 | grep -v '^#') || true
+    else
+        echo "  run status as root or as $APP_USER to see them"
+    fi
+}
+
+#CLD: 2026-11-23T14:00:00Z: the DAEMON_ keys of app.env the daemon does not know (a typo is otherwise left unused)
+check_env() {
+    local env="$BASE/app.env" key known=" DAEMON_PORT DAEMON_LISTEN DAEMON_HOST DAEMON_MIN_WORKERS DAEMON_MAX_WORKERS DAEMON_MAX_PER_ACCOUNT DAEMON_MAX_PER_PROJECT DAEMON_IDLE_TIMEOUT DAEMON_JOB_TIMEOUT DAEMON_MAX_WORKER_MEMORY DAEMON_WORKER_MEMORY_LIMIT DAEMON_DEBUG "
+    [ -r "$env" ] || return 0
+    for key in $(sed -n 's/^[[:space:]]*\(export[[:space:]]\+\)\?\(DAEMON_[A-Za-z0-9_]*\)=.*/\2/p' "$env"); do
+        [[ "$known" == *" $key "* ]] || echo "warning: $key in app.env is not a daemon setting (see app.env.example): left unused"
+    done
 }
 
 #the rule: this installation's units by their name (nfn-<name>-<user>.service, also those installed later), and Haraka's when it is the installation's
@@ -150,6 +175,7 @@ case "$command" in
         need_root
         need_polkit
         echo "+ app $BASE, user $APP_USER"
+        check_env
         write_unit
         write_rule
         systemctl daemon-reload
@@ -159,6 +185,7 @@ case "$command" in
         systemctl restart "$SERVICE"
         sleep 2
         systemctl --no-pager --lines=3 status "$SERVICE" || true
+        show_settings
         echo "Done: the Services page shows it; check that $APP_USER may control it: sudo -u $APP_USER systemctl --no-ask-password restart $SERVICE"
         ;;
     start|stop|restart)
@@ -183,6 +210,8 @@ case "$command" in
         else
             echo "polkit rule: unknown (run status as root to check)"
         fi
+        check_env
+        show_settings
         ;;
     uninstall)
         need_root

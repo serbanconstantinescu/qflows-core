@@ -8,7 +8,7 @@
 #  - the app's setup (app/v sys::install as the app's user: the account, its owner, app.env),
 #  - Haraka (setup_haraka.sh install),
 #  - MongoDB's users and authorization (setup_mongo.sh secure),
-#  - the background services (daemon.sh install)
+#  - the background services (setup_daemon.sh install)
 #  - CLD: 2026-11-22T14:00:00+02:00: tc-lib-pdf, the PDF document step's library (scripts/tc-lib-pdf.sh install as the app's user, into app/pkgs/tc-lib-pdf; not in git),
 #    when it is not there yet (run again: kept; scripts/tc-lib-pdf.sh install updates it)
 #  - the web browser of the AI steps after the background services:
@@ -869,9 +869,9 @@ if [ ! -f "$BASE/app/pkgs/tc-lib-pdf/autoload.php" ]; then
 fi
 
 step "The background services"
-# the daemon's unit (nfn-daemon-<user>) and the polkit rule: scripts/daemon.sh install; Haraka's unit is
+# the daemon's unit (nfn-daemon-<user>) and the polkit rule: scripts/setup_daemon.sh install; Haraka's unit is
 #setup_haraka.sh's (above), the web browser's playwright-mcp.sh's (below)
-"$SCRIPTS/daemon.sh" install
+"$SCRIPTS/setup_daemon.sh" install
 #a plugin added or updated: the daemon running before loads it
 [ "$PLUGINS_CHANGED" -eq 0 ] || [ "$MONGO_CHANGED" -eq 1 ] || systemctl try-restart "nfn-daemon-$APP_USER.service" || true
 #the services running before reconnect with the new MongoDB users

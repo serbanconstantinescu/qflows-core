@@ -5,7 +5,7 @@
     the list (services(): hook app:services) and who may see / manage them (allowed())
     in Docker (docker()): read-only, the status from each service's check, start / stop / restart with docker compose on the host
     the installation's services: their status (systemd: `systemctl show`, which any user may read; a service not yet made a unit:
-    its script's PID file) and start / stop / restart (`systemctl`, allowed to this app's user for these units only by the polkit rule of scripts/daemon.sh)
+    its script's PID file) and start / stop / restart (`systemctl`, allowed to this app's user for these units only by the polkit rule of scripts/setup_daemon.sh)
 */
 
 namespace util;
@@ -68,7 +68,7 @@ class Services {
     }
 
     //the systemd unit of this installation's service $name (daemon, playwright): nfn-<name>-<the app's user> (the owner of app/, as
-    //scripts/daemon.sh and scripts/playwright-mcp.sh name them), so that several installations on one server (live, development) each have theirs
+    //scripts/setup_daemon.sh and scripts/playwright-mcp.sh name them), so that several installations on one server (live, development) each have theirs
     public static function unit($name) {
 	$owner = @fileowner(BASE . '/app');
 	$user = $owner !== false && function_exists('posix_getpwuid') ? (posix_getpwuid($owner)['name'] ?? '') : '';
@@ -148,7 +148,7 @@ class Services {
 	$unit = (string)($s['unit'] ?? '');
 	if ($unit === '' || !self::status([ 'unit' => $unit ])['unit'])
 	    //the service's own script
-	    return [ false, 'not a system service yet: run its script as root first (scripts/daemon.sh, setup_haraka.sh or playwright-mcp.sh install)' ];
+	    return [ false, 'not a system service yet: run its script as root first (scripts/setup_daemon.sh, setup_haraka.sh or playwright-mcp.sh install)' ];
 	[ $code, $out ] = self::run([ 'systemctl', '--no-ask-password', $verb, $unit ], 60);
 	if ($code !== 0)
 	    return [ false, trim($out) ?: "systemctl {$verb} failed ({$code})" ];

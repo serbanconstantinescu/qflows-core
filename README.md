@@ -72,14 +72,14 @@ The setup in the browser (every address of the site while `app.env` is missing) 
 | `app/v sys::install` (as the app's user) | The app: the database indexes, the first account and its owner, `app.env` (the answers as JSON on stdin) | no `app.env` yet |
 | `sudo scripts/setup_haraka.sh install` | Haraka, for inbound mail, into `<app>/haraka` (its files stay the app's user's), and its unit `nfn-haraka` (one per server: port 25), started. Also `start`, `stop`, `restart`, `status`, `uninstall` (the unit; the files stay) | `app.env`; `MAIL_INBOUND_DOMAIN` there (or `--domain=`); system-wide Node.js |
 | `sudo scripts/setup_mongo.sh secure` | MongoDB users `nfn_admin`, `nfn_app`, `nfn_haraka`; their passwords into `app.env` (`MONGO_URI`, `HARAKA_MONGO_URI`) and, with Haraka, `haraka/config/nfn.ini`; then sign-in required (`/etc/mongod.conf`, mongod restarted) and the app's services restarted. Also `users`, `auth` (the two halves), `start`, `stop`, `restart`, `status` | `app.env`; MongoDB on this machine with authorization still off |
-| `sudo scripts/daemon.sh install` | The workflow daemon's unit `nfn-daemon-<user>`, started, and the polkit rule that lets the Services page start / stop / restart the installation's units (`nfn-<name>-<user>`, and `nfn-haraka` when the installation has it). Also `start`, `stop`, `restart`, `status` (all the installation's services), `rule`, `uninstall` | polkit |
+| `sudo scripts/setup_daemon.sh install` | The workflow daemon's unit `nfn-daemon-<user>`, started, and the polkit rule that lets the Services page start / stop / restart the installation's units (`nfn-<name>-<user>`, and `nfn-haraka` when the installation has it). Also `start`, `stop`, `restart`, `status` (all the installation's services and the daemon's settings), `rule`, `uninstall`. The daemon's settings are `DAEMON_<OPTION>` in `app.env` (see `app.env.example`): changed, restart it | polkit |
 | `sudo scripts/playwright-mcp.sh install` | The AI steps' web browser (Playwright MCP, its Chromium) as the unit `nfn-playwright-<user>`, and its entry in `mcp.json`. Also `start`, `stop`, `restart`, `status`, `uninstall` | system-wide Node.js |
 
 They can be run again: nothing already installed is overwritten (`setup_haraka.sh` updates qflows's plugin). `setup_mongo.sh secure` too, while MongoDB does not require sign-in: it creates its users again with new passwords; once authorization is on, it stops.
 The operators' MongoDB password is left in `<app>/.mongodb-admin` (root's): move it to a password manager and delete the file.
 
 Options: `--dry-run` (`setup_nginx.sh setup`, `setup_haraka.sh install`) prints what would be done; `--help` lists the others.
-Check the services with `scripts/daemon.sh status`.
+Check the services with `scripts/setup_daemon.sh status`.
 
 ### Web server (nginx)
 

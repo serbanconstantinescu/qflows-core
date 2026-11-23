@@ -115,6 +115,16 @@ run() {
             local_commits "$repo"
             exit 1
         fi
+        #CLD: 2026-11-23T14:00:00Z: files changed here that the update changes too (the fast-forward would stop half-way): nothing changed, listed. Settings belong in
+        #app.env (e.g. the daemon's: DAEMON_<OPTION>), which git does not track
+        local clash
+        clash=$(comm -12 <(as_user git -C "$repo" diff --name-only HEAD '@{u}' | sort) <(as_user git -C "$repo" diff --name-only HEAD | sort))
+        if [ -n "$clash" ]; then
+            echo "$repo: files changed here that the update changes too: nothing changed. Commit them, or undo them (git -C $repo checkout -- <file>);"
+            echo "a setting belongs in app.env (the daemon's: DAEMON_<OPTION>, see app.env.example)"
+            printf '%s\n' "$clash" | sed 's/^/  /'
+            exit 1
+        fi
     done < <(repos)
 
     while read -r repo; do

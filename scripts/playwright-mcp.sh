@@ -9,7 +9,7 @@
 #    link-local addresses (169.254.169.254 too) are refused, the browser reaches only the public internet (Playwright's --blocked-origins is not
 #    a security boundary: a second layer only)
 #Shared by the installations: the @playwright/mcp package and the Chromium its Playwright was built for (in /opt/playwright/browsers), with its system libraries.
-#install also: the polkit rule again when the app's services are installed (scripts/daemon.sh rule) (the Services page controls the unit), the server in mcp.json
+#install also: the polkit rule again when the app's services are installed (scripts/setup_daemon.sh rule) (the Services page controls the unit), the server in mcp.json
 #(scripts/playwright/mcp-server.json, its url with the port; an entry changed by hand is written again), a test; uninstall takes it out of mcp.json first.
 #Run as root:
 #   sudo scripts/playwright-mcp.sh install [--version=<x.y.z>] [--port=<n>]   install / update, start at boot, start now
@@ -220,7 +220,7 @@ case "$command" in
         systemctl --no-pager --lines=5 status "$SERVICE" || true
         #the Services page controls it (the rule of this installation's units, when they are installed), the server in mcp.json, a test
         if [ -f "/etc/polkit-1/rules.d/49-qflows-services-$APP_USER.rules" ]; then
-            "$BASE/scripts/daemon.sh" rule
+            "$BASE/scripts/setup_daemon.sh" rule
         fi
         if [ -f "$BASE/app.env" ]; then
             as_app mcpserver::add --id=playwright --file="$MCP_ENTRY" --url="http://localhost:$PORT/mcp"

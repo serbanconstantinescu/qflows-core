@@ -9,7 +9,7 @@
 #  queue/, dkim/, config/dkim/   (dkim/: dkim_key_gen.sh; config/dkim/<domain>/: the DKIM keys)
 #Nothing that is there is overwritten (listed as kept), except qflows's plugin code (plugins/nfn.js), replaced when it differs: run install again after an update of the app.
 #Then, as root: the unit (Haraka runs as root for port 25; it forks and writes run/haraka.pid), started at boot and now; the polkit rule again when the app's
-#services are installed (scripts/daemon.sh rule: the Services page controls it). uninstall removes the unit only: the files stay.
+#services are installed (scripts/setup_daemon.sh rule: the Services page controls it). uninstall removes the unit only: the files stay.
 # commands, as scripts/playwright-mcp.sh
 #Run as root:
 #   sudo scripts/setup_haraka.sh install [--version=<vX.Y.Z>] [--domain=<inbound domain>] [--dir=<folder>] [--dry-run]   install / update, start at boot, start now
@@ -345,7 +345,7 @@ stop_pidfile() {
 #the Services page controls the unit: the polkit rule written again, when the app's services are installed
 write_rule() {
     if [ -f "$POLKIT_RULE" ]; then
-        "$BASE/scripts/daemon.sh" rule
+        "$BASE/scripts/setup_daemon.sh" rule
     fi
 }
 

@@ -9,7 +9,7 @@ $csrf = '<input type="hidden" name="' . \V::app()->csrf->csrf_key . '" value="' 
 <?php if (\util\Services::docker()): ?>
     <p class="text-muted small mb-3">The background services of this installation run in Docker: their state is their check's. Start, stop and restart them on the host, with <code>docker compose</code> (e.g. <code>docker compose restart daemon</code>).</p>
 <?php else: ?>
-    <p class="text-muted small mb-3">The background services of this installation. Start, stop and restart need them installed as system services (as root: <code>scripts/daemon.sh install</code>, <code>setup_haraka.sh install</code>, <code>playwright-mcp.sh install</code>).</p>
+    <p class="text-muted small mb-3">The background services of this installation. Start, stop and restart need them installed as system services (as root: <code>scripts/setup_daemon.sh install</code>, <code>setup_haraka.sh install</code>, <code>playwright-mcp.sh install</code>).</p>
 <?php endif; ?>
     <div class="table-responsive mb-4">
 	<table class="table table-sm align-middle small">

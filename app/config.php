@@ -6,6 +6,9 @@ require_once __DIR__ . '/data/Version.php';
 //CLD: 2026-11-15T12:00:00+02:00: the plugins shipped in the core's repository (app/plugins/<name>), on unless plugins.json says `"enabled": false`
 const DEFAULT_PLUGINS = [ 'ITOps' ];
 
+//CLD: 2026-11-23T14:00:00Z: the daemon's options that app.env may set, as DAEMON_<OPTION> (app.daemon; commands\DaemonCommand::readSettings)
+const DAEMON_OPTIONS = [ 'min-workers', 'max-workers', 'max-per-account', 'max-per-project', 'idle-timeout', 'job-timeout', 'max-worker-memory', 'worker-memory-limit', 'debug' ];
+
 //app.env's SYSTEM_AI_<name>, else $default
 function system_ai_env($name, $default = '') {
     return defined('SYSTEM_AI_' . $name) ? constant('SYSTEM_AI_' . $name) : $default;
@@ -64,6 +67,9 @@ function get_config($mode = 'web') {
 	//it (DAEMON_HOST, default 127.0.0.1; Docker: daemon), from app.env or the environment (compose.yaml)
 	'app.daemon_listen' => (string)\V::env('DAEMON_LISTEN', '') ?: '127.0.0.1',
 	'app.daemon_host' => (string)\V::env('DAEMON_HOST', '') ?: '127.0.0.1',
+	//CLD: 2026-11-23T14:00:00Z: the daemon's settings (commands\DaemonCommand::readSettings; its command-line options win): DAEMON_<OPTION> of app.env or the environment,
+	//e.g. DAEMON_MAX_WORKER_MEMORY; empty: the default
+	'app.daemon' => array_combine(DAEMON_OPTIONS, array_map(fn($o) => (string)\V::env('DAEMON_' . strtoupper(str_replace('-', '_', $o)), ''), DAEMON_OPTIONS)),
 
 	//plugins(modules) configuration
 	//the enabled ones of plugins.json; 'plugins': every plugin's settings (\V::app()->config('plugins')['<plugin>'])
