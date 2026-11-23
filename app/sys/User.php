@@ -43,6 +43,8 @@ class User extends \sys\BaseObject {
 	    return;
 
 	$_SESSION = [];
+	//CLD: 2026-11-23T23:30:00+02:00: the site's marker removed with the session (sys\Session::marker)
+	\sys\Session::marker(null);
 
 	if (\V::app()->var('app.mode') == 'web') {
 	    $cookie_params = session_get_cookie_params();
@@ -103,6 +105,26 @@ class User extends \sys\BaseObject {
 	    $this->return_url = $url;
     }
 
+    //CLD: 2026-11-23T23:30:00+02:00: $url as the return URL when it may be one: a path of this site (not //host), or an https address of this host or, on qflows.eu's hosts,
+    //of another of them (the site sends its visitors to sign in here and back: sys\Session::SHARED_DOMAIN); anything else is ignored
+    public function setReturnUrlIfAllowed($url) {
+	$url = (string)$url;
+	if ($url === '' || preg_match('~[\s\\]~', $url))
+	    return;
+	if (str_starts_with($url, '/') && !str_starts_with($url, '//')) {
+	    $this->return_url = $url;
+	    return;
+	}
+	$parts = parse_url($url);
+	$host = strtolower((string)($parts['host'] ?? ''));
+	if (($parts['scheme'] ?? '') !== 'https' || $host === '' || isset($parts['user']) || isset($parts['pass']))
+	    return;
+	$own = strtolower(preg_replace('~:\d+$~', '', (string)\V::app()->request->httpHost));
+	$shared = \sys\Session::cookieDomain() !== '' && ($host === \sys\Session::SHARED_DOMAIN || str_ends_with($host, '.' . \sys\Session::SHARED_DOMAIN));
+	if ($host === $own || $shared)
+	    $this->return_url = $url;
+    }
+
 
 
     // The user identity information will be saved in session storage
@@ -128,6 +150,11 @@ class User extends \sys\BaseObject {
 
 	if (isset(\V::app()->csrf))
 	    \V::app()->csrf->getToken(true); //refresh token
+
+	//CLD: 2026-11-23T23:30:00+02:00: the site's marker (sys\Session::marker): the first name, as long as the session cookie lasts
+	if (!$this->isGuest)
+	    \sys\Session::marker((string)($this->firstname ?? '') !== '' ? (string)$this->firstname : (string)($this->username ?? ''),
+		$persistent && method_exists(\V::app()->session, 'lifetime') ? time() + \V::app()->session->lifetime() : 0);
 
 	\V::app()->hooks->applyHook('on:after-user-login');
 

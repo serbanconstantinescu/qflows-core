@@ -18,6 +18,37 @@ class Session extends BaseObject implements \SessionHandlerInterface, \SessionUp
     const KEY_LOGIN_TS = '__login_ts';
     const KEY_ACTIVE_TS = '__active_ts';
 
+    //CLD: 2026-11-23T23:30:00+02:00: one session for qflows.eu and app.qflows.eu (sign in once): on a host of this domain the session cookie is the domain's (.qflows.eu),
+    //elsewhere the host's own. MARKER: a cookie scripts can read, the signed-in user's first name, for the site's cached pages ("Sign in" or the user menu); the session
+    //itself stays httponly
+    const SHARED_DOMAIN = 'qflows.eu';
+    const MARKER = 'qf_name';
+
+    //the session cookie's domain: '.qflows.eu' on a host of SHARED_DOMAIN, '' (the host's) elsewhere
+    public static function cookieDomain() {
+	if (\V::app()->config('app.mode') != 'web')
+	    return '';
+	$host = strtolower(preg_replace('~:\d+$~', '', (string)\V::app()->request->httpHost));
+	return $host === self::SHARED_DOMAIN || str_ends_with($host, '.' . self::SHARED_DOMAIN) ? '.' . self::SHARED_DOMAIN : '';
+    }
+
+    //how long a persistent ("remember me") session lasts unused (s)
+    public function lifetime() {
+	return (int)$this->_config['lifetime'];
+    }
+
+    //sets the marker cookie (MARKER) to $name, until $expires (0: the browser's session), or removes it ($name null); only on SHARED_DOMAIN's hosts
+    public static function marker($name, $expires = 0) {
+	if (self::cookieDomain() === '' || headers_sent())
+	    return;
+	$cookie = new \sys\http\Cookie([ 'name' => self::MARKER, 'value' => $name === null ? '' : rawurlencode((string)$name),
+	    'expire' => $name === null ? time() - 3600 : (int)$expires, 'path' => '/', 'domain' => self::cookieDomain(), 'secure' => true, 'httpOnly' => false ]);
+	if ($name === null)
+	    \V::app()->response->removeCookie($cookie);
+	else
+	    \V::app()->response->addCookie($cookie);
+    }
+
     public function __construct($config = []) {
 	//`lifetime` = idle time for persistent ("remember me") sessions,
 	//`transient_lifetime` = idle time for the others;
@@ -61,6 +92,7 @@ class Session extends BaseObject implements \SessionHandlerInterface, \SessionUp
 	    $sess_config['cookie_lifetime'] = 0;
 	    $sess_config['cookie_httponly'] = 1;
 	    $sess_config['cookie_samesite'] = 'Lax';
+	    $sess_config['cookie_domain'] = self::cookieDomain();
 	}
 
         $res = session_start($sess_config);
@@ -102,6 +134,7 @@ class Session extends BaseObject implements \SessionHandlerInterface, \SessionUp
 	setcookie(session_name(), session_id(), [
 	    'expires' => time() + $this->_config['lifetime'],
 	    'path' => '/',
+	    'domain' => self::cookieDomain(),
 	    'secure' => true,
 	    'httponly' => true,
 	    'samesite' => 'Lax',

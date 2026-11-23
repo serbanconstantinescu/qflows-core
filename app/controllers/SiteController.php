@@ -11,6 +11,12 @@ class SiteController extends \sys\BaseController {
 
     public function login($req, $resp) {
 	$this->layout = 'bare';
+	//CLD: 2026-11-23T23:30:00+02:00: ?return=: where to go after signing in (the qflows.eu site's pages: sys\User::setReturnUrlIfAllowed); signed in already: there at once
+	if (isset($req->query['return'])) {
+	    \V::app()->user->setReturnUrlIfAllowed($req->query['return']);
+	    if (!\V::app()->user->isGuest)
+		$resp->redirect(\V::app()->user->getReturnUrl('/site/index'));
+	}
 
 	$form = \models\user\LoginForm::create();
 
@@ -120,7 +126,8 @@ class SiteController extends \sys\BaseController {
 	    \V::app()->response->redirect('/site/login');
 	\V::app()->user->login($identity, $remember);
 	\models\AuditLog::record('login', $user, $details);
-	\V::app()->response->redirect('/site/index');
+	//CLD: 2026-11-23T23:30:00+02:00: back to the page that asked for the sign-in (sys\User::loginRequired, ?return= of the sign-in page), else the home page
+	\V::app()->response->redirect(\V::app()->user->getReturnUrl('/site/index'));
     }
 
     //forgot username or password (user's choices: the email asked; for each active user of that address - an address may sign in to several accounts -
