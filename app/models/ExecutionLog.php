@@ -4,7 +4,7 @@
     the execution log:
 	what happens without a person acting.
 	Create / update / delete of objects (the hooks of models\AuditLog) made while a workflow execution runs (also when a user clicked Run: `started_by`), by the daemon, the console or a webhook call; and
-//named events: execution.start / end / error / sleep / queued / cancel (WfExecution::run, kill), webhook.refused (HookController, when the workflow is known), job.failed
+//named events: execution.start / end / error / sleep / queued / cancel / continue (WfExecution::run, kill; continue: DaemonCommand::do_job), webhook.refused (HookController, when the workflow is known), job.failed
 //(daemon). `source` says what acted: the execution's trigger (manual, webhook, schedule, imap), else daemon / console / webhook / web.
 //The running execution and step are set by WfExecution (ExecutionLog::$execution / $step), the daemon worker sets $source. Entries are never changed and
 //expire after the account's `execution_log_retention`. Read with ExecutionLog::read (global: the account, project: the entries of the current project)
@@ -32,6 +32,8 @@ class ExecutionLog extends \sys\BaseModel {
 	'execution.sleep' => 'Execution waiting',
 	//CLD: 2026-11-12T12:00:00+02:00: a sleeping run continued (WfExecution::run): where it slept, when it was due, how late
 	'execution.resume' => 'Execution resumed',
+	//CLD: 2026-11-23T12:00:00Z: a running one continued from its last save, its job run again after the daemon restarted (DaemonCommand::do_job)
+	'execution.continue' => 'Execution continued',
 	//a run inside a web request handed to the daemon: no longer written (every execution runs in the daemon); kept for the older entries
 	'execution.queued' => 'Execution moved to the daemon',
 	//killed by a user (WfExecution::kill, the Overview)

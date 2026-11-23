@@ -10,7 +10,7 @@
 	--max-per-account=max - 1  running jobs of one account (models\Job::aid); 0 = no limit
 	--max-per-project=max - 1  running jobs of one project (models\Job::project); 0 = no limit
 	--job-timeout=0            seconds a job may run before its worker is killed; 0 = no limit
-	--max-worker-memory=256 (MB): a worker over it (after a job, or while idle) exits and the master starts a new one;
+	--max-worker-memory=512 (MB): a worker over it (after a job, or while idle) exits and the master starts a new one;
 */
 namespace commands;
 
@@ -86,7 +86,10 @@ class DaemonCommand extends \sys\BaseController {
 
     //the worker's job goes back to the queue (state new) or fails after 3 runs; used when a worker exits
     //or is killed while it has a job
-    protected function reap_job($jid, $reason) {
+    //CLD: 2026-11-23T12:00:00Z: $restart: the daemon stopped (or restarted) while it ran: queued again, a run again continues the executions it started (do_job). Otherwise
+    //the worker crashed or was killed (out of memory, --job-timeout): the executions it was running end as error (WfExecution::endLost) and the job fails, not run again
+    //(no_retry): it would likely crash the same way and repeat the steps. A job without executions running is queued again as before. After 3 runs: failed, its executions too
+    protected function reap_job($jid, $reason, $restart = false) {
 	if (empty($jid))
 	    return;
 	$job = \V::app()->om->findOne('Job', [ '_id' => $jid, 'state' => 'run' ], [ 'arrays' => true ]);
@@ -94,6 +97,18 @@ class DaemonCommand extends \sys\BaseController {
 	    return;
 
 	$failed = (int)($job['run_count'] ?? 0) >= 3;
+	$ended = $restart && !$failed ? 0 : \models\wf\WfExecution::endLost($jid, $reason);
+	if ($ended && !$failed) {
+	    \V::app()->log->warn("WMGR: job {$jid}: {$reason}, failed: {$ended} execution(s) ended as error, not run again");
+	    if (!empty($job['aid']))
+		\models\ExecutionLog::record('job.failed', null, "job {$jid} (" . ($job['job_spec'] ?? '') . "): {$reason}, its executions ended as error, not run again", [], null, $job['aid']);
+	    \V::app()->om->updateOne('Job',
+		[ '_id' => $job['_id'], 'state' => 'run' ],
+		[ '$set' => [ 'state' => 'fail', 'error' => $reason, 'no_retry' => true, 'finished_at' => new \MongoDB\BSON\UTCDateTime() ] ],
+		[ 'writeConcern' => new \MongoDB\Driver\WriteConcern(\MongoDB\Driver\WriteConcern::MAJORITY) ]
+	    );
+	    return;
+	}
 	\V::app()->log->warn("WMGR: job {$jid}: {$reason}, " . ($failed ? 'failed after 3 runs' : 'queued again'));
 	//a job given up (its worker died or timed out 3 times) in the account's execution log
 	if ($failed && !empty($job['aid']))
@@ -127,8 +142,10 @@ class DaemonCommand extends \sys\BaseController {
 		\V::app()->log->warn("WMGR: worker with pid:{$pid} exited with code: $code");
 
 	    //reap hung-up jobs
+	    //CLD: 2026-11-23T12:00:00Z: the reason says how it ended (exit code or signal; killed over --job-timeout); while the daemon stops: a restart (reap_job)
 	    if (!empty($this->workers[$pid]['jid']))
-		$this->reap_job($this->workers[$pid]['jid'], "worker {$pid} exited while running it");
+		$this->reap_job($this->workers[$pid]['jid'], $this->stopping ? 'the daemon stopped while it ran' : $this->workers[$pid]['lost'] ?? ("the daemon worker running it stopped (" . ($term !== null ? "signal {$term}" : "exit code {$code}")
+		    . ($code == 255 ? ': a PHP fatal error, e.g. out of memory' : '') . ')'), $this->stopping);
 
 	    unset($this->workers[$pid]);
 
@@ -342,6 +359,8 @@ class DaemonCommand extends \sys\BaseController {
 	    $timeout = (int)$this->config['job-timeout'];
 	    if ($timeout > 0 && in_array($w['state'], [ 'ASSIGNED', 'BUSY' ]) && $now - $w['updated_at'] > $timeout) {
 		\V::app()->log->warn("WMGR: worker {$pid}: job {$w['jid']} runs for more than {$timeout} s, kill it");
+		//CLD: 2026-11-23T12:00:00Z: the reason its executions end with (the exit handler: reap_job)
+		$this->workers[$pid]['lost'] = "it ran for more than {$timeout} s (the daemon's --job-timeout): stopped";
 		$this->kill_worker($pid);
 	    }
 	}
@@ -504,7 +523,7 @@ class DaemonCommand extends \sys\BaseController {
 	    'idle-timeout' => 60,
 	    'job-timeout' => 0,
 	    //memory (MB) a worker may use before it is replaced
-	    'max-worker-memory' => 256,
+	    'max-worker-memory' => 512,
 	];
 	$params = [ 'logfile', 'worker-logfile', 'debug', 'min-workers', 'max-workers', 'max-per-account', 'max-per-project', 'idle-timeout', 'job-timeout', 'max-worker-memory' ];
 	foreach($params as $p) {
@@ -549,11 +568,9 @@ class DaemonCommand extends \sys\BaseController {
 	cli_set_process_title('[' . \V::app()->config('app.name') . ' Daemon ' . gethostname() . ']');
 
 	//restart hung-up jobs
-	\V::app()->om->updateMany('Job',
-	    [ 'state' => 'run' ],
-	    [ '$set' => [ 'state' => 'new', 'worker_pid' => null ] ],
-	    [ 'writeConcern' => new \MongoDB\Driver\WriteConcern(\MongoDB\Driver\WriteConcern::MAJORITY) ]
-	);
+	//CLD: 2026-11-23T12:00:00Z: as a restart (reap_job): queued again, their executions continue (do_job); failed after 3 runs
+	foreach(\V::app()->om->find('Job', [ 'state' => 'run' ], [ 'arrays' => true, 'projection' => [ '_id' => 1 ] ]) as $job)
+	    $this->reap_job($job['_id'], 'the daemon restarted while it ran', true);
 
 	//create the loop runner
 	$this->loop = \React\EventLoop\Loop::get();
@@ -607,8 +624,9 @@ class DaemonCommand extends \sys\BaseController {
 
 	    //SC: 2024-11-20: added
 	    //re-run failed jobs no more than 3 times
+	    //CLD: 2026-11-23T12:00:00Z: not those marked no_retry (reap_job)
 	    $rerun = \V::app()->om->updateMany('Job',
-		[ 'state' => 'fail', 'run_count' => [ '$lt' => 3 ] ],
+		[ 'state' => 'fail', 'run_count' => [ '$lt' => 3 ], 'no_retry' => [ '$ne' => true ] ],
 		[ '$set' => [ 'state' => 'new', 'worker_pid' => null ] ],
 		[ 'writeConcern' => new \MongoDB\Driver\WriteConcern(\MongoDB\Driver\WriteConcern::MAJORITY) ]
 	    );
@@ -743,7 +761,48 @@ class DaemonCommand extends \sys\BaseController {
 	\models\wf\WfNode::resetCache();
 	//...and without the data tables / columns cached by an earlier one (another process may have changed them)
 	\V::app()->om->resetCache();
+	//CLD: 2026-11-23T12:00:00Z: run again after the daemon restarted while it ran: what it started continues (continue_executions), the work is not done again
+	if ((int)$job->run_count > 1 && $this->continue_executions($job))
+	    return;
 	$job_class::$job_method($job_data);
+    }
+
+    //CLD: 2026-11-23T12:00:00Z: a job run again after the daemon restarted while it ran (reap_job): the executions it had started (WfExecution `job`) continue from their
+    //last save, instead of the work starting new ones (e.g. a Schedule run started a second time); a nested one (a Run a workflow step waiting for it, in the same job)
+    //ends as error, its caller runs that step again. False when it had started none: the work runs as usual
+    protected function continue_executions($job) {
+	$jid = (string)$job->_id;
+	$exes = [];
+	foreach(\V::app()->om->find('WfExecution', [ 'job' => $jid ], [ 'projection' => [ '_id' => 1, 'aid' => 1, 'state' => 1, 'input' => 1 ] ]) as $exe)
+	    $exes[(string)$exe->_id] = $exe;
+	if (empty($exes))
+	    return false;
+
+	$top = $nested = [];
+	foreach($exes as $id => $exe) {
+	    if (!in_array($exe->state, [ 'new', 'run' ], true))
+		continue;
+	    $caller = is_array($exe->input) ? ($exe->input['caller'] ?? null) : null;
+	    if (is_array($caller) && !empty($caller['wait']) && isset($exes[(string)($caller['execution'] ?? '')]))
+		$nested[] = $id;
+	    else
+		$top[] = $id;
+	}
+	if ($nested)
+	    \models\wf\WfExecution::endLost($jid, 'the daemon restarted while it ran; the workflow that called it runs its step again', $nested);
+	foreach($top as $id) {
+	    $exe = \V::app()->om->findOne('WfExecution', [ '_id' => $exes[$id]->_id, 'aid' => $exes[$id]->aid ]);
+	    if (empty($exe) || !in_array($exe->state, [ 'new', 'run' ], true))
+		continue;
+	    \V::app()->log->info("Worker[{$this->pid}]: job {$jid}: execution {$id} continues after a daemon restart");
+	    $exe->log(null, 'continued after a daemon restart (from its last save: the steps since may run again)');
+	    $outer = \models\ExecutionLog::$execution;
+	    \models\ExecutionLog::$execution = $exe;
+	    \models\ExecutionLog::record('execution.continue', null, 'after a daemon restart');
+	    \models\ExecutionLog::$execution = $outer;
+	    $exe->run();
+	}
+	return true;
     }
 
     //one line from the master: NEWJOB:<id> or PONG
@@ -799,6 +858,8 @@ class DaemonCommand extends \sys\BaseController {
 	    \V::app()->log->info("Worker[{$this->pid}]: {$job_spec}: START: --------------------------------------------------");
 
 	    //moved to a function so that we can test it
+	    //CLD: 2026-11-23T12:00:00Z: the executions it runs record it (models\Job::$current)
+	    \models\Job::$current = $jobid;
 	    $this->do_job($job);
 
 	    //done, update status
@@ -833,6 +894,7 @@ class DaemonCommand extends \sys\BaseController {
 	} //try-catch block
 
 	$this->crt_job_id = null;
+	\models\Job::$current = null;
 	//reset for long running processes
 	$this->master_last_seen = time();
 

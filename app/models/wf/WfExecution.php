@@ -18,6 +18,8 @@ class WfExecution extends \sys\BaseModel {
 	[ [ 'input.caller.execution' => 1 ], [ 'sparse' => true ] ],
 	//the runs of the conversations with agents, past the retention (models\agent\AgentConversation::prune)
 	[ [ 'aid' => 1, 'input.conversation' => 1, 'end_at' => 1 ], [ 'sparse' => true ] ],
+	//CLD: 2026-11-23T12:00:00Z: the executions of a daemon job (endLost, DaemonCommand::do_job)
+	[ [ 'job' => 1 ], [ 'sparse' => true ] ],
     ];
 
 
@@ -114,6 +116,9 @@ class WfExecution extends \sys\BaseModel {
 	    //the published version it runs (a Workflow::forVersion copy), null = the draft (designer Run, sys::run)
 	    'version' => $wf->runVersion ? (int)$wf->runVersion->number : null,
 	];
+	//CLD: 2026-11-23T12:00:00Z: started by a daemon job: it records it from the start (also saved before run(), e.g. a Schedule run; see run())
+	if (\models\Job::$current !== null)
+	    $data['job'] = \models\Job::$current;
 	if ($startNode !== null)
 	    $data['tokens'] = [ [ 'node' => (string)$startNode, 'edge' => null ] ];
 	$exe = \V::app()->om->create('WfExecution', $data);
@@ -410,6 +415,12 @@ class WfExecution extends \sys\BaseModel {
 		'label' => 'Input',
 		'help' => false,
 	    ],
+	    //CLD: 2026-11-23T12:00:00Z: the daemon job that runs it (run())
+	    [
+		'key' => 'job',
+		'type' => 'text',
+		'label' => 'Daemon job',
+	    ],
 	    //the execution whose inputs it ran again with (again())
 	    [
 		'key' => 'rerun_of',
@@ -539,6 +550,19 @@ class WfExecution extends \sys\BaseModel {
 	\models\ExecutionLog::$execution = $this;
 	\models\ExecutionLog::$step = null;
 	try {
+	    //CLD: 2026-11-23T12:00:00Z: the daemon job running it (models\Job::$current), saved with it: the master ends the executions of a worker it lost (endLost) and a job run
+	    //again after a daemon restart continues them (DaemonCommand::do_job). A sleeping one is running from now on in the database (in memory it stays `sleep` for its first
+	    //pass: the steps read it), so it is found too
+	    $job = \models\Job::$current;
+	    if ($job !== null && $this->state == 'sleep' && $this->exists()) {
+		if (\V::app()->om->updateOne('WfExecution', [ '_id' => $this->_id, 'aid' => $this->aid, 'state' => 'sleep' ], [ '$set' => [ 'state' => 'run', 'job' => $job ] ])) {
+		    $this->_data['job'] = $this->_odata['job'] = $job;
+		    $this->_odata['state'] = 'run';
+		}
+	    } elseif ($job !== null) {
+		$this->job = $job;
+	    }
+
 	    if ($this->state == 'new') {
 		if (!$this->exists())
 		    $this->save();
@@ -683,6 +707,36 @@ class WfExecution extends \sys\BaseModel {
 	$parent = \V::app()->om->findOne('WfExecution', [ '_id' => $caller['execution'], 'aid' => $this->aid, 'state' => 'sleep' ]);
 	if ($parent)
 	    $parent->queue('the workflow it waits for has ended (execution ' . (string)$this->_id . '): queued for the daemon');
+    }
+
+    //CLD: 2026-11-23T12:00:00Z: the daemon lost the worker of job $jid while it ran (crashed, killed, the daemon restarted): its executions still running ($ids: only these)
+    //end as error with $reason, as a run that fails by itself (the workflow waiting for one is resumed, the execution:stopped hook). Run by the master (DaemonCommand::reap_job)
+    //and by a worker (do_job). Returns how many ended
+    public static function endLost($jid, $reason, ?array $ids = null) {
+	$query = [ 'job' => (string)$jid, 'state' => [ '$in' => [ 'new', 'run' ] ] ];
+	if ($ids !== null)
+	    $query['_id'] = [ '$in' => array_map(fn($id) => \V::app()->om->to_oid($id), $ids) ];
+	$ended = 0;
+	foreach(\V::app()->om->find('WfExecution', $query, [ 'projection' => [ '_id' => 1, 'aid' => 1, 'project' => 1, 'wf' => 1, 'trigger' => 1, 'input' => 1, 'version' => 1, 'state' => 1, 'rerun_of' => 1 ] ]) as $exe) {
+	    $now = new \MongoDB\BSON\UTCDateTime();
+	    $n = \V::app()->om->updateOne('WfExecution', [ '_id' => $exe->_id, 'aid' => $exe->aid, 'state' => [ '$in' => [ 'new', 'run' ] ] ],
+		[ '$set' => [ 'state' => 'error', 'error' => (string)$reason, 'end_at' => $now, 'wake_at' => null ],
+		    '$push' => [ 'log' => [ '$each' => [ [ 'ts' => $now, 'node' => null, 'message' => 'error: ' . $reason ] ], '$slice' => -self::MAX_LOG ] ] ]);
+	    if (!$n)
+		continue;
+	    $exe->state = 'error';
+	    $exe->error = (string)$reason;
+	    $ended++;
+
+	    $outer = \models\ExecutionLog::$execution;
+	    \models\ExecutionLog::$execution = $exe;
+	    \models\ExecutionLog::record('execution.error', null, (string)$reason);
+	    \models\ExecutionLog::$execution = $outer;
+	    \models\agent\AgentTrace::stopOpen($exe);
+	    $exe->notifyCaller();
+	    \V::app()->hooks->applyHook('execution:stopped', [ $exe ]);
+	}
+	return $ended;
     }
 
     //whether it was killed meanwhile (state `cancel` in the database; then also here)

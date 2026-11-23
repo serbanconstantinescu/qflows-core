@@ -6,6 +6,7 @@
 	job_data        array, given to the method as an object
 	state           new -> run -> done | fail
 	run_count, worker_pid, start_run_at, delete_on_done, error
+	no_retry        true: a failed job the daemon does not run again (its worker was lost while it ran an execution, which ended as error: DaemonCommand::reap_job)
 
     \models\Job::submit('\models\node\NodeTriggerEmail::deliver', [ 'aid' => $aid, 'project' => $project, ... ]);
 */
@@ -13,6 +14,10 @@ namespace models;
 
 class Job extends \sys\BaseModel {
     protected static $collection = 'jobs';
+
+    //CLD: 2026-11-23T12:00:00Z: the id (string) of the job this worker process runs now, null otherwise (DaemonCommand::worker_command); an execution run by it
+    //records it (WfExecution::run, `job`), so the master finds the executions of a worker it lost
+    public static $current = null;
 
     public static $indexes = [
 	[ [ 'state' => 1, '_id' => 1 ], [] ],
@@ -94,6 +99,12 @@ class Job extends \sys\BaseModel {
 		'key' => 'finished_at',
 		'type' => 'datetime',
 		'label' => 'Finished at'
+	    ],
+	    //CLD: 2026-11-23T12:00:00Z: not run again when failed (see the top)
+	    [
+		'key' => 'no_retry',
+		'type' => 'checkbox',
+		'label' => 'Not run again when failed'
 	    ],
 	    //optional unique key (unique sparse index, created by the daemon): the same work is queued once
 	    [
