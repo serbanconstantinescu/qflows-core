@@ -105,11 +105,12 @@ class User extends \sys\BaseObject {
 	    $this->return_url = $url;
     }
 
-    //CLD: 2026-11-23T23:30:00+02:00: $url as the return URL when it may be one: a path of this site (not //host), or an https address of this host or, on qflows.eu's hosts,
-    //of another of them (the site sends its visitors to sign in here and back: sys\Session::SHARED_DOMAIN); anything else is ignored
+    //CLD: 2026-11-24T13:00:00+02:00: $url as the return URL when it may be one: a path of this site (not //host), or an https address of this host or, on qflows.eu's hosts,
+    //of another of them (the site sends its visitors to sign in here and back: sys\Session::SHARED_DOMAIN); anything else is ignored, also one with a space or a backslash
+    //(a browser reads /\host as //host)
     public function setReturnUrlIfAllowed($url) {
 	$url = (string)$url;
-	if ($url === '' || preg_match('~[\s\\]~', $url))
+	if ($url === '' || preg_match('~[\s\\\\]~', $url))
 	    return;
 	if (str_starts_with($url, '/') && !str_starts_with($url, '//')) {
 	    $this->return_url = $url;
