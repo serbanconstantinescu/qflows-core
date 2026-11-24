@@ -3,6 +3,8 @@
 #the installation updated to what is pushed (run it in the installation that is deployed to, e.g. /home/app): the repository with its submodules, the MultiTenant
 #plugin's own repository when it has it, tc-lib-pdf when it is missing (scripts/tc-lib-pdf.sh), the new indexes, the data migrations (sys::migrate), then PHP-FPM and
 #the daemon restarted.
+#CLD: 2026-11-24T12:00:00+02:00: run asks about the plugins RegionalRO and RegionalEU (their own public repositories, PLUGIN_REPOS): cloned ones updated with the app
+#(asked, on by default), missing ones cloned into app/plugins/ and turned on in plugins.json (asked, off by default); without a terminal the defaults, nothing asked
 #The repositories are fetched first and only fast-forwarded, so a remote that cannot be reached or a local commit stops it before anything changes.
 #Every step can be run again: after a failure, fix it and run it again.
 # new
@@ -17,6 +19,14 @@ BASE=$SELF_DIR
 APP_USER=$(stat -c %U "$BASE/app")
 PLUGIN="$BASE/app/plugins/MultiTenant"
 DAEMON=nfn-daemon-$APP_USER
+#the plugins in their own (public) repositories: <name> <repository> <what it has>, in app/plugins/<name>
+PLUGIN_REPOS=(
+    "RegionalRO https://github.com/serbanconstantinescu/qflows-regional-ro.git Romania: ANAF, BNR, e-Factura, couriers"
+    "RegionalEU https://github.com/serbanconstantinescu/qflows-regional-eu.git the EU: VIES, ECB rates, TED tenders"
+)
+#the plugins of PLUGIN_REPOS updated with the app (cloned ones) and the ones cloned (missing ones): ask_plugins, or every cloned one for status
+PLUGINS_UPDATE=()
+PLUGINS_ADD=()
 
 usage() {
     echo "usage: sudo $0 {run | status}"
@@ -35,12 +45,74 @@ as_user() {
     fi
 }
 
-#the repositories of this installation
+#ask_yes <var> <question> <y|n>: 1 or 0 in <var>; without a terminal the default
+ask_yes() {
+    local answer
+    if [ ! -t 0 ]; then
+        answer=$3
+    else
+        while true; do
+            read -r -p "$2 [$([ "$3" = y ] && echo Y/n || echo y/N)]: " answer
+            answer=${answer:-$3}
+            case ${answer,,} in y|yes|n|no) break ;; esac
+        done
+    fi
+    case ${answer,,} in
+        y|yes) printf -v "$1" '%s' 1 ;;
+        *) printf -v "$1" '%s' 0 ;;
+    esac
+}
+
+#the plugins of PLUGIN_REPOS asked: a cloned one updated (PLUGINS_UPDATE), a missing one cloned (PLUGINS_ADD)
+ask_plugins() {
+    local entry name url what yes
+    [ -t 0 ] || echo "no terminal: the cloned plugins are updated, the missing ones not cloned"
+    for entry in "${PLUGIN_REPOS[@]}"; do
+        read -r name url what <<< "$entry"
+        if [ -e "$BASE/app/plugins/$name/.git" ]; then
+            ask_yes yes "Update the plugin $name ($what)" y
+            [ "$yes" -eq 0 ] || PLUGINS_UPDATE+=("$name")
+        elif [ ! -e "$BASE/app/plugins/$name" ]; then
+            ask_yes yes "Add the plugin $name ($what)" n
+            [ "$yes" -eq 0 ] || PLUGINS_ADD+=("$name")
+        else
+            echo "$BASE/app/plugins/$name is not a git repository: left as it is"
+        fi
+    done
+}
+
+#the missing plugins asked (PLUGINS_ADD) cloned as the app's user, then turned on in plugins.json when it does not name them (an entry set to "enabled": false stays off)
+add_plugins() {
+    local entry name url what
+    [ "${#PLUGINS_ADD[@]}" -gt 0 ] || return 0
+    for entry in "${PLUGIN_REPOS[@]}"; do
+        read -r name url what <<< "$entry"
+        [[ " ${PLUGINS_ADD[*]} " == *" $name "* ]] || continue
+        echo "== the plugin $name: $url"
+        as_user git clone -q "$url" "$BASE/app/plugins/$name"
+        echo "   now: $(show_commit "$BASE/app/plugins/$name" HEAD)"
+    done
+    as_user /usr/bin/php -r '$f = $argv[1] . "/plugins.json";
+        $j = is_file($f) ? json_decode((string)file_get_contents($f), true) : [];
+        if (!is_array($j)) { fwrite(STDERR, "$f is not JSON: the plugins were not turned on, add them there\n"); exit(1); }
+        $added = [];
+        foreach (array_slice($argv, 2) as $p) {
+            if (!isset($j[$p]) && is_file($argv[1] . "/app/plugins/$p/Plugin.php")) { $j[$p] = [ "enabled" => true ]; $added[] = $p; }
+        }
+        if ($added) { file_put_contents("$f.tmp", json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"); rename("$f.tmp", $f); echo "   plugins.json: " . implode(", ", $added) . " turned on\n"; }' \
+        "$BASE" "${PLUGINS_ADD[@]}"
+}
+
+#the repositories of this installation: the app, MultiTenant when it has its own, the plugins of PLUGIN_REPOS to update
 repos() {
+    local name
     echo "$BASE"
     if [ -e "$PLUGIN/.git" ]; then
         echo "$PLUGIN"
     fi
+    for name in "${PLUGINS_UPDATE[@]}"; do
+        echo "$BASE/app/plugins/$name"
+    done
 }
 
 #the PHP-FPM service that is running (its name depends on how PHP was installed)
@@ -91,7 +163,10 @@ local_commits() {
 }
 
 status() {
-    local repo
+    local repo entry
+    for entry in "${PLUGIN_REPOS[@]}"; do
+        [ ! -e "$BASE/app/plugins/${entry%% *}/.git" ] || PLUGINS_UPDATE+=("${entry%% *}")
+    done
     while read -r repo; do
         as_user git -C "$repo" fetch -q
         echo "$repo"
@@ -106,6 +181,7 @@ status() {
 run() {
     local repo fpm
     [ "$(id -u)" -eq 0 ] || { echo "run it as root: sudo $0 run"; exit 1; }
+    ask_plugins
 
     #fetched first: both or nothing when a remote cannot be reached
     while read -r repo; do
@@ -133,6 +209,7 @@ run() {
         echo "   now: $(show_commit "$repo" HEAD)"
     done < <(repos)
     as_user git -C "$BASE" submodule update -q --init --recursive
+    add_plugins
 
     #CLD: 2026-11-22T15:00:00+02:00: tc-lib-pdf (the PDF document step; not in git) when it is missing; there already: kept (scripts/tc-lib-pdf.sh install updates it)
     if [ ! -f "$BASE/app/pkgs/tc-lib-pdf/autoload.php" ]; then
