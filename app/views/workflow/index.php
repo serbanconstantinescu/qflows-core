@@ -596,8 +596,8 @@ $formOptions = [
 		[ $btnClass, $label, $tip ] = [ 'btn-outline-secondary', \util\VString::insert('<i class="bi bi-pause-circle me-1"></i>{:v} unpublished', [ 'v' => \V::app()->html->escape($activeVersion) ]), 'Its trigger does not start runs' ];
 	    else
 		[ $btnClass, $label, $tip ] = [ 'btn-outline-secondary', '<i class="bi bi-pencil-square me-1"></i>Draft', 'Never published: its trigger does not start runs (Run does)' ];
-	    //CLD: 2026-11-20T12:30:00+02:00: Draft's label in the body color: the theme's secondary (#dee2e6) is barely visible on white; hover / open keep the button's own colors
-	    $btnStyle = $activeVersion ? '' : '--bs-btn-color: var(--bs-body-color)';
+	    //CLD: 2026-11-25T12:00:00+02:00: Draft's and "vN unpublished"'s label in the body color: the theme's secondary (#dee2e6) is barely visible on white; hover / open keep the button's own colors
+	    $btnStyle = $isPublished ? '' : '--bs-btn-color: var(--bs-body-color)';
 	    $baseTip = $tip;
 	    if ($activeVersion)
 		$label .= \util\VString::insert(' <span class="wf-draft-changed{:hidden}"><i class="bi bi-dot"></i><span class="btn-label">draft changed</span></span>', [ 'hidden' => $draftChanged ? '' : ' d-none' ]);
