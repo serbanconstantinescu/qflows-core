@@ -58,6 +58,8 @@ class NodeAppTable extends \models\wf\WfNode {
     //the operations that do not change rows: all a table shared at level `read` allows
     const READ_OPERATIONS = [ 'query', 'get', 'schema' ];
     const DATA_OPERATIONS = [ 'insert', 'upsert', 'update', 'updateMany' ];
+    //CLD: 2026-11-25T00:00:00Z: Limit and Skip: a whole number, or a text with {{ }} (checked once rendered: pageSize())
+    const NUMBER_OR_EXPRESSION = '^\\s*(\\d+|.*\\{\\{.*\\}\\}.*)\\s*$';
 
     //columns every row has (besides the table's)
     const SYSTEM_COLUMNS = [ '_id', 'id', 'created_at', 'updated_at' ];
@@ -147,25 +149,29 @@ class NodeAppTable extends \models\wf\WfNode {
 	    ],
 	    [
 		//layout: 3 wide
+		//CLD: 2026-11-25T00:00:00Z: a number or an expression (text with {{ }}); the range is checked at run time (pageSize())
 		'key' => 'limit',
-		'type' => 'number',
+		'type' => 'text',
 		'label' => 'Limit',
 		'required' => true,
-		'default' => 100,
-		'validate' => [ [ 'inRange', 'lower' => 1, 'upper' => \data\Constants::TABLE_MAX_LIMIT, 'skipEmpty' => true, 'message' => 'from 1 to ' . \data\Constants::TABLE_MAX_LIMIT ] ],
-		//min / max from the validate rule (util\WidgetsUtil); a condition array (app.smartform evaluates it)
-		'ui' => [ 'width' => 3, 'showIf' => [ 'key' => 'operation', 'operator' => 'eq', 'value' => 'query' ] ],
+		'default' => '100',
+		'help' => 'From 1 to ' . \data\Constants::TABLE_MAX_LIMIT . ', or {{ ... }}',
+		'validate' => [ [ 'regex', 'pattern' => self::NUMBER_OR_EXPRESSION, 'skipEmpty' => true, 'message' => 'A number, or {{ ... }}' ] ],
+		//a condition array (app.smartform evaluates it)
+		'ui' => [ 'width' => 3, 'expression' => true, 'showIf' => [ 'key' => 'operation', 'operator' => 'eq', 'value' => 'query' ] ],
 	    ],
 	    [
 		//under "Advanced…" (the designer's closed section of the technical settings); 3 wide
+		//CLD: 2026-11-25T00:00:00Z: a number or an expression, as `limit`
 		'key' => 'offset',
-		'type' => 'number',
+		'type' => 'text',
 		'label' => 'Skip',
 		'required' => true,
-		'default' => 0,
-		'validate' => [ [ 'inRange', 'lower' => 0, 'skipEmpty' => true, 'message' => '0 or more' ] ],
-		//min / max from the validate rule (util\WidgetsUtil); a condition array (app.smartform evaluates it)
-		'ui' => [ 'advanced' => true, 'width' => 3, 'showIf' => [ 'key' => 'operation', 'operator' => 'eq', 'value' => 'query' ] ],
+		'default' => '0',
+		'help' => '0 or more, or {{ ... }}',
+		'validate' => [ [ 'regex', 'pattern' => self::NUMBER_OR_EXPRESSION, 'skipEmpty' => true, 'message' => 'A number, or {{ ... }}' ] ],
+		//a condition array (app.smartform evaluates it)
+		'ui' => [ 'advanced' => true, 'width' => 3, 'expression' => true, 'showIf' => [ 'key' => 'operation', 'operator' => 'eq', 'value' => 'query' ] ],
 	    ],
 	    //a nested list, as `filter` (dataSchema(); errors as "Value <n>: <field>: <message>")
 	    [
@@ -402,7 +408,8 @@ class NodeAppTable extends \models\wf\WfNode {
 
 	    case 'query':
 		$query = \models\datatable\DataTableDef::conditionsQuery((array)$this->cfg('filter', []), $this->cfg('match', 'all'), $columns, $this->renderValue(...), $aid);
-		$options = [ 'skip' => max(0, (int)$this->cfg('offset', 0)), 'limit' => max(1, min(\data\Constants::TABLE_MAX_LIMIT, (int)$this->cfg('limit', 100))) ];
+		//CLD: 2026-11-25T00:00:00Z: Limit and Skip may be expressions (rendered, then checked)
+		$options = [ 'skip' => $this->pageSize('offset', 'Skip', 0, 0, null), 'limit' => $this->pageSize('limit', 'Limit', 100, 1, \data\Constants::TABLE_MAX_LIMIT) ];
 		$sortBy = trim((string)$this->cfg('sortBy', ''));
 		if ($sortBy !== '')
 		    $options['sort'] = [ ($sortBy === 'id' ? '_id' : $sortBy) => $this->cfg('sortDir', 'asc') === 'desc' ? -1 : 1 ];
@@ -585,6 +592,15 @@ class NodeAppTable extends \models\wf\WfNode {
     //value $v with its {{ }} rendered against the run's variables
     private function renderValue($v) {
 	return \util\Expression::render((string)$v, $this->renderVars);
+    }
+
+    //CLD: 2026-11-25T00:00:00Z: setting $key (Limit, Skip) rendered: a whole number from $lower to $upper (null: no upper end), else \ErrorException naming $label
+    private function pageSize($key, $label, $default, $lower, $upper) {
+	$v = $this->cfg($key, $default);
+	$v = trim(\util\Expression::toText($this->renderValue($v === null || $v === '' ? $default : $v)));
+	if (!preg_match('/^\d+$/', $v) || (int)$v < $lower || ($upper !== null && (int)$v > $upper))
+	    throw new \ErrorException("{$label}: `{$v}` is not a whole number " . ($upper === null ? "of {$lower} or more" : "from {$lower} to {$upper}"));
+	return (int)$v;
     }
 
     //row $id of the table (account $aid); null when missing, or \ErrorException when $required
