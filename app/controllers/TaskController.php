@@ -72,7 +72,7 @@ class TaskController extends \sys\BaseController {
 	//the run resumed by the daemon (queued)
 	$exe = \V::app()->om->findOne('WfExecution', [ '_id' => $task->execution, 'aid' => $task->aid ]);
 	if ($exe && $exe->canRun())
-	    $exe->queue('task completed by ' . (string)\V::app()->user->name . ': queued for the daemon');
+	    $exe->queue('task completed by ' . (string)\V::app()->user->name);
 
 	$resp->sendJSON([ 'ok' => true, 'message' => 'Done, thank you.' ]);
     }

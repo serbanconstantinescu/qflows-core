@@ -3333,7 +3333,7 @@ class CheckCommand extends \sys\BaseController {
 	$exe = $this->runFlow('call start', $call([ 'mode' => 'start' ]));
 	$r = $exe?->getVariable('result');
 	$queued = $r['execution'] ?? null ? $om->findOne('WfExecution', [ '_id' => $om->to_oid($r['execution']) ]) : null;
-	$this->check('Run a workflow: start and continue: queued for the daemon', [ 'success', 'queued', true ], [ $exe?->getVariable('route'), $r['state'] ?? null, $queued && $queuedLog($queued, 'queued for the daemon') ]);
+	$this->check('Run a workflow: start and continue: queued for the daemon', [ 'success', 'queued', true ], [ $exe?->getVariable('route'), $r['state'] ?? null, $queued && ($queued->state !== 'new' || $om->count('Job', [ 'job_data.exe' => (string)$queued->_id ])) ]);
 
 	//a workflow that pauses (Wait 1 s): the caller pauses, is queued when it ends, then reads its outputs (here, unless a daemon running did it)
 	$setNodes($child, [ $trigger, $n('wt', 'app::wait', [ 'amount' => 1, 'unit' => 'seconds' ]), $n('s', 'app::set', [ 'variable' => 'greeting', 'value' => 'later {{ who }}' ]),

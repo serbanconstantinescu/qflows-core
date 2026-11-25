@@ -706,7 +706,7 @@ class WfExecution extends \sys\BaseModel {
 	    return;
 	$parent = \V::app()->om->findOne('WfExecution', [ '_id' => $caller['execution'], 'aid' => $this->aid, 'state' => 'sleep' ]);
 	if ($parent)
-	    $parent->queue('the workflow it waits for has ended (execution ' . (string)$this->_id . '): queued for the daemon');
+	    $parent->queue('the workflow it waits for has ended (execution ' . (string)$this->_id . ')');
     }
 
     //CLD: 2026-11-23T12:00:00Z: the daemon lost the worker of job $jid while it ran (crashed, killed, the daemon restarted): its executions still running ($ids: only these)
@@ -750,8 +750,10 @@ class WfExecution extends \sys\BaseModel {
     //---------------------------------------------------------------------------------------------------------------
     //hand the run to the daemon (saved first): every execution started by a web request (designer Run, Webhook, Form, Human task, MCP run_workflow) is queued here;
     //Job::submit wakes the daemon (NEWJOB on its socket), so an idle worker starts it at once; $reason: the log message
+    //CLD: 2026-11-25T10:00:00+02:00: logged only with a reason (a plain queue adds no "queued for the daemon" line to the execution log)
     public function queue($reason = null) {
-	$this->log(null, $reason ?? 'queued for the daemon');
+	if ($reason !== null)
+	    $this->log(null, $reason);
 	$this->save();
 	\models\Job::submit('\util\Scheduler::start', [ 'exe' => (string)$this->_id ], [
 	    'aid' => $this->aid,
