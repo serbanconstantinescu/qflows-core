@@ -338,6 +338,11 @@ class SysObjects {
 		'class' => 'models\credential\CredentialAmazonSes',
 		'variant-of' => 'Credential',
 	    ],
+	    //CLD: 2026-11-25T21:00:00+02:00: a GitHub account, github.com or Enterprise Server (the GitHub steps and event trigger), core for every account
+	    'CredentialGitHub' => [
+		'class' => 'models\credential\CredentialGitHub',
+		'variant-of' => 'Credential',
+	    ],
 	    //CLD: 2026-11-25T18:00:00+02:00: an S3 storage account, Amazon S3 or S3-compatible (the S3 steps and object trigger), core for every account
 	    'CredentialS3' => [
 		'class' => 'models\credential\CredentialS3',
@@ -886,6 +891,31 @@ class SysObjects {
 	    ],
 	    'NodeAppChatReply' => [
 		'class' => 'models\node\NodeAppChatReply',
+		'wfNode' => true,
+	    ],
+	    //CLD: 2026-11-25T21:00:00+02:00: GitHub (Issues, Pull Requests, Repository, Actions, API; NodeAppGitHub their base; the event trigger: a webhook at /github/<token>, or polling), core for every account
+	    'NodeAppGitHubIssues' => [
+		'class' => 'models\node\NodeAppGitHubIssues',
+		'wfNode' => true,
+	    ],
+	    'NodeAppGitHubPulls' => [
+		'class' => 'models\node\NodeAppGitHubPulls',
+		'wfNode' => true,
+	    ],
+	    'NodeAppGitHubRepository' => [
+		'class' => 'models\node\NodeAppGitHubRepository',
+		'wfNode' => true,
+	    ],
+	    'NodeAppGitHubActions' => [
+		'class' => 'models\node\NodeAppGitHubActions',
+		'wfNode' => true,
+	    ],
+	    'NodeAppGitHubApi' => [
+		'class' => 'models\node\NodeAppGitHubApi',
+		'wfNode' => true,
+	    ],
+	    'NodeTriggerGitHub' => [
+		'class' => 'models\node\NodeTriggerGitHub',
 		'wfNode' => true,
 	    ],
 	    //CLD: 2026-11-25T18:00:00+02:00: S3 storage (Objects, Links, Buckets, API; NodeAppS3 their base; the object trigger: polling, or S3's event notifications through SNS at /s3/<token>), core for every account

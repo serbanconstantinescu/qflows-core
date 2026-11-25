@@ -44,6 +44,8 @@ class AgentTools {
 	'brevo' => [ 'label' => 'Brevo', 'prefix' => 'brevo', 'capability' => 'brevo', 'steps' => [ \models\node\NodeAppBrevoEmail::class, \models\node\NodeAppBrevoContacts::class, \models\node\NodeAppBrevoApi::class ] ],
 	'mailjet' => [ 'label' => 'Mailjet', 'prefix' => 'mailjet', 'capability' => 'mailjet', 'steps' => [ \models\node\NodeAppMailjetEmail::class, \models\node\NodeAppMailjetContacts::class, \models\node\NodeAppMailjetApi::class ] ],
 	'amazonses' => [ 'label' => 'Amazon SES', 'prefix' => 'ses', 'capability' => 'amazonses', 'steps' => [ \models\node\NodeAppSesEmail::class, \models\node\NodeAppSesAccount::class, \models\node\NodeAppSesApi::class ] ],
+	//CLD: 2026-11-25T21:00:00+02:00: GitHub's steps as tools
+	'github' => [ 'label' => 'GitHub', 'prefix' => 'github', 'capability' => 'github', 'base' => \models\node\NodeAppGitHub::class ],
 	//CLD: 2026-11-25T18:00:00+02:00: the S3 steps as tools
 	's3' => [ 'label' => 'S3 storage', 'prefix' => 's3', 'capability' => 's3', 'base' => \models\node\NodeAppS3::class ],
 	//CLD: 2026-11-25T14:00:00+02:00: Slack's steps as tools

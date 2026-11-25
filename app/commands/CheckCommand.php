@@ -15,7 +15,7 @@
 namespace commands;
 
 class CheckCommand extends \sys\BaseController {
-    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'slack', 's3', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'demo', 'ssh', 'windows', 'logpatterns' ];
+    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'slack', 's3', 'github', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'demo', 'ssh', 'windows', 'logpatterns' ];
     //not run unless named in --only (demo: an account made and deleted, public services called)
     const SLOW = [ 'steps', 'demo' ];
 
@@ -7659,6 +7659,289 @@ class CheckCommand extends \sys\BaseController {
 	    }
 	    foreach($wfs as $wf)
 		\models\TriggerState::beforeWorkflowDelete($wf);
+	    foreach($files as $f)
+		$om->findOne('File', [ '_id' => $f ])?->delete();
+	    foreach($creds as $c)
+		$c->delete();
+	    proc_terminate($proc);
+	    proc_close($proc);
+	    foreach(glob("{$dir}/*") as $f)
+		@unlink($f);
+	    @rmdir($dir);
+	}
+    }
+
+    //CLD: 2026-11-25T21:00:00+02:00: GitHub against a fake API (commands/tests/GitHubTestServer.php; util\GitHub::$testing: its address): values (repositories, numbers, paths, the
+    //webhook signature, GitHub's errors), the credential (a token and its scopes, a GitHub App: JWT, installation, token; a wrong token; a private key's form), the rate limit
+    //waited for, Issues (create with labels and a milestone by title, list without pull requests, search, update, comment, labels, close), Pull Requests (list, get, files,
+    //checks, create, review, reviewers, merge; not mergeable), Repository (read text / as a project file, write and update a file, a folder, branches, a release with generated
+    //notes, an asset), Actions (dispatch followed to the end, runs, jobs, a log through its redirect, re-run, cancel), the API step, the AI tools, the event trigger (webhook
+    //values and filters, each delivery once; polling: issues opened, runs failed; the address's refusals)
+    private function suiteGitHub() {
+	$G = \util\GitHub::class;
+	$TG = \models\node\NodeTriggerGitHub::class;
+	$om = \V::app()->om;
+	$n = [ self::class, 'node' ];
+	$e = [ self::class, 'edge' ];
+	$thrown = function(\Closure $f) {
+	    try {
+		$f();
+		return 'no error';
+	    } catch (\Throwable $x) {
+		return $x->getMessage();
+	    }
+	};
+	$this->check('github: values: numbers (#, an address, an item), paths encoded, a .. refused, the webhook signature (right, wrong), GitHub\'s validation errors said', [
+	    [ 12, 7, 3 ], 'docs/a%20b.md', 'Path: not a path in the repository: `a/../b`', [ true, false ], 'HTTP status 422: Validation Failed (title missing_field)' ], [
+	    [ $G::number('#12'), $G::number('https://github.com/acme/web/pull/7/files'), $G::number([ 'number' => 3 ]) ], $G::path('docs/a b.md'), $thrown(fn() => $G::path('a/../b')),
+	    [ $G::verify('{}', 'sha256=' . hash_hmac('sha256', '{}', 'k'), 'k'), $G::verify('{}', 'sha256=' . hash_hmac('sha256', '{"x":1}', 'k'), 'k') ],
+	    $G::message([ 'message' => 'Validation Failed', 'errors' => [ [ 'field' => 'title', 'code' => 'missing_field' ] ] ], 422) ]);
+
+	$dir = sys_get_temp_dir() . '/qflows-check-github-' . uniqid();
+	@mkdir($dir, 0700, true);
+	$pk = openssl_pkey_new([ 'private_key_bits' => 2048 ]);
+	openssl_pkey_export($pk, $pem);
+	file_put_contents("{$dir}/app.pub", openssl_pkey_get_details($pk)['key']);
+	$server = $this->startServer('github', 'GitHubTestServer.php', $dir, [ 'GITHUB_STATE' => $dir ]);
+	if (!$server)
+	    return;
+	[ $port, $proc ] = $server;
+	$G::$testing = "http://127.0.0.1:{$port}";
+	\models\node\NodeAppGitHubActions::$poll = 0.05;
+	$requests = function() use ($dir) {
+	    $list = array_map(fn($l) => json_decode($l, true), array_filter(explode("\n", (string)@file_get_contents("{$dir}/requests.jsonl"))));
+	    @unlink("{$dir}/requests.jsonl");
+	    return $list;
+	};
+	$db = fn() => json_decode((string)@file_get_contents("{$dir}/db.json"), true);
+	$creds = [];
+	$files = [];
+	$wfs = [];
+	$started = [];
+	try {
+	    $make = function(array $over) use ($om, &$creds) {
+		$c = $om->create('CredentialGitHub', $over + [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'name' => 'Check: GitHub ' . uniqid() ]);
+		if (!$c->validates() || !$c->save()) {
+		    $this->fail('github: the credential was not saved: ' . json_encode($c->errors()));
+		    return null;
+		}
+		$creds[] = $c;
+		return $om->findById('CredentialGitHub', (string)$c->_id);
+	    };
+	    $tok = $make([ 'auth' => 'token', 'token' => 'ghp_check', 'repository' => 'acme/web' ]);
+	    $app = $make([ 'auth' => 'app', 'appId' => '12345', 'privateKey' => $pem ]);
+	    $wrong = $make([ 'auth' => 'token', 'token' => 'nope' ]);
+	    if (!$tok || !$app || !$wrong)
+		return;
+	    $bad = $om->create('CredentialGitHub', [ 'name' => 'x', 'auth' => 'app', 'appId' => 'abc', 'privateKey' => 'not a key', 'repository' => 'no-slash', 'apiUrl' => 'http://ghe.local' ]);
+	    $bad->validates();
+	    file_put_contents("{$dir}/throttle.json", '1');
+	    $this->check('github: the form (an API address over https, an App ID, a private key, owner/repository); Test: the token\'s user and scopes (after the rate limit\'s wait); the app and its '
+		. 'installation (the only one: found); a wrong token said', [
+		[ 'apiUrl', 'appId', 'privateKey', 'repository' ], 'connected to ' . \util\Http::shown($G::$testing) . ' as qbot (scopes: repo, workflow)',
+		'connected to ' . \util\Http::shown($G::$testing) . ' as the app qflows-app, installed with access to 1 repository', 'HTTP status 401: Bad credentials: the token is refused (wrong, expired or revoked)' ], [
+		array_values(array_intersect([ 'apiUrl', 'appId', 'privateKey', 'repository' ], array_keys((array)$bad->errors()))), $tok->test(), $app->test(), $thrown(fn() => $wrong->test()) ]);
+
+	    $step = function($fq, $cfg, $vars = [], $cred = null) use ($n, $e, $tok, $requests) {
+		$requests();
+		$exe = $this->runFlow("github {$fq}", [ $n('m', 'trigger::manual'), $n('s', $fq, $cfg + [ 'credential' => (string)($cred ?? $tok)->_id, 'onError' => 'output' ]),
+		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
+		return [ $exe, $requests() ];
+	    };
+	    $sent = fn($list, $method, $path) => array_values(array_filter($list, fn($r) => $r['method'] === $method && $r['path'] === $path))[0]['body'] ?? null;
+
+	    //Issues
+	    $I = 'app::github-issues';
+	    [ $i1, $sentI ] = $step($I, [ 'operation' => 'create', 'title' => 'Printer {{ floor }} down', 'body' => '**Urgent**', 'labels' => 'bug, urgent', 'assignees' => '{{ who }}', 'milestone' => 'Sprint 1',
+		'variable' => 'x' ], [ 'floor' => 3, 'who' => [ 'ana' ] ]);
+	    $num = (int)($i1?->getVariable('x')['number'] ?? 0);
+	    [ $i2, ] = $step($I, [ 'operation' => 'create', 'title' => '', 'variable' => 'x' ]);
+	    [ $i3, ] = $step($I, [ 'operation' => 'list', 'state' => 'all', 'variable' => 'x' ]);
+	    [ $i4, $sentS ] = $step($I, [ 'operation' => 'search', 'query' => 'is:open label:bug', 'variable' => 'x' ]);
+	    [ $i5, ] = $step($I, [ 'operation' => 'update', 'number' => "#{$num}", 'title' => 'Printer 3 down (again)', 'variable' => 'x' ]);
+	    [ $i6, ] = $step($I, [ 'operation' => 'update', 'number' => $num, 'variable' => 'x' ]);
+	    [ $i7, ] = $step($I, [ 'operation' => 'comment', 'number' => '{{ issue }}', 'comment' => 'On it', 'variable' => 'x' ], [ 'issue' => [ 'number' => $num ] ]);
+	    [ $i8, ] = $step($I, [ 'operation' => 'addLabels', 'number' => $num, 'labels' => 'printer', 'variable' => 'x' ]);
+	    [ $i9, ] = $step($I, [ 'operation' => 'removeLabel', 'number' => $num, 'label' => 'urgent', 'variable' => 'x' ]);
+	    [ $i10, $sentC ] = $step($I, [ 'operation' => 'close', 'number' => $num, 'reason' => 'not_planned', 'comment' => 'Duplicate', 'variable' => 'x' ]);
+	    $this->check('github: Issues create (labels, assignees from a list, a milestone by title), no title: error; list: not the pull requests; search: the repository and is:issue added; update '
+		. '(the title only), nothing to change: error; comment; add and remove labels; close as not planned, with a comment first', [
+		[ 'Printer 3 down', [ 'bug', 'urgent' ], [ 'ana' ], 5 ], 'error', [ 3, false ], 'repo:acme/web is:open label:bug is:issue', [ 'Printer 3 down (again)', '**Urgent**' ], 'error', 'On it',
+		[ 'bug', 'urgent', 'printer' ], [ 'bug', 'printer' ], [ 'closed', 'not_planned', 'Duplicate' ] ], [
+		[ $i1?->getVariable('x')['title'] ?? null, $sentI ? ($sent($sentI, 'POST', '/repos/acme/web/issues')['labels'] ?? null) : null, $sent($sentI, 'POST', '/repos/acme/web/issues')['assignees'] ?? null,
+		    $sent($sentI, 'POST', '/repos/acme/web/issues')['milestone'] ?? null ], $i2?->getVariable('route'),
+		[ $i3?->getVariable('x')['count'] ?? null, in_array(true, array_column($i3?->getVariable('x')['items'] ?? [], 'isPullRequest'), true) ], $sentS[0]['query']['q'] ?? null,
+		[ $i5?->getVariable('x')['title'] ?? null, $i5?->getVariable('x')['body'] ?? null ], $i6?->getVariable('route'), $i7?->getVariable('x')['body'] ?? null,
+		$i8?->getVariable('x')['labels'] ?? null, $i9?->getVariable('x')['labels'] ?? null,
+		[ $i10?->getVariable('x')['state'] ?? null, $i10?->getVariable('x')['stateReason'] ?? null, $sent($sentC, 'POST', "/repos/acme/web/issues/{$num}/comments")['body'] ?? null ] ]);
+
+	    //Pull requests
+	    $P = 'app::github-pulls';
+	    [ $p1, ] = $step($P, [ 'operation' => 'list', 'variable' => 'x' ]);
+	    [ $p2, ] = $step($P, [ 'operation' => 'get', 'number' => 'https://github.com/acme/web/pull/3', 'variable' => 'x' ]);
+	    [ $p3, ] = $step($P, [ 'operation' => 'files', 'number' => 3, 'variable' => 'x' ]);
+	    [ $p4, ] = $step($P, [ 'operation' => 'checks', 'number' => 3, 'variable' => 'x' ]);
+	    [ $p5, ] = $step($P, [ 'operation' => 'checks', 'number' => 4, 'variable' => 'x' ]);
+	    [ $p6, $sentP ] = $step($P, [ 'operation' => 'create', 'head' => 'wip', 'title' => 'More work', 'draft' => true, 'variable' => 'x' ]);
+	    [ $p7, ] = $step($P, [ 'operation' => 'review', 'number' => 3, 'event' => 'REQUEST_CHANGES', 'variable' => 'x' ]);
+	    [ $p8, ] = $step($P, [ 'operation' => 'review', 'number' => 3, 'event' => 'APPROVE', 'variable' => 'x' ]);
+	    [ $p9, ] = $step($P, [ 'operation' => 'reviewers', 'number' => 3, 'people' => 'ana, dan', 'variable' => 'x' ]);
+	    [ $p10, ] = $step($P, [ 'operation' => 'merge', 'number' => 4, 'variable' => 'x' ]);
+	    [ $p11, $sentM ] = $step($P, [ 'operation' => 'merge', 'number' => 3, 'method' => 'squash', 'commitTitle' => 'Fix printer (#3)', 'variable' => 'x' ]);
+	    $this->check('github: Pull Requests list (newest first), get by address, files, checks (check runs and statuses: success; a failed one), create into the default branch (draft), a review '
+		. 'asking for changes without a text: error, approve, reviewers, merge: not mergeable said, squash merged', [
+		[ [ 4, 3 ], 'open', 'fix/printer', 2, [ 'success', 3 ], [ 'failure', 1 ] ], [ 'main', true ], 'error', 'APPROVED', [ 'ana', 'dan' ], [ 'error', '#4 cannot be merged: Pull Request is not mergeable' ],
+		[ true, 'squash', 'Fix printer (#3)' ] ], [
+		[ array_column($p1?->getVariable('x')['items'] ?? [], 'number'), $p2?->getVariable('x')['state'] ?? null, $p2?->getVariable('x')['head'] ?? null, $p3?->getVariable('x')['count'] ?? null,
+		    [ $p4?->getVariable('x')['state'] ?? null, $p4?->getVariable('x')['total'] ?? null ], [ $p5?->getVariable('x')['state'] ?? null, $p5?->getVariable('x')['failed'] ?? null ] ],
+		[ $sent($sentP, 'POST', '/repos/acme/web/pulls')['base'] ?? null, $p6?->getVariable('x')['draft'] ?? null ], $p7?->getVariable('route'), $p8?->getVariable('x')['state'] ?? null,
+		$p9?->getVariable('x')['reviewers'] ?? null, [ $p10?->getVariable('route'), preg_replace('/^.*merge: /', '', (string)self::logLine($p10, 'GitHub Pull Requests merge: ')) ],
+		[ $p11?->getVariable('x')['merged'] ?? null, $sent($sentM, 'PUT', '/repos/acme/web/pulls/3/merge')['merge_method'] ?? null, $sent($sentM, 'PUT', '/repos/acme/web/pulls/3/merge')['commit_title'] ?? null ] ]);
+
+	    //Repository
+	    $R = 'app::github-repository';
+	    [ $r1, $sentR ] = $step($R, [ 'operation' => 'getFile', 'path' => 'data.json', 'variable' => 'x' ]);
+	    [ $r2, ] = $step($R, [ 'operation' => 'getFile', 'path' => 'docs/a.md', 'as' => 'file', 'variable' => 'x' ]);
+	    if ($r2?->getVariable('x')['id'] ?? null)
+		$files[] = $r2->getVariable('x')['id'];
+	    $savedFile = ($r2?->getVariable('x')['id'] ?? null) ? $om->findOne('File', [ '_id' => $r2->getVariable('x')['id'] ]) : null;
+	    [ $r3, ] = $step($R, [ 'operation' => 'putFile', 'path' => 'notes/today.md', 'content' => '# {{ day }}', 'branch' => 'main', 'variable' => 'x' ], [ 'day' => 'Tuesday' ]);
+	    [ $r4, $sentU ] = $step($R, [ 'operation' => 'putFile', 'path' => 'README.md', 'content' => '# Web 2', 'message' => 'Docs: the new title', 'variable' => 'x' ]);
+	    [ $r5, ] = $step($R, [ 'operation' => 'listFolder', 'path' => '', 'variable' => 'x' ]);
+	    [ $r6, ] = $step($R, [ 'operation' => 'createBranch', 'branch' => 'release/1.1', 'ref' => 'main', 'variable' => 'x' ]);
+	    [ $r7, ] = $step($R, [ 'operation' => 'createRelease', 'tag' => 'v1.1.0', 'target' => 'release/1.1', 'generateNotes' => true, 'notes' => 'Highlights', 'variable' => 'x' ]);
+	    $asset = \models\File::createFromString('dist.zip', 'PK zip', [ 'metadata' => [ 'project' => $this->project->_id, 'aid' => $this->account->_id, 'owner' => null, 'source' => 'check', 'created_at' => new \MongoDB\BSON\UTCDateTime() ] ]);
+	    $files[] = $asset;
+	    [ $r8, ] = $step($R, [ 'operation' => 'uploadAsset', 'tag' => 'v1.1.0', 'sourceFile' => (string)$asset, 'variable' => 'x' ]);
+	    [ $r9, ] = $step($R, [ 'operation' => 'deleteFile', 'path' => 'notes/today.md', 'variable' => 'x' ]);
+	    $this->check('github: Repository read a JSON file as text (raw), a file into a project file; write a new file, update one (its sha read first, the message); the top folder; a branch '
+		. 'from main; a release from it with generated notes; an asset; delete a file', [
+		[ '{"n": 1}', 'application/vnd.github.raw' ], [ 'a.md', 'A doc' ], [ true, '# Tuesday' ], [ false, 'Docs: the new title', sha1('# Web') ], [ 'README.md', 'docs', 'data.json', 'notes' ],
+		str_repeat('c', 40), [ 'v1.1.0', true ], [ 'dist.zip', 6 ], true ], [
+		[ $r1?->getVariable('x'), $sentR[0]['accept'] ?? null ], [ $r2?->getVariable('x')['filename'] ?? null, $savedFile ? stream_get_contents(\models\File::_bucket()->openDownloadStream($savedFile->_id)) : null ],
+		[ $r3?->getVariable('x')['created'] ?? null, $db()['files']['notes/today.md'] ?? null ],
+		[ $r4?->getVariable('x')['created'] ?? null, $sent($sentU, 'PUT', '/repos/acme/web/contents/README.md')['message'] ?? null, $sent($sentU, 'PUT', '/repos/acme/web/contents/README.md')['sha'] ?? null ],
+		array_column($r5?->getVariable('x')['items'] ?? [], 'name'), $db()['branches']['release/1.1'] ?? null,
+		[ $r7?->getVariable('x')['tag'] ?? null, str_contains((string)($r7?->getVariable('x')['body'] ?? ''), "Highlights\n\n## What's Changed") ], [ $r8?->getVariable('x')['name'] ?? null, $r8?->getVariable('x')['size'] ?? null ],
+		!isset($db()['files']['notes/today.md']) ]);
+
+	    //Actions, API, tools
+	    $A = 'app::github-actions';
+	    [ $a1, $sentD ] = $step($A, [ 'operation' => 'dispatch', 'workflow' => '.github/workflows/deploy.yml', 'ref' => 'main', 'inputs' => '{"env": "staging", "dry": true}', 'variable' => 'x' ]);
+	    [ $a2, ] = $step($A, [ 'operation' => 'runs', 'status' => 'failure', 'variable' => 'x' ]);
+	    [ $a3, ] = $step($A, [ 'operation' => 'jobs', 'runId' => 'https://github.com/acme/web/actions/runs/900', 'variable' => 'x' ]);
+	    [ $a4, ] = $step($A, [ 'operation' => 'log', 'jobId' => 6001, 'lines' => 2, 'variable' => 'x' ]);
+	    [ $a5, ] = $step($A, [ 'operation' => 'rerun', 'runId' => 900, 'variable' => 'x' ]);
+	    [ $a6, ] = $step($A, [ 'operation' => 'cancel', 'runId' => 900, 'variable' => 'x' ]);
+	    [ $a7, ] = $step($A, [ 'operation' => 'dispatch', 'workflow' => 'deploy.yml', 'ref' => 'nope', 'variable' => 'x' ]);
+	    [ $api, ] = $step('app::github-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/repos/{repo}/issues', 'query' => '{"state": "all", "per_page": 2}', 'variable' => 'z' ]);
+	    [ $apiBad, ] = $step('app::github-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => 'https://example.com/x', 'variable' => 'z' ]);
+	    $ops = \util\AgentTools::operations('github');
+	    $this->check('github: Actions: start a workflow (its path given, inputs as texts), its run found and followed to the end; failed runs; jobs of a run by address; the log\'s last lines '
+		. '(its redirect followed); re-run the failed jobs; cancel; a branch GitHub refuses: error. API: {repo} filled in, the next page; another address refused. As AI tools', [
+		[ [ 'env' => 'staging', 'dry' => 'true' ], true, 'success', 'Deploy' ], [ 900 ], 'build', [ 2, "2026-11-25T10:00:01Z line 2\n2026-11-25T10:00:02Z Error: boom" ], 'in_progress', 'cancelled', 'error',
+		[ 200, 2, true ], 'error', [ true, false, true, false ] ], [
+		[ $sent($sentD, 'POST', '/repos/acme/web/actions/workflows/deploy.yml/dispatches')['inputs'] ?? null, $a1?->getVariable('x')['completed'] ?? null, $a1?->getVariable('x')['conclusion'] ?? null,
+		    $a1?->getVariable('x')['name'] ?? null ], array_column($a2?->getVariable('x')['items'] ?? [], 'id'), $a3?->getVariable('x')['items'][0]['name'] ?? null,
+		[ $a4?->getVariable('x')['lines'] ?? null, $a4?->getVariable('x')['text'] ?? null ], $a5?->getVariable('x')['status'] ?? null, $a6?->getVariable('x')['conclusion'] ?? null, $a7?->getVariable('route'),
+		[ $api?->getVariable('z')['status'] ?? null, count($api?->getVariable('z')['data'] ?? []), str_contains((string)($api?->getVariable('z')['next'] ?? ''), 'page=2') ], $apiBad?->getVariable('route'),
+		[ $ops['github_issues_create']['writes'] ?? null, $ops['github_issues_search']['writes'] ?? null, $ops['github_pulls_merge']['writes'] ?? null, $ops['github_repository_get_file']['writes'] ?? null ] ]);
+
+	    //the event trigger: webhook values, filters, deliveries
+	    $cfgHook = [ 'receive' => 'webhook', 'events' => [ 'pull_request', 'push', 'workflow_run' ], 'actions' => 'opened, merged, completed', 'branches' => 'main, release/*', 'repository' => 'acme/web' ];
+	    $prOpened = $TG::valueOf('pull_request', [ 'action' => 'opened', 'repository' => [ 'full_name' => 'acme/web' ], 'sender' => [ 'login' => 'dan' ], 'pull_request' => [ 'number' => 9, 'title' => 'X',
+		'html_url' => 'https://github.com/acme/web/pull/9', 'state' => 'open', 'merged' => false, 'user' => [ 'login' => 'dan' ], 'head' => [ 'ref' => 'f', 'sha' => 'abc' ], 'base' => [ 'ref' => 'main' ] ] ], 'd1');
+	    $prMerged = $TG::valueOf('pull_request', [ 'action' => 'closed', 'repository' => [ 'full_name' => 'acme/web' ], 'pull_request' => [ 'number' => 9, 'merged' => true, 'state' => 'closed' ] ]);
+	    $prClosed = $TG::valueOf('pull_request', [ 'action' => 'closed', 'repository' => [ 'full_name' => 'acme/web' ], 'pull_request' => [ 'number' => 9, 'merged' => false, 'state' => 'closed' ] ]);
+	    $push = $TG::valueOf('push', [ 'ref' => 'refs/heads/release/1.1', 'after' => 'def', 'commits' => [ [], [] ], 'repository' => [ 'full_name' => 'acme/web' ], 'compare' => 'https://github.com/acme/web/compare/a...b' ]);
+	    $pushOther = $TG::valueOf('push', [ 'ref' => 'refs/heads/wip', 'repository' => [ 'full_name' => 'acme/web' ] ]);
+	    $issue = $TG::valueOf('issues', [ 'action' => 'opened', 'repository' => [ 'full_name' => 'acme/web' ], 'issue' => [ 'number' => 1 ] ]);
+	    $otherRepo = $TG::valueOf('pull_request', [ 'action' => 'opened', 'repository' => [ 'full_name' => 'acme/api' ], 'pull_request' => [ 'number' => 1 ] ]);
+	    $wf = $this->workflow('github hook', [ $n('t', 'trigger::github', $TG::initConfig() + $cfgHook), $n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ github.title }}' ]), $e('e1', 't', 's') ]);
+	    $hookValid = $wf->validates();
+	    $wf->save();
+	    $this->created[] = $wf->_id;
+	    $wfs[] = $wf;
+	    $this->check('github: event: webhook values (a pull request opened, merged; a push: its branch and commits); the filters: actions (merged: a merged close), branches (patterns), the '
+		. 'repository, the events; each delivery once; the step valid; not scheduled', [
+		[ [ 'pull_request', 'opened', 9, 'dan', 'f', 'main', false, 'd1' ], [ 'release/1.1', 2, 'def' ] ], [ true, true, false, true, false, false, false ], [ false, true, false ], true, false ], [
+		[ [ $prOpened['event'], $prOpened['action'], $prOpened['number'], $prOpened['user'], $prOpened['head'], $prOpened['base'], $prOpened['merged'], $prOpened['delivery'] ], [ $push['branch'] ?? null, $push['commits'] ?? null, $push['sha'] ?? null ] ],
+		[ $TG::wanted($cfgHook, $prOpened), $TG::wanted($cfgHook, $prMerged), $TG::wanted($cfgHook, $prClosed), $TG::wanted($cfgHook, $push), $TG::wanted($cfgHook, $pushOther), $TG::wanted($cfgHook, $issue),
+		    $TG::wanted($cfgHook, $otherRepo) ], [ $TG::seenDelivery($wf, 't', 'd-1'), $TG::seenDelivery($wf, 't', 'd-1'), $TG::seenDelivery($wf, 't', 'd-2') ], $hookValid,
+		$TG::matches($cfgHook + [ 'mode' => 'interval', 'every' => 5, 'every_unit' => 'minutes' ], new \DateTimeImmutable()) ]);
+
+	    //the event trigger: polling
+	    $save = fn($x) => $x->save();
+	    $pw = $this->workflow('github poll', [ $n('t', 'trigger::github', $TG::initConfig() + [ 'receive' => 'poll', 'credential' => (string)$tok->_id, 'polls' => [ 'issues', 'runs', 'merged' ],
+		'mode' => 'interval', 'every' => 5, 'every_unit' => 'minutes' ]), $n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ github.title }}' ]), $e('e1', 't', 's') ]);
+	    $this->check('github: event: polling is valid', true, $pw->validates());
+	    $pw->save();
+	    $this->created[] = $pw->_id;
+	    $wfs[] = $pw;
+	    $pnode = $pw->nodes['t'];
+	    [ $s0, $none ] = $TG::check($pw, $pnode, [], $save);
+	    $s0['since'] = '2026-11-01T12:00:00Z';
+	    [ $s1, $first ] = $TG::check($pw, $pnode, $s0, $save);
+	    [ , $again ] = $TG::check($pw, $pnode, $s1 + [ 'since' => '2026-11-01T12:00:00Z' ], $save);
+	    $started = array_merge($started, $first, $again);
+	    $got = array_map(fn($x) => [ $x->getVariable('github')['event'] ?? null, $x->getVariable('github')['action'] ?? null, $x->getVariable('github')['number'] ?? $x->getVariable('github')['conclusion'] ?? null ], $first);
+	    $this->check('github: event: polling: the first check only notes the time; then the issues opened since (not pull requests), the pull request merged, the run completed (the dispatched one); '
+		. 'checked again over the same time: none (seen)', [ [], true, true, true, [] ], [
+		$none, in_array([ 'issues', 'opened', $num ], $got, true), in_array([ 'pull_request', 'merged', 3 ], $got, true), in_array([ 'workflow_run', 'completed', 'success' ], $got, true), $again ]);
+
+	    //the address: what the web server refuses or answers
+	    $init = $TG::initConfig();
+	    $ev = $this->workflow('github events', [ $n('t', 'trigger::github', $init + $cfgHook), $n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ github.title }}' ]), $e('e1', 't', 's') ]);
+	    $ev->save();
+	    $this->created[] = $ev->_id;
+	    $wfs[] = $ev;
+	    $version = $om->create('WfVersion', [ 'aid' => $ev->aid, 'project' => $ev->project, 'wf' => $ev->_id, 'number' => 1, 'name' => (string)$ev->name, 'nodes' => $ev->nodes ]);
+	    $version->save();
+	    $ev->version = $version->_id;
+	    $ev->status = \models\Workflow::PUBLISHED;
+	    $ev->save();
+	    $host = (string)parse_url($init['url'], PHP_URL_HOST);
+	    $post = function($body, $event, $signed = true, $method = 'POST', $delivery = 'dd-1') use ($init, $host) {
+		$ch = curl_init($init['url']);
+		curl_setopt_array($ch, [ CURLOPT_CUSTOMREQUEST => $method, CURLOPT_POSTFIELDS => $body, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20,
+		    CURLOPT_HTTPHEADER => [ 'Content-Type: application/json', "X-GitHub-Event: {$event}", "X-GitHub-Delivery: {$delivery}",
+			'X-Hub-Signature-256: sha256=' . hash_hmac('sha256', $body, $signed ? $init['secret'] : 'wrong') ], CURLOPT_RESOLVE => [ "{$host}:443:127.0.0.1" ], CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0 ]);
+		$answer = json_decode((string)curl_exec($ch), true);
+		$status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+		curl_close($ch);
+		return [ $status, $answer ];
+	    };
+	    [ $status ] = $post('', 'ping', true, 'GET');
+	    if ($status === 0) {
+		echo "  skipped: the event trigger's address (this installation's web server cannot be reached from here)\n";
+	    } else {
+		$prBody = json_encode([ 'action' => 'opened', 'repository' => [ 'full_name' => 'acme/web' ], 'pull_request' => [ 'number' => 9, 'title' => 'From the hook', 'state' => 'open' ] ]);
+		[ $unsigned ] = $post($prBody, 'pull_request', false);
+		[ , $pong ] = $post('{"zen": "Keep it logically awesome."}', 'ping');
+		[ $okStatus, $accepted ] = $post($prBody, 'pull_request', true, 'POST', 'dd-9');
+		[ , $dup ] = $post($prBody, 'pull_request', true, 'POST', 'dd-9');
+		[ , $ignored ] = $post(json_encode([ 'action' => 'opened', 'repository' => [ 'full_name' => 'acme/web' ], 'issue' => [ 'number' => 1 ] ]), 'issues', true, 'POST', 'dd-10');
+		$runs = iterator_to_array($om->find('WfExecution', [ 'wf' => $ev->_id, 'trigger' => 'github' ]), false);
+		$started = array_merge($started, $runs);
+		$this->check('github: event: the address: a GET refused, a wrong signature refused, ping answered; a pull request opened: one run (the same delivery again: duplicate; an event not chosen: ignored)', [
+		    405, 401, 'pong', 200, 'accepted', 'duplicate', 'ignored', [ 'From the hook' ] ], [
+		    $status, $unsigned, $pong['state'] ?? null, $okStatus, $accepted['state'] ?? null, $dup['state'] ?? null, $ignored['state'] ?? null, array_map(fn($x) => $x->getVariable('github')['title'] ?? null, $runs) ]);
+	    }
+	} finally {
+	    $G::$testing = null;
+	    \models\node\NodeAppGitHubActions::$poll = 5;
+	    foreach($started as $x) {
+		foreach($om->find('Job', [ 'job_spec' => '\\util\\Scheduler::start', 'job_data.exe' => (string)$x->_id ]) as $job)
+		    $job->delete();
+		$x->delete();
+	    }
+	    foreach($wfs as $wf) {
+		\models\TriggerState::beforeWorkflowDelete($wf);
+		foreach($om->find('WfVersion', [ 'wf' => $wf->_id ]) as $v)
+		    $v->delete();
+		foreach($om->find('TriggerToken', [ 'wf' => $wf->_id ]) as $t)
+		    $t->delete();
+	    }
 	    foreach($files as $f)
 		$om->findOne('File', [ '_id' => $f ])?->delete();
 	    foreach($creds as $c)

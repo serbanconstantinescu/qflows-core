@@ -50,6 +50,8 @@ class WfNode extends \sys\NestedModel {
 	'crm' => 'CRM',
 	//CLD: 2026-11-12T14:00:00+02:00: the Jira steps
 	'work' => 'Work management',
+	//CLD: 2026-11-25T21:00:00+02:00: the GitHub and GitLab steps
+	'development' => 'Development',
 	//CLD: 2026-11-12T10:00:00+02:00: the Shopify steps
 	'commerce' => 'E-commerce',
 	//CLD: 2026-11-13T00:30:00+02:00: the Infobip steps (SMS, WhatsApp, email, 2FA)

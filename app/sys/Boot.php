@@ -135,6 +135,9 @@ class Boot {
 	//CLD: 2026-11-25T18:00:00+02:00: the S3 object trigger's endpoint: `/s3/<32 hex token>` -> S3Controller::receive (SNS's posts of S3 event notifications; no session)
 	\V::app()->session->noSessionFor('/s3/');
 	\V::app()->router->add_rule('s3/<id:[a-f0-9]{32}>', 's3/receive', true);
+	//CLD: 2026-11-25T21:00:00+02:00: the GitHub event trigger's endpoint: `/github/<32 hex token>` -> GitHubController::receive (a repository's or organization's webhook; no session)
+	\V::app()->session->noSessionFor('/github/');
+	\V::app()->router->add_rule('github/<id:[a-f0-9]{32}>', 'github/receive', true);
 	\V::app()->router->add_rule('form/<id:[a-f0-9]{32}>', 'form/open', true);
 	\V::app()->router->add_rule('task/<id:[a-f0-9]{24}>', 'task/open', true);
 	//the chat page of a Chat trigger: `/agent/<32 hex token>`; its embeddable page: `/chat/<32 hex token>`, its token is the credential: no session
