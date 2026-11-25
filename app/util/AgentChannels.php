@@ -1,7 +1,8 @@
 <?php
 
 /*
-    where an agent's answers go when the conversation is not on a chat page: an email (threaded: In-Reply-To, References, its address to reply to) or a Teams chat.
+    where an agent's answers go when the conversation is not on a chat page: an email (threaded: In-Reply-To, References, its address to reply to), a Teams chat or Slack
+    (CLD: 2026-11-25T14:00:00+02:00: a direct message or a thread, as the trigger's app).
     The chat pages read the messages themselves (models\agent\AgentConversation).
     AgentChannels::$sink: the check suite takes what would be sent (fn(kind, data) => what the call answers), so nothing leaves and no job reaches a running daemon
 */
@@ -25,6 +26,9 @@ class AgentChannels {
 		break;
 	    case 'teams':
 		self::teams($conv, $exec, $text, $format, $buttons);
+		break;
+	    case 'slack':
+		self::slack($conv, $exec, $text, $format, $buttons);
 		break;
 	}
     }
@@ -70,6 +74,20 @@ class AgentChannels {
 	$extra = self::buttonsText($buttons);
 	$html = ($format === 'markdown' ? Markdown::toHtml($text) : nl2br(\V::app()->html->escape((string)$text), false)) . ($extra !== '' ? '<p>' . \V::app()->html->escape(trim($extra)) . '</p>' : '');
 	self::graph($cred, 'POST', '/chats/' . rawurlencode($chat) . '/messages', [], [ 'body' => [ 'contentType' => 'html', 'content' => $html ] ]);
+    }
+
+    //the reply in the Slack conversation (thread `<channel>` or `<channel>:<thread ts>`, NodeTriggerSlack), through the trigger's Slack credential; buttons: a line of text
+    private static function slack(array $conv, $exec, $text, $format, array $buttons) {
+	[ $channel, $thread ] = array_pad(explode(':', (string)($conv['thread'] ?? ''), 2), 2, '');
+	$cred = \models\Credential::findFor($exec, (string)($conv['credential'] ?? ''), 'slack');
+	if ($channel === '' || !$cred)
+	    throw new \RuntimeException('Slack: the channel or the trigger\'s credential is no longer available');
+	$body = ($format === 'markdown' ? Slack::mrkdwn($text) : Slack::escape((string)$text)) . Slack::escape(self::buttonsText($buttons));
+	$args = [ 'channel' => $channel, 'text' => mb_substr($body, 0, \models\node\NodeAppSlack::MAX_TEXT) ] + ($thread !== '' ? [ 'thread_ts' => $thread ] : []);
+	if (self::$sink)
+	    (self::$sink)('slack', [ 'method' => 'chat.postMessage', 'args' => $args ]);
+	else
+	    $cred->client(30)->call('chat.postMessage', $args);
     }
 
     //a call of Microsoft Graph with Teams credential $cred: the decoded answer; \RuntimeException with Graph's message

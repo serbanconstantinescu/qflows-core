@@ -129,6 +129,9 @@ class Boot {
 	//CLD: 2026-11-12T23:30:00+02:00: the Yousign event trigger's endpoint: `/yousign/<32 hex token>` -> YousignController::receive (the organization's webhooks; no session)
 	\V::app()->session->noSessionFor('/yousign/');
 	\V::app()->router->add_rule('yousign/<id:[a-f0-9]{32}>', 'yousign/receive', true);
+	//CLD: 2026-11-25T14:00:00+02:00: the Slack message trigger's endpoint: `/slack/<32 hex token>` -> SlackController::receive (the app's events; no session)
+	\V::app()->session->noSessionFor('/slack/');
+	\V::app()->router->add_rule('slack/<id:[a-f0-9]{32}>', 'slack/receive', true);
 	\V::app()->router->add_rule('form/<id:[a-f0-9]{32}>', 'form/open', true);
 	\V::app()->router->add_rule('task/<id:[a-f0-9]{24}>', 'task/open', true);
 	//the chat page of a Chat trigger: `/agent/<32 hex token>`; its embeddable page: `/chat/<32 hex token>`, its token is the credential: no session

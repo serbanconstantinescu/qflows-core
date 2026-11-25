@@ -7,8 +7,8 @@
 	(context()) and write what their tools did on the turn (noteTools()).
     Fields: wf, project, node (the trigger step), channel (app | embed | email | teams), user (a qflows user; null: a guest, a mail sender, a Teams person), user_name, user_email, who (whose memories:
 	util\AgentMemory), guest_key (sha256 of the key an embedded page holds), title, seq (the last message's number), turns, summary + summary_upto (the older turns summarized, up to that message)
-	+ summary_at, execution (the run answering; 'claiming' for an instant: one run at a time on the chat pages), thread (the Teams chat), refs (the Message-IDs of an email conversation), mail (where
-	its answers go: { to, subject, reply_to }), credential (the Teams credential), created_at, last_at.
+	+ summary_at, execution (the run answering; 'claiming' for an instant: one run at a time on the chat pages), thread (the Teams chat; Slack's channel, or <channel>:<thread ts>), refs (the Message-IDs of an email conversation), mail (where
+	its answers go: { to, subject, reply_to }), credential (the Teams or Slack credential), created_at, last_at.
     Written through ObjectManager's inserts and updates, not through save(): never in the audit or execution logs (their text is what people said; only the owners read it: AgentController::conversations).
     Retention: prune() (the daemon): messages, summaries, conversations and the runs that hold their text go after the account's `execution_log_retention` (0: kept). Removed with the workflow.
     Read as arrays

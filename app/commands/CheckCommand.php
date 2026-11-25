@@ -15,7 +15,7 @@
 namespace commands;
 
 class CheckCommand extends \sys\BaseController {
-    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'demo', 'ssh', 'windows', 'logpatterns' ];
+    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'slack', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'demo', 'ssh', 'windows', 'logpatterns' ];
     //not run unless named in --only (demo: an account made and deleted, public services called)
     const SLOW = [ 'steps', 'demo' ];
 
@@ -7659,6 +7659,309 @@ class CheckCommand extends \sys\BaseController {
 	    }
 	    foreach($wfs as $wf)
 		\models\TriggerState::beforeWorkflowDelete($wf);
+	    foreach($files as $f)
+		$om->findOne('File', [ '_id' => $f ])?->delete();
+	    foreach($creds as $c)
+		$c->delete();
+	    proc_terminate($proc);
+	    proc_close($proc);
+	    foreach(glob("{$dir}/*") as $f)
+		@unlink($f);
+	    @rmdir($dir);
+	}
+    }
+
+    //CLD: 2026-11-25T14:00:00+02:00: Slack against a fake workspace (commands/tests/SlackTestServer.php; util\Slack::$testing: its address): values (Markdown as mrkdwn, the event
+    //signature, a ts of a link, a message's text, Slack's errors), the credential (Test: auth.test; a wrong token; a bot token's form), a 429 waited for, Messages (to #name, to a
+    //person by email, in a thread and in the channel, blocks, update, react, history, a thread, a link, schedule; not in the channel: the error output), Channels, Users, Files
+    //(upload a text, download into a project file, list, delete), the API step, the AI tools, the message trigger (polling: a direct message, a mention, the thread's next message;
+    //not the app's own, another bot's, an edit; Reply to chat in the direct message / the thread; events: /slack/<token> signed, the challenge, each message once)
+    private function suiteSlack() {
+	$S = \util\Slack::class;
+	$TS = \models\node\NodeTriggerSlack::class;
+	$om = \V::app()->om;
+	$n = [ self::class, 'node' ];
+	$e = [ self::class, 'edge' ];
+	$thrown = function(\Closure $f) {
+	    try {
+		$f();
+		return 'no error';
+	    } catch (\Throwable $x) {
+		return $x->getMessage();
+	    }
+	};
+	$secret = 'sign-secret';
+	$t = time();
+	$sig = fn($body, $ts) => 'v0=' . hash_hmac('sha256', "v0:{$ts}:{$body}", $secret);
+	$this->check('slack: values: Markdown as mrkdwn (code kept, &<> escaped, a link), the signature (right, old, changed), a ts of a link, a message\'s text, a missing scope said', [
+	    "*Title*\n*bold* _it_ ~x~ <https://a.io/b|site> &lt;b&gt; `**c**`\n• one", [ true, false, false ], '1700000000.000100', 'Hi @Ana see link (https://a.b) #general',
+	    'missing_scope: the app lacks a permission (scope) `chat:write` (add it under OAuth & Permissions, then reinstall the app)' ], [
+	    $S::mrkdwn("# Title\n**bold** *it* ~~x~~ [site](https://a.io/b) <b> `**c**`\n- one"),
+	    [ $S::verify('{}', $t, $sig('{}', $t), $secret), $S::verify('{}', $t - 400, $sig('{}', $t - 400), $secret), $S::verify('{"a":1}', $t, $sig('{}', $t), $secret) ],
+	    $S::ts('https://acme.slack.com/archives/CGEN00001/p1700000000000100'), $S::plain('Hi <@UANA00001> see <https://a.b|link> <#CGEN00001|general>', [ 'UANA00001' => 'Ana' ]),
+	    $S::message([ 'ok' => false, 'error' => 'missing_scope', 'needed' => 'chat:write' ]) ]);
+
+	$dir = sys_get_temp_dir() . '/qflows-check-slack-' . uniqid();
+	@mkdir($dir, 0700, true);
+	$server = $this->startServer('slack', 'SlackTestServer.php', $dir, [ 'SLACK_STATE' => $dir ]);
+	if (!$server)
+	    return;
+	[ $port, $proc ] = $server;
+	$S::$testing = "http://127.0.0.1:{$port}";
+	$requests = function() use ($dir) {
+	    $list = array_map(fn($l) => json_decode($l, true), array_filter(explode("\n", (string)@file_get_contents("{$dir}/requests.jsonl"))));
+	    @unlink("{$dir}/requests.jsonl");
+	    return $list;
+	};
+	$calls = fn($sent, $method) => array_values(array_filter($sent, fn($r) => $r['path'] === "/api/{$method}"));
+	$db = fn() => json_decode((string)@file_get_contents("{$dir}/db.json"), true);
+	$put = function(\Closure $f) use ($dir, $db) {
+	    $d = $db();
+	    $f($d);
+	    file_put_contents("{$dir}/db.json", json_encode($d, JSON_UNESCAPED_SLASHES));
+	};
+	$creds = [];
+	$files = [];
+	$wfs = [];
+	$started = [];
+	try {
+	    $make = function(array $over) use ($om, &$creds) {
+		$c = $om->create('CredentialSlack', $over + [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'name' => 'Check: Slack ' . uniqid() ]);
+		if (!$c->validates() || !$c->save()) {
+		    $this->fail('slack: the credential was not saved: ' . json_encode($c->errors()));
+		    return null;
+		}
+		$creds[] = $c;
+		return $om->findById('CredentialSlack', (string)$c->_id);
+	    };
+	    $tok = $make([ 'botToken' => 'xoxb-test', 'signingSecret' => $secret ]);
+	    $noSecret = $make([ 'botToken' => 'xoxb-test' ]);
+	    $wrong = $make([ 'botToken' => 'xoxb-nope' ]);
+	    if (!$tok || !$noSecret || !$wrong)
+		return;
+	    $bad = $om->create('CredentialSlack', [ 'name' => 'x', 'botToken' => 'xoxp-user-token' ]);
+	    $bad->validates();
+	    $requests();
+	    $this->check('slack: the form (a bot token starts with xoxb-); Test: the workspace and the bot, Bearer; without a signing secret said; a wrong token said', [
+		[ 'botToken' ], 'connected to Acme (https://acme.slack.com) as qflows', 'Bearer xoxb-test', 'connected to Acme (https://acme.slack.com) as qflows; no signing secret: the message trigger can only poll',
+		'invalid_auth: the bot token is refused' ], [
+		array_values(array_intersect([ 'botToken', 'signingSecret' ], array_keys((array)$bad->errors()))), $tok->test(), $requests()[0]['auth'] ?? null, $noSecret->test(), $thrown(fn() => $wrong->test()) ]);
+	    file_put_contents("{$dir}/throttle.json", '1');
+	    $this->check('slack: a 429 waited for (Retry-After), then sent again', 'UBOT00001', $tok->client(20)->call('auth.test')['user_id'] ?? null);
+
+	    $step = function($fq, $cfg, $vars = []) use ($n, $e, $tok, $requests) {
+		$requests();
+		$exe = $this->runFlow("slack {$fq}", [ $n('m', 'trigger::manual'), $n('s', $fq, $cfg + [ 'credential' => (string)$tok->_id, 'onError' => 'output' ]),
+		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
+		return [ $exe, $requests() ];
+	    };
+	    $M = 'app::slack-messages';
+
+	    //Messages
+	    [ $m1, $sent1 ] = $step($M, [ 'operation' => 'send', 'to' => '#general', 'message' => 'Deploy **{{ v }}** done <ok>', 'variable' => 'x' ], [ 'v' => '1.2' ]);
+	    $post1 = $calls($sent1, 'chat.postMessage')[0]['args'] ?? [];
+	    $x1 = $m1?->getVariable('x');
+	    [ $m2, $sent2 ] = $step($M, [ 'operation' => 'send', 'to' => 'ana@acme.com', 'message' => 'Hi', 'format' => 'text', 'variable' => 'x' ]);
+	    [ $m3, $sent3 ] = $step($M, [ 'operation' => 'send', 'to' => 'CGEN00001', 'thread' => '{{ t }}', 'broadcast' => true, 'message' => 'In the thread',
+		'blocks' => '[{"type":"section","text":{"type":"mrkdwn","text":"*B*"}}]', 'variable' => 'x' ], [ 't' => $x1['link'] ?? '' ]);
+	    $post3 = $calls($sent3, 'chat.postMessage')[0]['args'] ?? [];
+	    [ $m4, ] = $step($M, [ 'operation' => 'send', 'to' => '#random', 'message' => 'x', 'variable' => 'x' ]);
+	    [ $m5, ] = $step($M, [ 'operation' => 'send', 'to' => '#nowhere', 'message' => 'x', 'variable' => 'x' ]);
+	    $this->check('slack: Messages send: to #name (looked up), Markdown as mrkdwn, the link; to a person by email: their direct messages, plain text escaped; in a thread given by link, '
+		. 'also in the channel, blocks; not in the channel and no such channel: the error output', [
+		[ 'CGEN00001', 'Deploy *1.2* done &lt;ok&gt;', 'true' ], true, [ 'DANA00001', 'Hi' ], [ $x1['ts'] ?? null, 'true', 'section' ], [ 'error', 'error' ],
+		[ 'not_in_channel: the app is not a member of the channel: invite it (/invite @app)', 'no channel #nowhere the app can see (a private one: invite the app first)' ] ], [
+		[ $post1['channel'] ?? null, $post1['text'] ?? null, $post1['mrkdwn'] ?? null ], str_starts_with((string)($x1['link'] ?? ''), 'https://acme.slack.com/archives/CGEN00001/p'),
+		[ $calls($sent2, 'conversations.open')[0]['args']['users'] === 'UANA00001' ? ($calls($sent2, 'chat.postMessage')[0]['args']['channel'] ?? null) : null, $m2?->getVariable('x')['text'] ?? null ],
+		[ $post3['thread_ts'] ?? null, $post3['reply_broadcast'] ?? null, json_decode((string)($post3['blocks'] ?? '[]'), true)[0]['type'] ?? null ], [ $m4?->getVariable('route'), $m5?->getVariable('route') ],
+		[ preg_replace('/^.*send: /', '', (string)self::logLine($m4, 'Slack Messages send: ')), preg_replace('/^.*send: /', '', (string)self::logLine($m5, 'Slack Messages send: ')) ] ]);
+
+	    $ts1 = (string)($x1['ts'] ?? '');
+	    [ $u1, ] = $step($M, [ 'operation' => 'update', 'channel' => '#general', 'ts' => $ts1, 'message' => 'Deploy _done_', 'format' => 'mrkdwn', 'variable' => 'x' ]);
+	    [ $r1, $sentR ] = $step($M, [ 'operation' => 'react', 'channel' => 'CGEN00001', 'ts' => $ts1, 'emoji' => ':white_check_mark:', 'variable' => 'x' ]);
+	    [ $r2, ] = $step($M, [ 'operation' => 'react', 'channel' => 'CGEN00001', 'ts' => $ts1, 'emoji' => 'white_check_mark', 'variable' => 'x' ]);
+	    [ $h1, ] = $step($M, [ 'operation' => 'history', 'channel' => '#general', 'variable' => 'x' ]);
+	    [ $h2, ] = $step($M, [ 'operation' => 'replies', 'channel' => '#general', 'ts' => $ts1, 'variable' => 'x' ]);
+	    [ $p1, ] = $step($M, [ 'operation' => 'permalink', 'channel' => '#general', 'ts' => $ts1, 'variable' => 'x' ]);
+	    [ $s1, $sentS ] = $step($M, [ 'operation' => 'schedule', 'to' => '#general', 'at' => gmdate('c', time() + 3600), 'message' => 'Later', 'variable' => 'x' ]);
+	    [ $s2, ] = $step($M, [ 'operation' => 'schedule', 'to' => '#general', 'at' => '2020-01-01T00:00:00Z', 'message' => 'Past', 'variable' => 'x' ]);
+	    [ $d1, ] = $step($M, [ 'operation' => 'delete', 'channel' => '#general', 'ts' => (string)($m3?->getVariable('x')['ts'] ?? ''), 'variable' => 'x' ]);
+	    $this->check('slack: Messages update (mrkdwn as typed), react (colons dropped; twice: Slack\'s error), history (the newest first, the thread\'s reply broadcast), a thread, the link, '
+		. 'schedule (in the past refused), delete', [
+		'Deploy _done_', [ 'white_check_mark', 'error' ], [ 2, 'In the thread' ], [ 2, $ts1 ], true, [ (string)(time() + 3600), 'error' ], true ], [
+		$u1?->getVariable('x')['text'] ?? null, [ $calls($sentR, 'reactions.add')[0]['args']['name'] ?? null, $r2?->getVariable('route') ],
+		[ $h1?->getVariable('x')['count'] ?? null, $h1?->getVariable('x')['items'][0]['text'] ?? null ], [ $h2?->getVariable('x')['count'] ?? null, $h2?->getVariable('x')['items'][0]['ts'] ?? null ],
+		str_ends_with((string)($p1?->getVariable('x')['link'] ?? ''), '/p' . str_replace('.', '', $ts1)), [ $calls($sentS, 'chat.scheduleMessage')[0]['args']['post_at'] ?? null, $s2?->getVariable('route') ],
+		$d1?->getVariable('x')['deleted'] ?? null ]);
+
+	    //Channels, Users
+	    $C = 'app::slack-channels';
+	    [ $c1, ] = $step($C, [ 'operation' => 'list', 'kinds' => [ 'public_channel', 'private_channel' ], 'variable' => 'x' ]);
+	    [ $c2, ] = $step($C, [ 'operation' => 'create', 'name' => '#Incident-4711', 'private' => true, 'variable' => 'x' ]);
+	    $newId = (string)($c2?->getVariable('x')['id'] ?? '');
+	    [ $c3, $sentI ] = $step($C, [ 'operation' => 'invite', 'channel' => $newId, 'users' => '{{ people }}', 'variable' => 'x' ], [ 'people' => [ 'ana@acme.com', 'UDAN00001' ] ]);
+	    [ $c4, ] = $step($C, [ 'operation' => 'invite', 'channel' => $newId, 'users' => 'ana@acme.com', 'variable' => 'x' ]);
+	    [ $c5, ] = $step($C, [ 'operation' => 'topic', 'channel' => $newId, 'value' => 'Printer {{ 1 + 1 }}', 'variable' => 'x' ]);
+	    [ $c6, ] = $step($C, [ 'operation' => 'members', 'channel' => $newId, 'withNames' => true, 'variable' => 'x' ]);
+	    [ $c7, ] = $step($C, [ 'operation' => 'create', 'name' => 'has space', 'variable' => 'x' ]);
+	    [ $c8, ] = $step($C, [ 'operation' => 'archive', 'channel' => $newId, 'variable' => 'x' ]);
+	    [ $c9, ] = $step($C, [ 'operation' => 'join', 'channel' => '#random', 'variable' => 'x' ]);
+	    $U = 'app::slack-users';
+	    [ $us1, ] = $step($U, [ 'operation' => 'byEmail', 'email' => 'ANA@acme.com', 'variable' => 'x' ]);
+	    [ $us2, ] = $step($U, [ 'operation' => 'byEmail', 'email' => 'old@acme.com', 'variable' => 'x' ]);
+	    [ $us3, ] = $step($U, [ 'operation' => 'list', 'variable' => 'x' ]);
+	    [ $us4, ] = $step($U, [ 'operation' => 'presence', 'user' => 'UANA00001', 'variable' => 'x' ]);
+	    [ $us5, ] = $step($U, [ 'operation' => 'me', 'variable' => 'x' ]);
+	    $this->check('slack: Channels list (public, private the app is in; not direct messages), create private (the name lower case), invite by email and id (all there already: done), topic, '
+		. 'members with names, a name with a space refused, archive, join; Users by email (a deactivated one: none), the people only, presence, the app', [
+		[ 'general', 'random', 'ops' ], [ 'incident-4711', true ], [ 'UANA00001,UDAN00001', 'success' ], 'Printer 2', [ 'qflows', 'Ana', 'Dan Ionescu' ], 'error', true, true,
+		[ 'Ana', 'ana@acme.com', 'SRE', 'error' ], [ 'UANA00001', 'UDAN00001' ], true, [ 'UBOT00001', 'Acme' ] ], [
+		array_column($c1?->getVariable('x')['items'] ?? [], 'name'), [ $c2?->getVariable('x')['name'] ?? null, $c2?->getVariable('x')['private'] ?? null ],
+		[ $calls($sentI, 'conversations.invite')[0]['args']['users'] ?? null, $c4 && !$c4->getVariable('route') ? 'success' : 'error' ], $c5?->getVariable('x')['topic'] ?? null,
+		array_column($c6?->getVariable('x')['items'] ?? [], 'name'), $c7?->getVariable('route'), $c8?->getVariable('x')['archived'] ?? null, $c9?->getVariable('x')['member'] ?? null,
+		[ $us1?->getVariable('x')['name'] ?? null, $us1?->getVariable('x')['email'] ?? null, $us1?->getVariable('x')['title'] ?? null, $us2?->getVariable('route') ],
+		array_column($us3?->getVariable('x')['items'] ?? [], 'id'), $us4?->getVariable('x')['active'] ?? null, [ $us5?->getVariable('x')['id'] ?? null, $us5?->getVariable('x')['team'] ?? null ] ]);
+
+	    //Files, the API step, the tools
+	    $F = 'app::slack-files';
+	    [ $f1, $sentF ] = $step($F, [ 'operation' => 'upload', 'to' => '#general', 'source' => 'text', 'name' => 'report.txt', 'content' => 'Total: {{ 2 * 21 }}', 'comment' => '**Weekly** report', 'variable' => 'f' ]);
+	    $fileId = (string)($f1?->getVariable('f')['id'] ?? '');
+	    [ $f2, ] = $step($F, [ 'operation' => 'download', 'file' => $fileId, 'variable' => 'f' ]);
+	    $saved = $f2?->getVariable('f')['id'] ?? null;
+	    if ($saved)
+		$files[] = $saved;
+	    $savedFile = $saved ? $om->findOne('File', [ '_id' => $saved ]) : null;
+	    $bytes = $savedFile ? stream_get_contents(\models\File::_bucket()->openDownloadStream($savedFile->_id)) : null;
+	    [ $f3, ] = $step($F, [ 'operation' => 'list', 'channel' => '#general', 'variable' => 'f' ]);
+	    [ $f4, ] = $step($F, [ 'operation' => 'upload', 'to' => '#general', 'source' => 'file', 'sourceFile' => '000000000000000000000000', 'variable' => 'f' ]);
+	    [ $f5, ] = $step($F, [ 'operation' => 'delete', 'file' => $fileId, 'variable' => 'f' ]);
+	    [ $a1, $sentA ] = $step('app::slack-api', [ 'operation' => 'call', 'method' => 'pins.add', 'args' => '{"channel": "CGEN00001", "timestamp": "{{ ts }}"}', 'variable' => 'z' ], [ 'ts' => $ts1 ]);
+	    [ $a2, ] = $step('app::slack-api', [ 'operation' => 'call', 'method' => '../auth', 'variable' => 'z' ]);
+	    $ops = \util\AgentTools::operations('slack');
+	    $this->check('slack: Files upload a text (the address Slack gives, then shared with a comment as mrkdwn), download into a project file, list, a missing project file, delete; '
+		. 'API: any method; not a method refused; as AI tools (send writes, history reads)', [
+		[ 'report.txt', 'CGEN00001', '*Weekly* report', 9 ], 'Total: 42', [ 1, 'report.txt' ], 'error', true, [ true, 'error' ], [ true, false, false, true ] ], [
+		[ $f1?->getVariable('f')['name'] ?? null, $calls($sentF, 'files.completeUploadExternal')[0]['args']['channel_id'] ?? null,
+		    $calls($sentF, 'files.completeUploadExternal')[0]['args']['initial_comment'] ?? null, $calls($sentF, 'files.getUploadURLExternal')[0]['args']['length'] ?? null ],
+		$bytes, [ $f3?->getVariable('f')['count'] ?? null, $f3?->getVariable('f')['items'][0]['name'] ?? null ], $f4?->getVariable('route'), $f5?->getVariable('f')['deleted'] ?? null,
+		[ $a1?->getVariable('z')['ok'] ?? null, $a2?->getVariable('route') ],
+		[ $ops['slack_messages_send']['writes'] ?? null, $ops['slack_messages_history']['writes'] ?? null, $ops['slack_users_by_email']['writes'] ?? null, $ops['slack_channels_invite']['writes'] ?? null ] ]);
+
+	    //the message trigger: polling
+	    $agent = fn($name, array $cfg) => $this->workflow($name, [ $n('t', 'trigger::slack', $TS::initConfig() + $cfg + [ 'credential' => (string)$tok->_id, 'mode' => 'interval', 'every' => 1, 'every_unit' => 'minutes' ]),
+		$n('r', 'app::chatreply', [ 'text' => 'You said: **{{ message }}** ({{ slack.kind }})', 'format' => 'markdown' ]), $e('e1', 't', 'r') ]);
+	    $noSecretErr = $this->errorsOf('slack no secret', [ $n('t', 'trigger::slack', $TS::initConfig() + [ 'credential' => (string)$noSecret->_id, 'receive' => 'events' ]) ]);
+	    $wf = $agent('slack agent', [ 'receive' => 'poll', 'channels' => '#general' ]);
+	    $this->check('slack: message: polling is valid; receiving events without a signing secret refused; not scheduled when receiving events', [ true, true, [ true, false ] ], [ $wf->validates(),
+		str_contains(json_encode($noSecretErr), 'no signing secret'), [ $TS::matches([ 'receive' => 'poll', 'mode' => 'interval', 'every' => 1, 'every_unit' => 'minutes' ], new \DateTimeImmutable()),
+		$TS::matches([ 'receive' => 'events', 'mode' => 'interval', 'every' => 1, 'every_unit' => 'minutes' ], new \DateTimeImmutable()) ] ]);
+	    $wf->save();
+	    $this->created[] = $wf->_id;
+	    $wfs[] = $wf;
+	    $node = $wf->nodes['t'];
+	    $ran = [];
+	    $runIt = function($exe) use (&$ran) {
+		$exe->run();
+		$ran[] = $exe;
+	    };
+	    [ $st0, $none ] = $TS::check($wf, $node, [], $runIt);
+	    $at = time() + 5;
+	    file_put_contents("{$dir}/clock.txt", (string)$at);
+	    $mention = sprintf('%d.%06d', $at, 901);
+	    $put(function(&$d) use ($at, $mention) {
+		$m = fn($channel, $seq, array $more) => [ 'type' => 'message', 'channel' => $channel, 'ts' => sprintf('%d.%06d', $at, $seq) ] + $more;
+		$d['messages'][] = $m('DANA00001', 900, [ 'user' => 'UANA00001', 'text' => 'Is the VPN down?' ]);
+		$d['messages'][] = $m('CGEN00001', 901, [ 'user' => 'UDAN00001', 'text' => '<@UBOT00001> deploy status?' ]);
+		$d['messages'][] = $m('CGEN00001', 902, [ 'user' => 'UDAN00001', 'text' => 'hello all' ]);
+		$d['messages'][] = $m('CGEN00001', 903, [ 'user' => 'UOTH00001', 'bot_id' => 'BOTH0001', 'text' => '<@UBOT00001> I am a bot' ]);
+		$d['messages'][] = $m('CGEN00001', 904, [ 'user' => 'UDAN00001', 'subtype' => 'channel_join', 'text' => '<@UBOT00001> joined' ]);
+		$d['messages'][] = $m('DANA00001', 905, [ 'user' => 'UBOT00001', 'bot_id' => 'BBOT00001', 'text' => 'my own' ]);
+	    });
+	    $requests();
+	    [ $st1, $first ] = $TS::check($wf, $node, $st0, $runIt);
+	    $sentT = $calls($requests(), 'chat.postMessage');
+	    $byKind = [];
+	    foreach($first as $x)
+		$byKind[$x->getVariable('slack')['kind'] ?? ''] = $x;
+	    [ $st2, $again ] = $TS::check($wf, $node, $st1, $runIt);
+	    $put(function(&$d) use ($at, $mention) {
+		$d['messages'][] = [ 'type' => 'message', 'channel' => 'CGEN00001', 'ts' => sprintf('%d.%06d', $at, 950), 'thread_ts' => $mention, 'user' => 'UDAN00001', 'text' => 'and the database?' ];
+	    });
+	    $requests();
+	    [ , $thread ] = $TS::check($wf, $node, $st2, $runIt);
+	    $sentThread = $calls($requests(), 'chat.postMessage');
+	    $started = array_merge($started, $first, $again, $thread);
+	    $this->check('slack: message: polling: the first check only notes where it starts; then a direct message and a mention start a run each (not a message without the mention, another '
+		. 'bot\'s, a join, the app\'s own), the mention dropped, the person\'s name; Reply to chat in the direct message and in the mention\'s thread; checked again: none; the thread\'s next '
+		. 'message without a mention: the same conversation, answered in the thread', [
+		[ 'UBOT00001', [] ], [ 2, 'Is the VPN down?', 'Ana', 'deploy status?', 'Dan Ionescu', 'DANA00001', "CGEN00001:{$mention}" ],
+		[ [ 'CGEN00001', $mention, 'You said: *deploy status?* (mention)' ], [ 'DANA00001', null, 'You said: *Is the VPN down?* (dm)' ] ], [], [ 1, 'thread', true, $mention ] ], [
+		[ $st0['me'] ?? null, $none ], [ count($first), $byKind['dm']?->getVariable('message'), $byKind['dm']?->getVariable('user')['name'] ?? null, $byKind['mention']?->getVariable('message'),
+		    $byKind['mention']?->getVariable('user')['name'] ?? null, \models\agent\AgentConversation::read((string)($byKind['dm']?->getVariable('conversation')['id'] ?? ''), $wf->aid)['thread'] ?? null,
+		    \models\agent\AgentConversation::read((string)($byKind['mention']?->getVariable('conversation')['id'] ?? ''), $wf->aid)['thread'] ?? null ],
+		array_map(fn($r) => [ $r['args']['channel'] ?? null, $r['args']['thread_ts'] ?? null, $r['args']['text'] ?? null ], $sentT), $again,
+		[ count($thread), $thread[0]?->getVariable('slack')['kind'] ?? null, (string)($thread[0]?->getVariable('conversation')['id'] ?? '') === (string)($byKind['mention']?->getVariable('conversation')['id'] ?? '-'),
+		    $sentThread[0]['args']['thread_ts'] ?? null ] ]);
+	    $this->check('slack: message: an event noted once (a retry, a mention that is also a message)', [ false, true, false ], [ $TS::seenEvent($wf, 't', 'C1:1.1'), $TS::seenEvent($wf, 't', 'C1:1.1'), $TS::seenEvent($wf, 't', 'C1:1.2') ]);
+
+	    //the message trigger: events at /slack/<token>
+	    $init = $TS::initConfig();
+	    $ev = $this->workflow('slack events', [ $n('t', 'trigger::slack', $init + [ 'credential' => (string)$tok->_id, 'receive' => 'events', 'mode' => 'interval', 'every' => 1, 'every_unit' => 'minutes' ]),
+		$n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ message }}' ]), $e('e1', 't', 's') ]);
+	    $this->check('slack: message: events: the workflow is valid; its address', [ true, true ], [ $ev->validates(), (bool)preg_match('~/slack/[a-f0-9]{32}$~', (string)$init['url']) ]);
+	    $ev->save();
+	    $this->created[] = $ev->_id;
+	    $wfs[] = $ev;
+	    $version = $om->create('WfVersion', [ 'aid' => $ev->aid, 'project' => $ev->project, 'wf' => $ev->_id, 'number' => 1, 'name' => (string)$ev->name, 'nodes' => $ev->nodes ]);
+	    $version->save();
+	    $ev->version = $version->_id;
+	    $ev->status = \models\Workflow::PUBLISHED;
+	    $ev->save();
+	    $host = (string)parse_url($init['url'], PHP_URL_HOST);
+	    $post = function($body, $signed = true, $method = 'POST') use ($init, $host, $sig) {
+		$ts = time();
+		$ch = curl_init($init['url']);
+		curl_setopt_array($ch, [ CURLOPT_CUSTOMREQUEST => $method, CURLOPT_POSTFIELDS => $body, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20,
+		    CURLOPT_HTTPHEADER => [ 'Content-Type: application/json', "X-Slack-Request-Timestamp: {$ts}", 'X-Slack-Signature: ' . ($signed ? $sig($body, $ts) : 'v0=00') ],
+		    CURLOPT_RESOLVE => [ "{$host}:443:127.0.0.1" ], CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0 ]);
+		$answer = json_decode((string)curl_exec($ch), true);
+		$status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+		curl_close($ch);
+		return [ $status, $answer ];
+	    };
+	    [ $status ] = $post('', true, 'GET');
+	    if ($status === 0) {
+		echo "  skipped: the message trigger's address (this installation's web server cannot be reached from here)\n";
+	    } else {
+		$event = fn(array $e) => json_encode([ 'type' => 'event_callback', 'team_id' => 'TACME0001', 'event_id' => 'Ev' . uniqid(), 'authorizations' => [ [ 'user_id' => 'UBOT00001', 'is_bot' => true ] ],
+		    'event' => $e + [ 'type' => 'message', 'channel' => 'DANA00001', 'channel_type' => 'im', 'user' => 'UANA00001', 'ts' => sprintf('%d.%06d', time(), 777) ] ]);
+		[ $unsigned ] = $post('{"type":"url_verification","challenge":"abc"}', false);
+		[ , $challenge ] = $post('{"type":"url_verification","challenge":"abc"}');
+		$dm = $event([ 'text' => 'Printer down' ]);
+		[ $okStatus, $accepted ] = $post($dm);
+		[ , $dup ] = $post($dm);
+		[ , $bot ] = $post($event([ 'text' => 'x', 'bot_id' => 'BOTH0001', 'ts' => '1.000001' ]));
+		$runs = iterator_to_array($om->find('WfExecution', [ 'wf' => $ev->_id, 'trigger' => 'slack' ]), false);
+		$started = array_merge($started, $runs);
+		$this->check('slack: message: events: a GET refused, unsigned refused, the challenge answered; a direct message: one run (the same event again: duplicate; a bot\'s: ignored)', [
+		    405, 401, 'abc', 200, 'accepted', 'duplicate', 'ignored', [ 'Printer down' ] ], [
+		    $status, $unsigned, $challenge['challenge'] ?? null, $okStatus, $accepted['state'] ?? null, $dup['state'] ?? null, $bot['state'] ?? null,
+		    array_map(fn($x) => $x->getVariable('message'), $runs) ]);
+	    }
+	} finally {
+	    $S::$testing = null;
+	    foreach($started as $x) {
+		foreach($om->find('Job', [ 'job_spec' => '\\util\\Scheduler::start', 'job_data.exe' => (string)$x->_id ]) as $job)
+		    $job->delete();
+		$x->delete();
+	    }
+	    foreach($wfs as $wf) {
+		\models\TriggerState::beforeWorkflowDelete($wf);
+		foreach($om->find('WfVersion', [ 'wf' => $wf->_id ]) as $v)
+		    $v->delete();
+		foreach($om->find('TriggerToken', [ 'wf' => $wf->_id ]) as $t)
+		    $t->delete();
+	    }
 	    foreach($files as $f)
 		$om->findOne('File', [ '_id' => $f ])?->delete();
 	    foreach($creds as $c)

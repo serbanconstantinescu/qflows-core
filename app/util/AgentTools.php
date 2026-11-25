@@ -44,6 +44,8 @@ class AgentTools {
 	'brevo' => [ 'label' => 'Brevo', 'prefix' => 'brevo', 'capability' => 'brevo', 'steps' => [ \models\node\NodeAppBrevoEmail::class, \models\node\NodeAppBrevoContacts::class, \models\node\NodeAppBrevoApi::class ] ],
 	'mailjet' => [ 'label' => 'Mailjet', 'prefix' => 'mailjet', 'capability' => 'mailjet', 'steps' => [ \models\node\NodeAppMailjetEmail::class, \models\node\NodeAppMailjetContacts::class, \models\node\NodeAppMailjetApi::class ] ],
 	'amazonses' => [ 'label' => 'Amazon SES', 'prefix' => 'ses', 'capability' => 'amazonses', 'steps' => [ \models\node\NodeAppSesEmail::class, \models\node\NodeAppSesAccount::class, \models\node\NodeAppSesApi::class ] ],
+	//CLD: 2026-11-25T14:00:00+02:00: Slack's steps as tools
+	'slack' => [ 'label' => 'Slack', 'prefix' => 'slack', 'capability' => 'slack', 'base' => \models\node\NodeAppSlack::class ],
 	//CLD: 2026-11-12T23:45:00+02:00: Zendesk's steps as tools
 	'zendesk' => [ 'label' => 'Zendesk', 'prefix' => 'zendesk', 'capability' => 'zendesk', 'base' => \models\node\NodeAppZendesk::class ],
 	//CLD: 2026-11-12T22:00:00+02:00: Intune's steps as tools

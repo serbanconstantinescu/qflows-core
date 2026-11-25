@@ -167,12 +167,12 @@ class NodeTriggerChat extends \models\wf\WfNode {
 	return self::conversationVariables();
     }
 
-    //the variables of a run started by a message (this trigger; Email (inbound) and Teams message when they keep conversations)
+    //the variables of a run started by a message (this trigger; Email (inbound), Teams message and Slack message when they keep conversations)
     public static function conversationVariables() {
 	return [
 	    'message' => [ 'type' => 'string', 'info' => 'what the person wrote, or the value of the button chosen' ],
 	    'conversation' => [ 'type' => 'object', 'info' => 'the conversation: { id, channel, turn, title, history, summary }', 'fields' => [
-		'id' => [ 'type' => 'string' ], 'channel' => [ 'type' => 'string', 'info' => 'app, embed, email or teams' ], 'turn' => [ 'type' => 'number', 'info' => 'the number of this message' ], 'title' => [ 'type' => 'string' ],
+		'id' => [ 'type' => 'string' ], 'channel' => [ 'type' => 'string', 'info' => 'app, embed, email, teams or slack' ], 'turn' => [ 'type' => 'number', 'info' => 'the number of this message' ], 'title' => [ 'type' => 'string' ],
 		'history' => [ 'type' => 'array', 'info' => 'the earlier turns, newest ' . \models\agent\AgentConversation::HISTORY_TURNS, 'items' => [ 'type' => 'object', 'fields' => [ 'role' => [ 'type' => 'string' ], 'text' => [ 'type' => 'string' ], 'at' => [ 'type' => 'string' ] ] ] ],
 		'summary' => [ 'type' => 'string', 'info' => 'the older turns summarized (an AI step with Continue the conversation does it)' ] ] ],
 	    'user' => [ 'type' => 'object', 'info' => 'who wrote it (a guest: no id, no email)', 'fields' => [ 'id' => [ 'type' => 'string' ], 'name' => [ 'type' => 'string' ], 'email' => [ 'type' => 'string' ] ] ],

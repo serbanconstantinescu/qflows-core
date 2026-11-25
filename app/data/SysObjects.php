@@ -338,6 +338,11 @@ class SysObjects {
 		'class' => 'models\credential\CredentialAmazonSes',
 		'variant-of' => 'Credential',
 	    ],
+	    //CLD: 2026-11-25T14:00:00+02:00: a Slack workspace's app (the Slack steps and message trigger), core for every account
+	    'CredentialSlack' => [
+		'class' => 'models\credential\CredentialSlack',
+		'variant-of' => 'Credential',
+	    ],
 	    //CLD: 2026-11-12T23:45:00+02:00: a Zendesk Support account (the Zendesk steps and ticket trigger), core for every account
 	    'CredentialZendesk' => [
 		'class' => 'models\credential\CredentialZendesk',
@@ -876,6 +881,31 @@ class SysObjects {
 	    ],
 	    'NodeAppChatReply' => [
 		'class' => 'models\node\NodeAppChatReply',
+		'wfNode' => true,
+	    ],
+	    //CLD: 2026-11-25T14:00:00+02:00: Slack (one step per area, NodeAppSlack their base; the message trigger: an agent conversation, events at /slack/<token> or polling), core for every account
+	    'NodeAppSlackMessages' => [
+		'class' => 'models\node\NodeAppSlackMessages',
+		'wfNode' => true,
+	    ],
+	    'NodeAppSlackChannels' => [
+		'class' => 'models\node\NodeAppSlackChannels',
+		'wfNode' => true,
+	    ],
+	    'NodeAppSlackUsers' => [
+		'class' => 'models\node\NodeAppSlackUsers',
+		'wfNode' => true,
+	    ],
+	    'NodeAppSlackFiles' => [
+		'class' => 'models\node\NodeAppSlackFiles',
+		'wfNode' => true,
+	    ],
+	    'NodeAppSlackApi' => [
+		'class' => 'models\node\NodeAppSlackApi',
+		'wfNode' => true,
+	    ],
+	    'NodeTriggerSlack' => [
+		'class' => 'models\node\NodeTriggerSlack',
 		'wfNode' => true,
 	    ],
 	    //Run a workflow (starts a workflow that starts with Called by a workflow; waits for its outputs, or continues)

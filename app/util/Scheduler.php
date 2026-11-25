@@ -43,7 +43,8 @@ class Scheduler {
 		continue;
 	    foreach(self::scheduleNodes($versionNodes[(string)$wf['version']] ?? [], $types) as $node) {
 		$cfg = is_array($node['config'] ?? null) ? $node['config'] : [];
-		if (!\models\wf\WfSchedule::matches($cfg, $t))
+		//CLD: 2026-11-25T14:00:00+02:00: the step's class decides (its matches(): WfSchedule's, or never when it does not poll, e.g. Slack message receiving events)
+		if (!$types[$node['fqname']]::matches($cfg, $t))
 		    continue;
 
 		$id = \models\Job::submit('\util\Scheduler::run', [
