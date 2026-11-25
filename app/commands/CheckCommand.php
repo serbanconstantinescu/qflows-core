@@ -15,7 +15,7 @@
 namespace commands;
 
 class CheckCommand extends \sys\BaseController {
-    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'slack', 's3', 'github', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'demo', 'ssh', 'windows', 'logpatterns' ];
+    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'slack', 's3', 'github', 'gitlab', 'entra', 'okta', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'demo', 'ssh', 'windows', 'logpatterns' ];
     //not run unless named in --only (demo: an account made and deleted, public services called)
     const SLOW = [ 'steps', 'demo' ];
 
@@ -7659,6 +7659,736 @@ class CheckCommand extends \sys\BaseController {
 	    }
 	    foreach($wfs as $wf)
 		\models\TriggerState::beforeWorkflowDelete($wf);
+	    foreach($files as $f)
+		$om->findOne('File', [ '_id' => $f ])?->delete();
+	    foreach($creds as $c)
+		$c->delete();
+	    proc_terminate($proc);
+	    proc_close($proc);
+	    foreach(glob("{$dir}/*") as $f)
+		@unlink($f);
+	    @rmdir($dir);
+	}
+    }
+
+    //CLD: 2026-11-26T01:00:00+02:00: Entra ID against a fake Microsoft Graph (commands/tests/EntraTestServer.php; util\Entra::$testing: its address for the sign-in and Graph): values,
+    //the credential (a client secret, a certificate's signed assertion, a wrong secret, the form), a 429 waited for, Users (search with ConsistencyLevel, the manager, create with a
+    //password made, a duplicate said, update, disable, reset the password, sign out, groups, offboard: groups left but not a dynamic one, licenses removed), Groups (by name,
+    //Microsoft 365 ones, create with members, add (already there: fine), remove), Access (licenses by SKU, an app role by name, sign-in methods reset, a temporary access pass),
+    //the API step, the AI tools, the change trigger (delta: users created / deleted, members added / removed; subscriptions made and renewed; the address's validation and clientState)
+    private function suiteEntra() {
+	$E = \util\Entra::class;
+	$TE = \models\node\NodeTriggerEntra::class;
+	$U = \models\node\NodeAppEntraUsers::class;
+	$om = \V::app()->om;
+	$n = [ self::class, 'node' ];
+	$e = [ self::class, 'edge' ];
+	$thrown = function(\Closure $f) {
+	    try {
+		$f();
+		return 'no error';
+	    } catch (\Throwable $x) {
+		return $x->getMessage();
+	    }
+	};
+	$pw = $U::newPassword();
+	$this->check('entra: values: a user by UPN (encoded) or ID, not one refused, an OData literal, a password made (16, the four kinds)', [
+	    'ana%40acme.com', '11111111-1111-1111-1111-111111111111', 'User: a user principal name (ana@acme.com) or an object ID: `ana`', "'O''Brien'", [ 16, true ] ], [
+	    \models\node\NodeAppEntra::userRef('ana@acme.com'), \models\node\NodeAppEntra::userRef([ 'id' => '11111111-1111-1111-1111-111111111111' ]), $thrown(fn() => \models\node\NodeAppEntra::userRef('ana')),
+	    $E::quote("O'Brien"), [ strlen($pw), (bool)preg_match('/[A-Z]/', $pw) && preg_match('/[a-z]/', $pw) && preg_match('/[0-9]/', $pw) && preg_match('/[^A-Za-z0-9]/', $pw) ] ]);
+
+	$dir = sys_get_temp_dir() . '/qflows-check-entra-' . uniqid();
+	@mkdir($dir, 0700, true);
+	$pk = openssl_pkey_new([ 'private_key_bits' => 2048 ]);
+	$crt = openssl_csr_sign(openssl_csr_new([ 'commonName' => 'qflows-check' ], $pk, [ 'digest_alg' => 'sha256' ]), null, $pk, 30, [ 'digest_alg' => 'sha256' ]);
+	openssl_x509_export($crt, $certPem);
+	openssl_pkey_export($pk, $keyPem);
+	file_put_contents("{$dir}/cert.pem", $certPem);
+	$server = $this->startServer('entra', 'EntraTestServer.php', $dir, [ 'ENTRA_STATE' => $dir, 'ENTRA_NO_VALIDATION' => '1' ]);
+	if (!$server)
+	    return;
+	[ $port, $proc ] = $server;
+	$E::$testing = "http://127.0.0.1:{$port}";
+	$requests = function() use ($dir) {
+	    $list = array_map(fn($l) => json_decode($l, true), array_filter(explode("\n", (string)@file_get_contents("{$dir}/requests.jsonl"))));
+	    @unlink("{$dir}/requests.jsonl");
+	    return $list;
+	};
+	$db = fn() => json_decode((string)@file_get_contents("{$dir}/db.json"), true);
+	$ANA = '11111111-1111-1111-1111-111111111111';
+	$DAN = '22222222-2222-2222-2222-222222222222';
+	$SALES = 'aaaaaaaa-0000-0000-0000-000000000001';
+	$creds = [];
+	$wfs = [];
+	$started = [];
+	$jobs = [];
+	try {
+	    $make = function(array $over) use ($om, &$creds) {
+		$c = $om->create('CredentialEntra', $over + [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'name' => 'Check: Entra ' . uniqid(), 'tenantId' => 'acme.onmicrosoft.com',
+		    'clientId' => '99999999-9999-9999-9999-999999999999' ]);
+		if (!$c->validates() || !$c->save()) {
+		    $this->fail('entra: the credential was not saved: ' . json_encode($c->errors()));
+		    return null;
+		}
+		$creds[] = $c;
+		return $om->findById('CredentialEntra', (string)$c->_id);
+	    };
+	    $sec = $make([ 'auth' => 'secret', 'clientSecret' => 'sec-check' ]);
+	    $cer = $make([ 'auth' => 'certificate', 'certificate' => $certPem, 'privateKey' => $keyPem, 'clientId' => '88888888-8888-8888-8888-888888888888' ]);
+	    $wrong = $make([ 'auth' => 'secret', 'clientSecret' => 'nope', 'clientId' => '77777777-7777-7777-7777-777777777777' ]);
+	    if (!$sec || !$cer || !$wrong)
+		return;
+	    $bad = $om->create('CredentialEntra', [ 'name' => 'x', 'tenantId' => 'not a tenant', 'clientId' => 'x', 'auth' => 'certificate', 'certificate' => 'no', 'privateKey' => 'no' ]);
+	    $bad->validates();
+	    file_put_contents("{$dir}/busy.json", '1');
+	    $this->check('entra: the form (a tenant, a client ID, a certificate, a private key); Test: the organization (after a 429\'s wait), with a certificate\'s signed assertion; a wrong secret said', [
+		[ 'tenantId', 'clientId', 'certificate', 'privateKey' ], 'connected to Acme (acme.com)', 'connected to Acme (acme.com)', 'the sign-in was refused: AADSTS7000215: Invalid client secret provided.' ], [
+		array_values(array_intersect([ 'tenantId', 'clientId', 'certificate', 'privateKey' ], array_keys((array)$bad->errors()))), $sec->test(), $cer->test(), $thrown(fn() => $wrong->test()) ]);
+
+	    $step = function($fq, $cfg, $vars = []) use ($n, $e, $sec, $requests) {
+		$requests();
+		$exe = $this->runFlow("entra {$fq}", [ $n('m', 'trigger::manual'), $n('s', $fq, $cfg + [ 'credential' => (string)$sec->_id, 'onError' => 'output' ]),
+		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
+		return [ $exe, $requests() ];
+	    };
+
+	    //the change trigger, its first check before the changes below (it reads to the end, starts nothing)
+	    $save = fn($x) => $x->save();
+	    $wf = $this->workflow('entra change', [ $n('t', 'trigger::entra', $TE::initConfig() + [ 'credential' => (string)$sec->_id, 'receive' => 'poll', 'kinds' => array_keys($TE::KINDS),
+		'mode' => 'interval', 'every' => 5, 'every_unit' => 'minutes' ]), $n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ change.kind }}' ]), $e('e1', 't', 's') ]);
+	    $this->check('entra: change: the workflow is valid', true, $wf->validates());
+	    $wf->save();
+	    $this->created[] = $wf->_id;
+	    $wfs[] = $wf;
+	    $node = $wf->nodes['t'];
+	    [ $s0, $none ] = $TE::check($wf, $node, [], $save);
+
+	    //Users
+	    $US = 'app::entra-users';
+	    [ $u1, $sentL ] = $step($US, [ 'operation' => 'list', 'search' => 'ana', 'enabled' => 'true', 'variable' => 'x' ]);
+	    [ $u2, ] = $step($US, [ 'operation' => 'get', 'user' => 'dan@acme.com', 'withManager' => true, 'variable' => 'x' ]);
+	    [ $u3, $sentC ] = $step($US, [ 'operation' => 'create', 'displayName' => 'Eva Marin', 'upn' => 'eva@acme.com', 'department' => 'HR', 'usageLocation' => 'ro', 'more' => '{"employeeId": "4711"}', 'variable' => 'x' ]);
+	    $eva = (string)($u3?->getVariable('x')['id'] ?? '');
+	    [ $u4, ] = $step($US, [ 'operation' => 'create', 'displayName' => 'Eva', 'upn' => 'eva@acme.com', 'variable' => 'x' ]);
+	    [ $u5, ] = $step($US, [ 'operation' => 'update', 'user' => 'eva@acme.com', 'jobTitle' => 'Recruiter', 'variable' => 'x' ]);
+	    [ $u6, ] = $step($US, [ 'operation' => 'disable', 'user' => $eva, 'variable' => 'x' ]);
+	    [ $u7, ] = $step($US, [ 'operation' => 'resetPassword', 'user' => $eva, 'variable' => 'x' ]);
+	    [ $u8, ] = $step($US, [ 'operation' => 'groups', 'user' => 'dan@acme.com', 'variable' => 'x' ]);
+	    [ $u9, ] = $step($US, [ 'operation' => 'setManager', 'user' => $eva, 'manager' => 'ana@acme.com', 'variable' => 'x' ]);
+	    $this->check('entra: Users list (a search: ConsistencyLevel eventual; enabled only), get with the manager, create (a password made, given back; a usage location in capitals; more properties), '
+		. 'the same UPN again: error, update, disable, reset the password (made), the groups, set the manager', [
+		[ [ 'ana@acme.com' ], 'eventual' ], [ 'Dan Ionescu', 'ana@acme.com' ], [ 'eva@acme.com', 16, 'RO', '4711', true ], 'error', 'Recruiter', false, [ 16, true ], [ 'Sales', 'Ops', 'All staff' ], $ANA ], [
+		[ array_column($u1?->getVariable('x')['items'] ?? [], 'upn'), $sentL[1]['consistency'] ?? ($sentL[0]['consistency'] ?? null) ], [ $u2?->getVariable('x')['displayName'] ?? null, $u2?->getVariable('x')['manager']['upn'] ?? null ],
+		[ $u3?->getVariable('x')['upn'] ?? null, strlen((string)($u3?->getVariable('x')['password'] ?? '')), $db()['users'][$eva]['usageLocation'] ?? null, $db()['users'][$eva]['employeeId'] ?? null,
+		    $db()['passwords'][$eva]['forceChangePasswordNextSignIn'] ?? null ], $u4?->getVariable('route'), $u5?->getVariable('x')['jobTitle'] ?? null, $u6?->getVariable('x')['enabled'] ?? null,
+		[ strlen((string)($u7?->getVariable('x')['password'] ?? '')), $db()['passwords'][$eva]['password'] === ($u7?->getVariable('x')['password'] ?? '-') ], array_column($u8?->getVariable('x')['items'] ?? [], 'displayName'),
+		$db()['managers'][$eva] ?? null ]);
+
+	    //Access
+	    $A = 'app::entra-access';
+	    [ $a1, ] = $step($A, [ 'operation' => 'skus', 'variable' => 'x' ]);
+	    [ $a2, ] = $step($A, [ 'operation' => 'assignLicense', 'user' => 'ana@acme.com', 'sku' => 'spe_e3', 'variable' => 'x' ]);
+	    [ $a3, ] = $step($A, [ 'operation' => 'assignApp', 'user' => 'ana@acme.com', 'app' => 'Payroll', 'role' => 'viewer', 'variable' => 'x' ]);
+	    [ $a4, ] = $step($A, [ 'operation' => 'assignApp', 'user' => 'ana@acme.com', 'app' => 'Payroll', 'role' => 'Admin', 'variable' => 'x' ]);
+	    [ $a5, ] = $step($A, [ 'operation' => 'appRoles', 'user' => 'ana@acme.com', 'variable' => 'x' ]);
+	    [ $a6, ] = $step($A, [ 'operation' => 'removeApp', 'user' => 'ana@acme.com', 'app' => 'Payroll', 'variable' => 'x' ]);
+	    [ $a7, ] = $step($A, [ 'operation' => 'methods', 'user' => 'dan@acme.com', 'variable' => 'x' ]);
+	    [ $a8, ] = $step($A, [ 'operation' => 'resetMfa', 'user' => 'dan@acme.com', 'variable' => 'x' ]);
+	    [ $a9, ] = $step($A, [ 'operation' => 'createTap', 'user' => 'dan@acme.com', 'minutes' => 120, 'variable' => 'x' ]);
+	    $this->check('entra: Access: the tenant\'s licenses (9 available), assign one by part number, an app role by its value (another: error), the user\'s apps, removed; sign-in methods, '
+		. 'reset (the password kept), a temporary access pass', [
+		[ 'SPE_E3', 9 ], [ 'sku-e3-0000-0000-0000-000000000000' ], [ 'role0000-0000-0000-0000-000000000001', 'error' ], [ 'Payroll' ], 1, 3, [ [ 'phoneAuthenticationMethod', 'microsoftAuthenticatorAuthenticationMethod' ], [ 'pwd' ] ],
+		[ 'TAP-12345', 120 ] ], [
+		[ $a1?->getVariable('x')['items'][0]['sku'] ?? null, $a1?->getVariable('x')['items'][0]['available'] ?? null ], $db()['licenses'][$ANA] ?? null, [ $a3?->getVariable('x')['roleId'] ?? null, $a4?->getVariable('route') ],
+		array_column($a5?->getVariable('x')['items'] ?? [], 'app'), $a6?->getVariable('x')['removed'] ?? null, $a7?->getVariable('x')['count'] ?? null,
+		[ $a8?->getVariable('x')['removed'] ?? null, array_column($db()['methods'][$DAN] ?? [], 'id') ], [ $a9?->getVariable('x')['pass'] ?? null, $a9?->getVariable('x')['minutes'] ?? null ] ]);
+
+	    //Groups
+	    $G = 'app::entra-groups';
+	    [ $g1, ] = $step($G, [ 'operation' => 'list', 'kind' => 'microsoft365', 'variable' => 'x' ]);
+	    [ $g2, ] = $step($G, [ 'operation' => 'get', 'group' => 'Sales', 'variable' => 'x' ]);
+	    [ $g3, $sentG ] = $step($G, [ 'operation' => 'create', 'displayName' => 'Incident 4711', 'users' => '{{ who }}', 'ownersOf' => 'ana@acme.com', 'variable' => 'x' ], [ 'who' => [ 'ana@acme.com', $DAN ] ]);
+	    [ $g4, ] = $step($G, [ 'operation' => 'addMembers', 'group' => 'Sales', 'users' => 'eva@acme.com, dan@acme.com', 'variable' => 'x' ]);
+	    [ $g5, ] = $step($G, [ 'operation' => 'members', 'group' => $SALES, 'variable' => 'x' ]);
+	    [ $g6, ] = $step($G, [ 'operation' => 'removeMember', 'group' => 'Sales', 'user' => 'eva@acme.com', 'variable' => 'x' ]);
+	    [ $g7, ] = $step($G, [ 'operation' => 'get', 'group' => 'Nope', 'variable' => 'x' ]);
+	    $this->check('entra: Groups: Microsoft 365 ones, one by name (security), create (members and an owner bound, a mail nickname from the name), add (one already there: fine), the members, remove one; '
+		. 'no such group: error', [
+		[ 'Ops' ], [ 'Sales', 'security' ], [ 'security', 'Incident-4711', 2, 1 ], [ [ $eva ], [ $DAN ] ], [ 'Dan Ionescu', 'Eva Marin' ], $eva, 'error' ], [
+		array_column($g1?->getVariable('x')['items'] ?? [], 'displayName'), [ $g2?->getVariable('x')['displayName'] ?? null, $g2?->getVariable('x')['kind'] ?? null ],
+		[ $g3?->getVariable('x')['kind'] ?? null, $sentG[count($sentG) - 1]['body']['mailNickname'] ?? null, count($sentG[count($sentG) - 1]['body']['members@odata.bind'] ?? []), count($sentG[count($sentG) - 1]['body']['owners@odata.bind'] ?? []) ],
+		[ $g4?->getVariable('x')['added'] ?? null, $g4?->getVariable('x')['already'] ?? null ], array_column($g5?->getVariable('x')['items'] ?? [], 'displayName'), $g6?->getVariable('x')['removed'] ?? null, $g7?->getVariable('route') ]);
+
+	    //offboard, the API step, the tools
+	    [ $o1, ] = $step($US, [ 'operation' => 'offboard', 'user' => 'dan@acme.com', 'removeManager' => true, 'variable' => 'x' ]);
+	    [ $api, ] = $step('app::entra-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/organization', 'variable' => 'z' ]);
+	    [ $apiBad, ] = $step('app::entra-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/users/../x', 'variable' => 'z' ]);
+	    $ops = \util\AgentTools::operations('entra');
+	    $o = $o1?->getVariable('x') ?? [];
+	    $this->check('entra: Users offboard: disabled, signed out, the groups left (not the dynamic one), the licenses and the manager removed; API: any path; .. refused; as AI tools', [
+		[ true, true, [ 'Sales', 'Ops', 'Incident 4711' ], [ 'All staff' ], [ 'SPE_E3' ], true, [], false, true ], [ 'Acme', 'error' ], [ true, false, false, true ] ], [
+		[ $o['disabled'] ?? null, $o['sessionsRevoked'] ?? null, $o['groupsRemoved'] ?? null, $o['groupsKept'] ?? null, $o['licensesRemoved'] ?? null, $o['managerRemoved'] ?? null, $o['errors'] ?? null,
+		    $db()['users'][$DAN]['accountEnabled'] ?? null, in_array($DAN, $db()['revoked'] ?? [], true) ], [ $api?->getVariable('z')['data']['value'][0]['displayName'] ?? null, $apiBad?->getVariable('route') ],
+		[ $ops['entra_users_offboard']['writes'] ?? null, $ops['entra_users_get']['writes'] ?? null, $ops['entra_groups_members']['writes'] ?? null, $ops['entra_access_reset_mfa']['writes'] ?? null ] ]);
+
+	    //the change trigger: what changed since its first check (a delta query gives an object's state now: the deletion is read apart)
+	    [ $s1, $changes ] = $TE::check($wf, $node, $s0, $save);
+	    [ $d1, ] = $step($US, [ 'operation' => 'delete', 'user' => 'eva@acme.com', 'variable' => 'x' ]);
+	    [ $s2, $deleted ] = $TE::check($wf, $node, $s1, $save);
+	    [ , $again ] = $TE::check($wf, $node, $s2, $save);
+	    $started = array_merge($started, $changes, $deleted, $again);
+	    $kinds = array_map(fn($x) => [ $x->getVariable('change')['kind'] ?? null, $x->getVariable('change')['user']['upn'] ?? $x->getVariable('change')['user']['id'] ?? null, $x->getVariable('change')['group']['displayName'] ?? null ], $changes);
+	    $only = array_replace_recursive($node, [ 'config' => [ 'kinds' => [ 'memberRemoved' ], 'groups' => 'Ops' ] ]);
+	    [ , $opsOnly ] = $TE::check($wf, $only, [ 'since' => $s0['since'], 'groups' => $s0['groups'] ], $save);
+	    $started = array_merge($started, $opsOnly);
+	    $this->check('entra: change: the first check reads to the end and starts nothing; then: a user created (its UPN), changed, deleted; members added (with the user) and removed (with the group\'s name); '
+		. 'checked again: none; only members removed from Ops', [
+		[ [], true, true, true, true, true, [ 'userDeleted', $eva ] ], [], [ [ 'memberRemoved', $DAN, 'Ops' ] ] ], [
+		[ $none, in_array([ 'userCreated', 'eva@acme.com', null ], $kinds, true), in_array([ 'userUpdated', 'dan@acme.com', null ], $kinds, true),
+		    in_array([ 'memberAdded', 'eva@acme.com', 'Sales' ], $kinds, true), in_array([ 'memberRemoved', $eva, 'Sales' ], $kinds, true), in_array([ 'memberRemoved', $DAN, 'Ops' ], $kinds, true),
+		    array_values(array_unique(array_map(fn($x) => $x->getVariable('change')['kind'] . ' ' . ($x->getVariable('change')['user']['id'] ?? ''), $deleted)))
+			=== [ 'userDeleted ' . $eva ] ? [ 'userDeleted', $eva ] : array_map(fn($x) => $x->getVariable('change')['kind'], $deleted) ], $again,
+		array_map(fn($x) => [ $x->getVariable('change')['kind'] ?? null, $x->getVariable('change')['user']['id'] ?? null, $x->getVariable('change')['group']['displayName'] ?? null ], $opsOnly) ]);
+
+	    //notifications: the subscriptions, their renewal
+	    $nnode = array_replace_recursive($node, [ 'config' => [ 'receive' => 'notifications' ] ]);
+	    [ $n1, $nr1 ] = $TE::check($wf, $nnode, $s2, $save);
+	    $subs1 = $db()['subs'] ?? [];
+	    $n1['subs'][0]['expires'] = gmdate('Y-m-d\TH:i:s\Z', time() + 3600);
+	    [ $n2, $nr2 ] = $TE::check($wf, array_replace_recursive($nnode, [ 'config' => [ 'kinds' => [ 'userCreated' ] ] ]), $n1, $save);
+	    $started = array_merge($started, $nr1, $nr2);
+	    $subs2 = $db()['subs'] ?? [];
+	    $this->check('entra: change: notifications: subscriptions to users and groups (the step\'s address and secret), hourly checks; one ending within a day renewed, one no longer needed deleted', [
+		[ [ 'users', 'groups' ], true, true ], [ true, [ 'users' ] ], [ true, false ] ], [
+		[ array_column(array_values($subs1), 'resource'), (array_values($subs1)[0]['notificationUrl'] ?? '') === $node['config']['url'], (array_values($subs1)[0]['clientState'] ?? '') === $node['config']['secret'] ],
+		[ !empty(array_values($subs2)[0]['renewed']), array_column(array_values($subs2), 'resource') ],
+		[ $TE::matches([ 'receive' => 'notifications' ], new \DateTimeImmutable('2026-11-25 10:07:00')), $TE::matches([ 'receive' => 'notifications' ], new \DateTimeImmutable('2026-11-25 10:08:00')) ] ]);
+
+	    //the address
+	    $init = $TE::initConfig();
+	    $ev = $this->workflow('entra notifications', [ $n('t', 'trigger::entra', $init + [ 'credential' => (string)$sec->_id, 'receive' => 'notifications', 'kinds' => [ 'userCreated' ] ]),
+		$n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ change.kind }}' ]), $e('e1', 't', 's') ]);
+	    $ev->save();
+	    $this->created[] = $ev->_id;
+	    $wfs[] = $ev;
+	    $version = $om->create('WfVersion', [ 'aid' => $ev->aid, 'project' => $ev->project, 'wf' => $ev->_id, 'number' => 1, 'name' => (string)$ev->name, 'nodes' => $ev->nodes ]);
+	    $version->save();
+	    $ev->version = $version->_id;
+	    $ev->status = \models\Workflow::PUBLISHED;
+	    $ev->save();
+	    $host = (string)parse_url($init['url'], PHP_URL_HOST);
+	    $post = function($url, $body, $method = 'POST') use ($host) {
+		$ch = curl_init($url);
+		curl_setopt_array($ch, [ CURLOPT_CUSTOMREQUEST => $method, CURLOPT_POSTFIELDS => $body, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20, CURLOPT_HTTPHEADER => [ 'Content-Type: application/json' ],
+		    CURLOPT_RESOLVE => [ "{$host}:443:127.0.0.1" ], CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0 ]);
+		$answer = (string)curl_exec($ch);
+		$status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+		curl_close($ch);
+		return [ $status, $answer ];
+	    };
+	    [ $status, $echo ] = $post($init['url'] . '?validationToken=Validation%3A%20abc', '');
+	    if ($status === 0) {
+		echo "  skipped: the change trigger's address (this installation's web server cannot be reached from here)\n";
+	    } else {
+		[ $wrongState ] = $post($init['url'], json_encode([ 'value' => [ [ 'clientState' => 'wrong', 'changeType' => 'created', 'resource' => 'users/x' ] ] ]));
+		[ $okStatus, $answer ] = $post($init['url'], json_encode([ 'value' => [ [ 'clientState' => $init['secret'], 'changeType' => 'created', 'resource' => 'users/x' ] ] ]));
+		$jobs = iterator_to_array($om->find('Job', [ 'job_spec' => '\\util\\Scheduler::run', 'job_data.wf' => (string)$ev->_id ]), false);
+		//a running daemon may have taken the job already: its state said, not counted
+		$this->check('entra: change: the address: the validation token answered as text; a wrong clientState refused; a notification: the step\'s check queued (202)', [
+		    [ 200, 'Validation: abc' ], 401, [ 202, 'queued' ] ], [ [ $status, $echo ], $wrongState, [ $okStatus, json_decode($answer, true)['state'] ?? null ] ]);
+	    }
+	} finally {
+	    $E::$testing = null;
+	    foreach($jobs as $j)
+		$j->delete();
+	    foreach($started as $x) {
+		foreach($om->find('Job', [ 'job_spec' => '\\util\\Scheduler::start', 'job_data.exe' => (string)$x->_id ]) as $job)
+		    $job->delete();
+		$x->delete();
+	    }
+	    foreach($wfs as $wf) {
+		\models\TriggerState::beforeWorkflowDelete($wf);
+		foreach($om->find('WfVersion', [ 'wf' => $wf->_id ]) as $v)
+		    $v->delete();
+		foreach($om->find('TriggerToken', [ 'wf' => $wf->_id ]) as $t)
+		    $t->delete();
+	    }
+	    foreach($creds as $c)
+		$c->delete();
+	    proc_terminate($proc);
+	    proc_close($proc);
+	    foreach(glob("{$dir}/*") as $f)
+		@unlink($f);
+	    @rmdir($dir);
+	}
+    }
+
+    //CLD: 2026-11-26T02:00:00+02:00: Okta against a fake org (commands/tests/OktaTestServer.php; util\Okta::$testing: its address): the credential (an API token, an OAuth service app's
+    //private key JWT, a wrong token, the form), a 429 waited for, pages through two Link headers, Users (search, an expression, create staged, a duplicate login said, update,
+    //suspend, a reset link given back, expire, sign out, groups, delete: deactivated first, offboard: Okta groups left, app and built-in ones kept, apps removed, deactivated),
+    //Groups (by name, create, add, members, remove, an app group not deleted), Access (apps, assign by label, remove, factors reset), the API step, the AI tools, the event
+    //trigger (the System Log polled: types and outcome, each event once; the hook's verification, its Authorization header, events once)
+    private function suiteOkta() {
+	$TO = \models\node\NodeTriggerOkta::class;
+	$om = \V::app()->om;
+	$n = [ self::class, 'node' ];
+	$e = [ self::class, 'edge' ];
+	$thrown = function(\Closure $f) {
+	    try {
+		$f();
+		return 'no error';
+	    } catch (\Throwable $x) {
+		return $x->getMessage();
+	    }
+	};
+	$dir = sys_get_temp_dir() . '/qflows-check-okta-' . uniqid();
+	@mkdir($dir, 0700, true);
+	$pk = openssl_pkey_new([ 'private_key_bits' => 2048 ]);
+	openssl_pkey_export($pk, $keyPem);
+	file_put_contents("{$dir}/app.pub", openssl_pkey_get_details($pk)['key']);
+	$server = $this->startServer('okta', 'OktaTestServer.php', $dir, [ 'OKTA_STATE' => $dir ]);
+	if (!$server)
+	    return;
+	[ $port, $proc ] = $server;
+	\util\Okta::$testing = "http://127.0.0.1:{$port}";
+	$requests = function() use ($dir) {
+	    $list = array_map(fn($l) => json_decode($l, true), array_filter(explode("\n", (string)@file_get_contents("{$dir}/requests.jsonl"))));
+	    @unlink("{$dir}/requests.jsonl");
+	    return $list;
+	};
+	$db = fn() => json_decode((string)@file_get_contents("{$dir}/db.json"), true);
+	$DAN = '00udan0000000002';
+	$creds = [];
+	$wfs = [];
+	$started = [];
+	try {
+	    $make = function(array $over) use ($om, &$creds) {
+		$c = $om->create('CredentialOkta', $over + [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'name' => 'Check: Okta ' . uniqid(), 'orgUrl' => 'https://acme.okta.com' ]);
+		if (!$c->validates() || !$c->save()) {
+		    $this->fail('okta: the credential was not saved: ' . json_encode($c->errors()));
+		    return null;
+		}
+		$creds[] = $c;
+		return $om->findById('CredentialOkta', (string)$c->_id);
+	    };
+	    $tok = $make([ 'auth' => 'token', 'apiToken' => 'ssws-check' ]);
+	    $app = $make([ 'auth' => 'oauth', 'clientId' => 'client-check', 'privateKey' => $keyPem ]);
+	    $wrong = $make([ 'auth' => 'token', 'apiToken' => 'nope' ]);
+	    if (!$tok || !$app || !$wrong)
+		return;
+	    $bad = $om->create('CredentialOkta', [ 'name' => 'x', 'orgUrl' => 'https://acme-admin.okta.com', 'auth' => 'oauth', 'clientId' => 'c', 'privateKey' => 'not a key' ]);
+	    $bad->validates();
+	    file_put_contents("{$dir}/throttle.json", '1');
+	    $this->check('okta: the form (not the -admin address, a private key); Test: the org and the token\'s admin (after a 429\'s wait), the OAuth app (its signed assertion); a wrong token said', [
+		[ 'orgUrl', 'privateKey' ], 'connected to Acme as ana@acme.com', 'connected to Acme', 'HTTP status 401 (E0000011): Invalid token provided' ], [
+		array_values(array_intersect([ 'orgUrl', 'privateKey' ], array_keys((array)$bad->errors()))), $tok->test(), $app->test(), $thrown(fn() => $wrong->test()) ]);
+
+	    $step = function($fq, $cfg, $vars = [], $cred = null) use ($n, $e, $tok, $requests) {
+		$requests();
+		$exe = $this->runFlow("okta {$fq}", [ $n('m', 'trigger::manual'), $n('s', $fq, $cfg + [ 'credential' => (string)($cred ?? $tok)->_id, 'onError' => 'output' ]),
+		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
+		return [ $exe, $requests() ];
+	    };
+
+	    //the event trigger's first check, before the changes below
+	    $save = fn($x) => $x->save();
+	    $wf = $this->workflow('okta events', [ $n('t', 'trigger::okta', $TO::initConfig() + [ 'credential' => (string)$tok->_id, 'receive' => 'poll',
+		'types' => "user.lifecycle.create\ngroup.user_membership.remove, user.lifecycle.deactivate", 'mode' => 'interval', 'every' => 5, 'every_unit' => 'minutes' ]),
+		$n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ event.type }}' ]), $e('e1', 't', 's') ]);
+	    $badTypes = $this->errorsOf('okta bad types', [ $n('t', 'trigger::okta', $TO::initConfig() + [ 'credential' => (string)$tok->_id, 'types' => 'User Created' ]) ]);
+	    $this->check('okta: event: the workflow is valid; types that are not Okta\'s refused', [ true, true ], [ $wf->validates(), str_contains(json_encode($badTypes), 'Event types') ]);
+	    $wf->save();
+	    $this->created[] = $wf->_id;
+	    $wfs[] = $wf;
+	    $node = $wf->nodes['t'];
+	    [ $s0, $none ] = $TO::check($wf, $node, [], $save);
+	    sleep(1);
+
+	    //Users
+	    $US = 'app::okta-users';
+	    [ $u1, ] = $step($US, [ 'operation' => 'list', 'q' => 'dan', 'variable' => 'x' ], [], $app);
+	    [ $u2, ] = $step($US, [ 'operation' => 'list', 'search' => 'profile.department eq "IT"', 'status' => 'ACTIVE', 'maxItems' => 1, 'variable' => 'x' ]);
+	    [ $u3, $sentC ] = $step($US, [ 'operation' => 'create', 'firstName' => 'Eva', 'lastName' => 'Marin', 'email' => 'eva@acme.com', 'department' => 'HR', 'activate' => false, 'variable' => 'x' ]);
+	    $eva = (string)($u3?->getVariable('x')['id'] ?? '');
+	    [ $u4, ] = $step($US, [ 'operation' => 'create', 'firstName' => 'Eva', 'lastName' => 'M', 'email' => 'eva@acme.com', 'variable' => 'x' ]);
+	    [ $u5, ] = $step($US, [ 'operation' => 'update', 'user' => 'eva@acme.com', 'title' => 'Recruiter', 'variable' => 'x' ]);
+	    [ $u6, ] = $step($US, [ 'operation' => 'activate', 'user' => $eva, 'variable' => 'x' ]);
+	    [ $u7, ] = $step($US, [ 'operation' => 'suspend', 'user' => $eva, 'variable' => 'x' ]);
+	    [ $u8, ] = $step($US, [ 'operation' => 'resetPassword', 'user' => 'dan@acme.com', 'sendEmail' => false, 'variable' => 'x' ]);
+	    [ $u9, ] = $step($US, [ 'operation' => 'clearSessions', 'user' => 'dan@acme.com', 'variable' => 'x' ]);
+	    [ $u10, ] = $step($US, [ 'operation' => 'groups', 'user' => 'dan@acme.com', 'variable' => 'x' ]);
+	    [ $u11, ] = $step($US, [ 'operation' => 'delete', 'user' => $eva, 'variable' => 'x' ]);
+	    [ $u12, ] = $step($US, [ 'operation' => 'delete', 'user' => 'old@acme.com', 'variable' => 'x' ]);
+	    $this->check('okta: Users list (a search, through the OAuth app; an expression with a status, At most 1 of more), create staged (the login: the email), the same login again: Okta\'s cause said, '
+		. 'update (the others kept), activate, suspend, a reset link given back, sign out (the OAuth tokens too), groups, delete: not deactivated refused, a deactivated one deleted', [
+		[ 'dan@acme.com' ], [ 1, false ], [ 'STAGED', 'eva@acme.com', 'false' ], 'error', [ 'Recruiter', 'HR' ], 'ACTIVE', 'SUSPENDED', 'https://acme.okta.com/reset_password/abc', [ $DAN, 'true' ],
+		[ 'Sales', 'AD Staff', 'Everyone' ], 'error', true ], [
+		array_column($u1?->getVariable('x')['items'] ?? [], 'login'), [ $u2?->getVariable('x')['count'] ?? null, $u2?->getVariable('x')['truncated'] ?? null ],
+		[ $u3?->getVariable('x')['status'] ?? null, $u3?->getVariable('x')['login'] ?? null, $sentC[0]['query']['activate'] ?? null ], $u4?->getVariable('route'),
+		[ $u5?->getVariable('x')['title'] ?? null, $u5?->getVariable('x')['department'] ?? null ], $u6?->getVariable('x')['status'] ?? null, $u7?->getVariable('x')['status'] ?? null,
+		$u8?->getVariable('x')['resetUrl'] ?? null, $db()['sessionsCleared'][0] ?? null, array_column($u10?->getVariable('x')['items'] ?? [], 'name'), $u11?->getVariable('route'), $u12?->getVariable('x')['deleted'] ?? null ]);
+
+	    //Groups, Access
+	    $G = 'app::okta-groups';
+	    [ $g1, ] = $step($G, [ 'operation' => 'create', 'name' => 'Incident 4711', 'description' => 'War room', 'variable' => 'x' ]);
+	    [ $g2, ] = $step($G, [ 'operation' => 'addMembers', 'group' => 'Incident 4711', 'users' => '{{ who }}', 'variable' => 'x' ], [ 'who' => [ 'ana@acme.com', $DAN ] ]);
+	    [ $g3, ] = $step($G, [ 'operation' => 'members', 'group' => 'Incident 4711', 'variable' => 'x' ]);
+	    [ $g4, ] = $step($G, [ 'operation' => 'removeMember', 'group' => 'Incident 4711', 'user' => 'ana@acme.com', 'variable' => 'x' ]);
+	    [ $g5, ] = $step($G, [ 'operation' => 'delete', 'group' => 'AD Staff', 'variable' => 'x' ]);
+	    [ $g6, ] = $step($G, [ 'operation' => 'list', 'search' => 'type eq "OKTA_GROUP"', 'variable' => 'x' ]);
+	    $A = 'app::okta-access';
+	    [ $a1, ] = $step($A, [ 'operation' => 'apps', 'user' => 'dan@acme.com', 'variable' => 'x' ]);
+	    [ $a2, ] = $step($A, [ 'operation' => 'assignApp', 'user' => 'ana@acme.com', 'app' => 'payroll', 'appProfile' => '{"role": "viewer"}', 'variable' => 'x' ]);
+	    [ $a3, ] = $step($A, [ 'operation' => 'removeApp', 'user' => 'ana@acme.com', 'app' => 'Payroll', 'variable' => 'x' ]);
+	    [ $a4, ] = $step($A, [ 'operation' => 'factors', 'user' => 'dan@acme.com', 'variable' => 'x' ]);
+	    [ $a5, ] = $step($A, [ 'operation' => 'resetFactor', 'user' => 'dan@acme.com', 'factor' => 'sms', 'variable' => 'x' ]);
+	    $afterOne = array_column($db()['factors'][$DAN] ?? [], 'id');
+	    [ $a6, ] = $step($A, [ 'operation' => 'resetFactors', 'user' => 'dan@acme.com', 'variable' => 'x' ]);
+	    $this->check('okta: Groups create, add people (logins and IDs), the members, remove one, an app group not deleted, the Okta groups; Access: a person\'s apps, assign by label (any case; app '
+		. 'attributes), remove, the factors, reset one by type, reset all', [
+		[ 'Incident 4711', 2, [ 'Ana Pop', 'Dan Ionescu' ], 'error', [ 'Sales', 'Incident 4711' ] ], [ [ 'Payroll' ], 'PROVISIONED', true, [ 'push', 'sms' ], [ 'opf1abcdefghijklm' ], [ 1, [] ] ] ], [
+		[ $g1?->getVariable('x')['name'] ?? null, count($g2?->getVariable('x')['added'] ?? []), array_column($g3?->getVariable('x')['items'] ?? [], 'displayName'), $g5?->getVariable('route'),
+		    array_column($g6?->getVariable('x')['items'] ?? [], 'name') ],
+		[ array_column($a1?->getVariable('x')['items'] ?? [], 'label'), $a2?->getVariable('x')['status'] ?? null, $a3?->getVariable('x')['removed'] ?? null, array_column($a4?->getVariable('x')['items'] ?? [], 'type'),
+		    $afterOne, [ $a6?->getVariable('x')['reset'] ?? null, $db()['factors'][$DAN] ?? null ] ] ]);
+
+	    //offboard, the API step, the tools
+	    [ $o1, ] = $step($US, [ 'operation' => 'offboard', 'user' => 'dan@acme.com', 'removeApps' => true, 'variable' => 'x' ]);
+	    [ $api, ] = $step('app::okta-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/users', 'query' => '{"limit": 1}', 'variable' => 'z' ]);
+	    $ops = \util\AgentTools::operations('okta');
+	    $o = $o1?->getVariable('x') ?? [];
+	    $this->check('okta: Users offboard: the Okta groups left (the app group and Everyone kept), the app removed, signed out, deactivated; API: the next page said; as AI tools', [
+		[ [ 'Sales', 'Incident 4711' ], [ 'AD Staff', 'Everyone' ], [ 'Payroll' ], true, 'DEPROVISIONED', [], 'DEPROVISIONED' ], [ 1, true ], [ true, false, true, false ] ], [
+		[ $o['groupsRemoved'] ?? null, $o['groupsKept'] ?? null, $o['appsRemoved'] ?? null, $o['sessionsCleared'] ?? null, $o['locked'] ?? null, $o['errors'] ?? null, $db()['users'][$DAN]['status'] ?? null ],
+		[ count($api?->getVariable('z')['data'] ?? []), str_contains((string)($api?->getVariable('z')['next'] ?? ''), 'after=1') ],
+		[ $ops['okta_users_offboard']['writes'] ?? null, $ops['okta_users_get']['writes'] ?? null, $ops['okta_access_reset_factors']['writes'] ?? null, $ops['okta_groups_members']['writes'] ?? null ] ]);
+
+	    //the event trigger: the log since its first check
+	    [ $s1, $events ] = $TO::check($wf, $node, $s0, $save);
+	    [ , $again ] = $TO::check($wf, $node, $s1, $save);
+	    $started = array_merge($started, $events, $again);
+	    $types = array_map(fn($x) => [ $x->getVariable('event')['type'] ?? null, $x->getVariable('event')['target']['login'] ?? null ], $events);
+	    $this->check('okta: event: polling: the first check only notes the time; then the events of the types chosen, oldest first (a person created, removed from groups, deactivated; not suspended, '
+		. 'not a profile update), with the actor and the place; checked again: none', [
+		[ [], [ 'user.lifecycle.create', 'eva@acme.com' ], true, true, false, [ 'admin@acme.com', 'Bucharest' ] ], [] ], [
+		[ $none, $types[0] ?? null, in_array([ 'group.user_membership.remove', 'dan@acme.com' ], $types, true), in_array([ 'user.lifecycle.deactivate', 'dan@acme.com' ], $types, true),
+		    (bool)array_filter($types, fn($t) => $t[0] === 'user.lifecycle.suspend'), [ $events[0]?->getVariable('event')['actor']['login'] ?? null, $events[0]?->getVariable('event')['client']['city'] ?? null ] ], $again ]);
+
+	    //the hook's address
+	    $init = $TO::initConfig();
+	    $hw = $this->workflow('okta hook', [ $n('t', 'trigger::okta', $init + [ 'receive' => 'hook', 'types' => 'user.session.start', 'outcome' => 'FAILURE' ]),
+		$n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ event.target.login }}' ]), $e('e1', 't', 's') ]);
+	    $hw->save();
+	    $this->created[] = $hw->_id;
+	    $wfs[] = $hw;
+	    $version = $om->create('WfVersion', [ 'aid' => $hw->aid, 'project' => $hw->project, 'wf' => $hw->_id, 'number' => 1, 'name' => (string)$hw->name, 'nodes' => $hw->nodes ]);
+	    $version->save();
+	    $hw->version = $version->_id;
+	    $hw->status = \models\Workflow::PUBLISHED;
+	    $hw->save();
+	    $host = (string)parse_url($init['url'], PHP_URL_HOST);
+	    $call = function($method, $body, $secret, array $headers = []) use ($init, $host) {
+		$ch = curl_init($init['url']);
+		curl_setopt_array($ch, [ CURLOPT_CUSTOMREQUEST => $method, CURLOPT_POSTFIELDS => $body, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20,
+		    CURLOPT_HTTPHEADER => array_merge([ 'Content-Type: application/json', "Authorization: {$secret}" ], $headers), CURLOPT_RESOLVE => [ "{$host}:443:127.0.0.1" ],
+		    CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0 ]);
+		$answer = json_decode((string)curl_exec($ch), true);
+		$status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+		curl_close($ch);
+		return [ $status, $answer ];
+	    };
+	    [ $status, $verified ] = $call('GET', '', $init['secret'], [ 'x-okta-verification-challenge: chal-123' ]);
+	    if ($status === 0) {
+		echo "  skipped: the event hook's address (this installation's web server cannot be reached from here)\n";
+	    } else {
+		$ev = fn($uuid, $type, $result) => [ 'uuid' => $uuid, 'eventType' => $type, 'outcome' => [ 'result' => $result ], 'published' => gmdate('Y-m-d\TH:i:s.000\Z'),
+		    'target' => [ [ 'id' => $DAN, 'type' => 'User', 'alternateId' => 'dan@acme.com', 'displayName' => 'Dan' ] ] ];
+		$events = json_encode([ 'eventType' => 'com.okta.event_hook', 'data' => [ 'events' => [ $ev('h-1', 'user.session.start', 'FAILURE'), $ev('h-2', 'user.session.start', 'SUCCESS'), $ev('h-3', 'user.account.lock', 'FAILURE') ] ] ]);
+		[ $wrongAuth ] = $call('POST', $events, 'wrong');
+		[ $okStatus, $accepted ] = $call('POST', $events, $init['secret']);
+		[ , $retry ] = $call('POST', $events, $init['secret']);
+		$runs = iterator_to_array($om->find('WfExecution', [ 'wf' => $hw->_id, 'trigger' => 'okta' ]), false);
+		$started = array_merge($started, $runs);
+		$this->check('okta: event: the hook: its verification answered; a wrong Authorization refused; events: one run for the failed sign-in (not a success, not another type); Okta\'s retry: nothing again', [
+		    [ 200, 'chal-123' ], 401, [ 200, 'accepted', 1 ], 'ignored', [ 'dan@acme.com' ] ], [
+		    [ $status, $verified['verification'] ?? null ], $wrongAuth, [ $okStatus, $accepted['state'] ?? null, count($accepted['executions'] ?? []) ], $retry['state'] ?? null,
+		    array_map(fn($x) => $x->getVariable('event')['target']['login'] ?? null, $runs) ]);
+	    }
+	} finally {
+	    \util\Okta::$testing = null;
+	    foreach($started as $x) {
+		foreach($om->find('Job', [ 'job_spec' => '\\util\\Scheduler::start', 'job_data.exe' => (string)$x->_id ]) as $job)
+		    $job->delete();
+		$x->delete();
+	    }
+	    foreach($wfs as $wf) {
+		\models\TriggerState::beforeWorkflowDelete($wf);
+		foreach($om->find('WfVersion', [ 'wf' => $wf->_id ]) as $v)
+		    $v->delete();
+		foreach($om->find('TriggerToken', [ 'wf' => $wf->_id ]) as $t)
+		    $t->delete();
+	    }
+	    foreach($creds as $c)
+		$c->delete();
+	    proc_terminate($proc);
+	    proc_close($proc);
+	    foreach(glob("{$dir}/*") as $f)
+		@unlink($f);
+	    @rmdir($dir);
+	}
+    }
+
+    //CLD: 2026-11-26T00:00:00+02:00: GitLab against a fake API (commands/tests/GitLabTestServer.php; util\GitLab::$testing: its address): values (projects, iids, GitLab's errors,
+    //the webhook's secret token), the credential (a token and its scopes, a wrong one, the form), a 429 waited for, Issues (create with assignees and a milestone looked up,
+    //list, update, comment, comments without system notes, labels, close), Merge Requests (list, get, changes, create as a draft into the default branch, approve, reviewers,
+    //merge; conflicts said), Repository (read text and into a project file, write a new and an existing file, the tree, a branch, a release and an uploaded asset), Pipelines
+    //(run with variables followed to the end, list failed, jobs, a log without its colors, retry, cancel), the API step, the AI tools, the event trigger (webhook values and
+    //filters, each delivery once; polling: issues, merge requests merged, pipelines finished; the address's refusals)
+    private function suiteGitLab() {
+	$G = \util\GitLab::class;
+	$TG = \models\node\NodeTriggerGitLab::class;
+	$om = \V::app()->om;
+	$n = [ self::class, 'node' ];
+	$e = [ self::class, 'edge' ];
+	$thrown = function(\Closure $f) {
+	    try {
+		$f();
+		return 'no error';
+	    } catch (\Throwable $x) {
+		return $x->getMessage();
+	    }
+	};
+	$this->check('gitlab: values: iids (#, !, an address, an item), GitLab\'s errors (a field\'s, a text), the secret token (right, wrong)', [
+	    [ 12, 9, 3 ], [ 'HTTP status 400: title can\'t be blank', 'HTTP status 404: 404 Project Not Found: not found, or the token may not see it' ], [ true, false ] ], [
+	    [ $G::iid('!12'), $G::iid('https://gitlab.com/a/b/-/merge_requests/9'), $G::iid([ 'iid' => 3 ]) ],
+	    [ $G::message([ 'message' => [ 'title' => [ 'can\'t be blank' ] ] ], 400), $G::message([ 'message' => '404 Project Not Found' ], 404) ], [ $G::verify('s3cret', 's3cret'), $G::verify('x', 's3cret') ] ]);
+
+	$dir = sys_get_temp_dir() . '/qflows-check-gitlab-' . uniqid();
+	@mkdir($dir, 0700, true);
+	$server = $this->startServer('gitlab', 'GitLabTestServer.php', $dir, [ 'GITLAB_STATE' => $dir ]);
+	if (!$server)
+	    return;
+	[ $port, $proc ] = $server;
+	$G::$testing = "http://127.0.0.1:{$port}";
+	\models\node\NodeAppGitLabPipelines::$poll = 0.05;
+	$requests = function() use ($dir) {
+	    $list = array_map(fn($l) => json_decode($l, true), array_filter(explode("\n", (string)@file_get_contents("{$dir}/requests.jsonl"))));
+	    @unlink("{$dir}/requests.jsonl");
+	    return $list;
+	};
+	$db = fn() => json_decode((string)@file_get_contents("{$dir}/db.json"), true);
+	$creds = [];
+	$files = [];
+	$wfs = [];
+	$started = [];
+	try {
+	    $make = function(array $over) use ($om, &$creds) {
+		$c = $om->create('CredentialGitLab', $over + [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'name' => 'Check: GitLab ' . uniqid() ]);
+		if (!$c->validates() || !$c->save()) {
+		    $this->fail('gitlab: the credential was not saved: ' . json_encode($c->errors()));
+		    return null;
+		}
+		$creds[] = $c;
+		return $om->findById('CredentialGitLab', (string)$c->_id);
+	    };
+	    $tok = $make([ 'token' => 'glpat-check', 'defaultProject' => 'acme/web' ]);
+	    $wrong = $make([ 'token' => 'nope' ]);
+	    if (!$tok || !$wrong)
+		return;
+	    $bad = $om->create('CredentialGitLab', [ 'name' => 'x', 'baseUrl' => 'http://gitlab.local', 'defaultProject' => 'noslash' ]);
+	    $bad->validates();
+	    file_put_contents("{$dir}/throttle.json", '1');
+	    $this->check('gitlab: the form (an address over https, a token, group/project); Test: the user and the token\'s scopes (after a 429\'s wait); a wrong token said', [
+		[ 'baseUrl', 'token', 'defaultProject' ], 'connected to ' . \util\Http::shown($G::$testing) . ' as qbot (scopes: api)', 'HTTP status 401: 401 Unauthorized: the token is refused (wrong, expired or revoked)' ], [
+		array_values(array_intersect([ 'baseUrl', 'token', 'defaultProject' ], array_keys((array)$bad->errors()))), $tok->test(), $thrown(fn() => $wrong->test()) ]);
+
+	    $step = function($fq, $cfg, $vars = []) use ($n, $e, $tok, $requests) {
+		$requests();
+		$exe = $this->runFlow("gitlab {$fq}", [ $n('m', 'trigger::manual'), $n('s', $fq, $cfg + [ 'credential' => (string)$tok->_id, 'onError' => 'output' ]),
+		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
+		return [ $exe, $requests() ];
+	    };
+	    $sent = fn($list, $method, $suffix) => array_values(array_filter($list, fn($r) => $r['method'] === $method && str_ends_with($r['path'], $suffix)))[0]['body'] ?? null;
+
+	    //Issues
+	    $I = 'app::gitlab-issues';
+	    [ $i1, $sentI ] = $step($I, [ 'operation' => 'create', 'title' => 'Printer {{ floor }} down', 'labels' => 'bug, urgent', 'assignees' => '{{ who }}', 'milestone' => 'Sprint 1', 'due' => '2026-12-31',
+		'variable' => 'x' ], [ 'floor' => 3, 'who' => [ 'ana', '@dan' ] ]);
+	    $num = (int)($i1?->getVariable('x')['number'] ?? 0);
+	    [ $i2, ] = $step($I, [ 'operation' => 'create', 'title' => 'x', 'assignees' => 'nobody', 'variable' => 'x' ]);
+	    [ $i3, ] = $step($I, [ 'operation' => 'list', 'search' => 'printer', 'variable' => 'x' ]);
+	    [ $i4, ] = $step($I, [ 'operation' => 'comment', 'number' => "#{$num}", 'comment' => 'On it', 'variable' => 'x' ]);
+	    [ $i5, ] = $step($I, [ 'operation' => 'comments', 'number' => $num, 'variable' => 'x' ]);
+	    [ $i6, ] = $step($I, [ 'operation' => 'addLabels', 'number' => $num, 'labels' => 'printer', 'variable' => 'x' ]);
+	    [ $i7, ] = $step($I, [ 'operation' => 'removeLabel', 'number' => $num, 'label' => 'urgent', 'variable' => 'x' ]);
+	    [ $i8, ] = $step($I, [ 'operation' => 'close', 'number' => $num, 'comment' => 'Duplicate', 'variable' => 'x' ]);
+	    $this->check('gitlab: Issues create (labels joined, assignees\' IDs and the milestone\'s looked up, a due date), an unknown assignee: error; list by a search; comment, the comments '
+		. '(system notes left out), add and remove labels, close with a comment', [
+		[ 'bug,urgent', [ 11, 12 ], 55, '2026-12-31', 'acme/web', [ 'ana', 'dan' ] ], 'error', [ $num, 1 ], 'On it', [ 'On it' ], [ 'bug', 'urgent', 'printer' ], [ 'bug', 'printer' ], [ 'closed', 2 ] ], [
+		[ $sent($sentI, 'POST', '/issues')['labels'] ?? null, $sent($sentI, 'POST', '/issues')['assignee_ids'] ?? null, $sent($sentI, 'POST', '/issues')['milestone_id'] ?? null,
+		    $sent($sentI, 'POST', '/issues')['due_date'] ?? null, $i1?->getVariable('x')['project'] ?? null, $i1?->getVariable('x')['assignees'] ?? null ], $i2?->getVariable('route'),
+		array_column($i3?->getVariable('x')['items'] ?? [], 'number'), $i4?->getVariable('x')['body'] ?? null, array_column($i5?->getVariable('x')['items'] ?? [], 'body'),
+		$i6?->getVariable('x')['labels'] ?? null, $i7?->getVariable('x')['labels'] ?? null, [ $i8?->getVariable('x')['state'] ?? null, $i8?->getVariable('x')['comments'] ?? null ] ]);
+
+	    //Merge requests
+	    $M = 'app::gitlab-merge-requests';
+	    [ $m1, ] = $step($M, [ 'operation' => 'list', 'variable' => 'x' ]);
+	    [ $m2, ] = $step($M, [ 'operation' => 'get', 'number' => '!4', 'variable' => 'x' ]);
+	    [ $m3, ] = $step($M, [ 'operation' => 'changes', 'number' => 3, 'variable' => 'x' ]);
+	    [ $m4, $sentM ] = $step($M, [ 'operation' => 'create', 'source' => 'wip', 'title' => 'More work', 'draft' => true, 'squash' => true, 'variable' => 'x' ]);
+	    [ $m5, ] = $step($M, [ 'operation' => 'approve', 'number' => 3, 'variable' => 'x' ]);
+	    [ $m6, ] = $step($M, [ 'operation' => 'reviewers', 'number' => 3, 'people' => 'ana', 'variable' => 'x' ]);
+	    [ $m7, ] = $step($M, [ 'operation' => 'merge', 'number' => 4, 'variable' => 'x' ]);
+	    [ $m8, $sentMg ] = $step($M, [ 'operation' => 'merge', 'number' => 3, 'squash' => true, 'removeSource' => true, 'message' => 'Fix printer', 'variable' => 'x' ]);
+	    $this->check('gitlab: Merge Requests list (newest first), get (conflicts), changes (added / modified), create a draft into the default branch, approve, reviewers by username, merge: '
+		. 'conflicts said, squash merged (the squashed commit\'s message, the source branch removed)', [
+		[ 4, 3 ], [ true, 'conflict' ], [ 'modified', 'added' ], [ 'main', 'Draft: More work', true ], [ true, [ 'qbot' ] ], [ 'ana' ], [ 'error', '!4 cannot be merged: Branch cannot be merged' ],
+		[ 'merged', true, 'Fix printer', true ] ], [
+		array_column($m1?->getVariable('x')['items'] ?? [], 'number'), [ $m2?->getVariable('x')['conflicts'] ?? null, $m2?->getVariable('x')['mergeStatus'] ?? null ],
+		array_column($m3?->getVariable('x')['items'] ?? [], 'status'), [ $sent($sentM, 'POST', '/merge_requests')['target_branch'] ?? null, $m4?->getVariable('x')['title'] ?? null, $m4?->getVariable('x')['draft'] ?? null ],
+		[ $m5?->getVariable('x')['approved'] ?? null, $m5?->getVariable('x')['approvedBy'] ?? null ], $m6?->getVariable('x')['reviewers'] ?? null,
+		[ $m7?->getVariable('route'), preg_replace('/^.*merge: /', '', (string)self::logLine($m7, 'GitLab Merge Requests merge: ')) ],
+		[ $m8?->getVariable('x')['state'] ?? null, $sent($sentMg, 'PUT', '/merge')['squash'] ?? null, $sent($sentMg, 'PUT', '/merge')['squash_commit_message'] ?? null, $sent($sentMg, 'PUT', '/merge')['should_remove_source_branch'] ?? null ] ]);
+
+	    //Repository
+	    $R = 'app::gitlab-repository';
+	    [ $r1, ] = $step($R, [ 'operation' => 'getFile', 'path' => 'data.json', 'variable' => 'x' ]);
+	    [ $r2, ] = $step($R, [ 'operation' => 'getFile', 'path' => 'docs/a.md', 'as' => 'file', 'variable' => 'x' ]);
+	    if ($r2?->getVariable('x')['id'] ?? null)
+		$files[] = $r2->getVariable('x')['id'];
+	    $savedFile = ($r2?->getVariable('x')['id'] ?? null) ? $om->findOne('File', [ '_id' => $r2->getVariable('x')['id'] ]) : null;
+	    [ $r3, ] = $step($R, [ 'operation' => 'putFile', 'path' => 'notes/today.md', 'content' => '# {{ day }}', 'variable' => 'x' ], [ 'day' => 'Tuesday' ]);
+	    [ $r4, $sentU ] = $step($R, [ 'operation' => 'putFile', 'path' => 'README.md', 'content' => '# Web 2', 'message' => 'Docs: the title', 'branch' => 'main', 'variable' => 'x' ]);
+	    [ $r5, ] = $step($R, [ 'operation' => 'listFolder', 'path' => '', 'variable' => 'x' ]);
+	    [ $r6, ] = $step($R, [ 'operation' => 'createBranch', 'branch' => 'release/1.1', 'ref' => 'main', 'variable' => 'x' ]);
+	    [ $r7, ] = $step($R, [ 'operation' => 'createRelease', 'tag' => 'v1.1.0', 'target' => 'release/1.1', 'notes' => 'Highlights', 'variable' => 'x' ]);
+	    $asset = \models\File::createFromString('dist.zip', 'PK zip', [ 'metadata' => [ 'project' => $this->project->_id, 'aid' => $this->account->_id, 'owner' => null, 'source' => 'check', 'created_at' => new \MongoDB\BSON\UTCDateTime() ] ]);
+	    $files[] = $asset;
+	    [ $r8, ] = $step($R, [ 'operation' => 'uploadAsset', 'tag' => 'v1.1.0', 'sourceFile' => (string)$asset, 'variable' => 'x' ]);
+	    [ $r9, ] = $step($R, [ 'operation' => 'deleteFile', 'path' => 'notes/today.md', 'variable' => 'x' ]);
+	    $this->check('gitlab: Repository read a JSON file as text, a file into a project file; write a new file on the default branch, update one (whether it exists asked first, the message); '
+		. 'the top folder; a branch; a release; an asset (uploaded, then linked); delete a file', [
+		[ '{"n": 1}' ], [ 'a.md', 'A doc' ], [ true, '# Tuesday' ], [ false, 'Docs: the title', '# Web 2' ], [ 'README.md', 'docs', 'data.json', 'notes' ], str_repeat('c', 40), 'v1.1.0',
+		[ 'dist.zip', $G::$testing . '/-/project/7/uploads/abc/dist.zip', 'PK zip' ], true ], [
+		[ $r1?->getVariable('x') ], [ $r2?->getVariable('x')['filename'] ?? null, $savedFile ? stream_get_contents(\models\File::_bucket()->openDownloadStream($savedFile->_id)) : null ],
+		[ $r3?->getVariable('x')['created'] ?? null, $db()['files']['notes/today.md'] ?? null ],
+		[ $r4?->getVariable('x')['created'] ?? null, $sent($sentU, 'PUT', '/README.md')['commit_message'] ?? null, $db()['files']['README.md'] ?? null ],
+		array_column($r5?->getVariable('x')['items'] ?? [], 'name'), $db()['branches']['release/1.1'] ?? null, $r7?->getVariable('x')['tag'] ?? null,
+		[ $r8?->getVariable('x')['name'] ?? null, $r8?->getVariable('x')['url'] ?? null, base64_decode((string)($db()['uploads'][0]['content'] ?? '')) ], !isset($db()['files']['notes/today.md']) ]);
+
+	    //Pipelines, API, tools
+	    $P = 'app::gitlab-pipelines';
+	    [ $p1, $sentP ] = $step($P, [ 'operation' => 'run', 'ref' => 'main', 'variables' => '{"ENVIRONMENT": "staging", "DRY": true}', 'variable' => 'x' ]);
+	    [ $p2, ] = $step($P, [ 'operation' => 'pipelines', 'status' => 'failed', 'variable' => 'x' ]);
+	    [ $p3, ] = $step($P, [ 'operation' => 'jobs', 'pipelineId' => 'https://gitlab.com/acme/web/-/pipelines/900', 'variable' => 'x' ]);
+	    [ $p4, ] = $step($P, [ 'operation' => 'log', 'jobId' => 6001, 'lines' => 3, 'variable' => 'x' ]);
+	    [ $p5, ] = $step($P, [ 'operation' => 'retry', 'pipelineId' => 900, 'variable' => 'x' ]);
+	    [ $p6, ] = $step($P, [ 'operation' => 'cancel', 'pipelineId' => 900, 'variable' => 'x' ]);
+	    [ $p7, ] = $step($P, [ 'operation' => 'run', 'ref' => 'nope', 'variable' => 'x' ]);
+	    [ $api, ] = $step('app::gitlab-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/projects/{project}/repository/branches', 'query' => '{"per_page": 2}', 'variable' => 'z' ]);
+	    $ops = \util\AgentTools::operations('gitlab');
+	    $this->check('gitlab: Pipelines: run with variables (as texts), followed to the end; failed ones; jobs of one by address; the log\'s last lines without colors and sections; retry; cancel; '
+		. 'a ref GitLab refuses: error. API: {project} filled in, the next page. As AI tools', [
+		[ [ [ 'key' => 'ENVIRONMENT', 'value' => 'staging', 'variable_type' => 'env_var' ], [ 'key' => 'DRY', 'value' => 'true', 'variable_type' => 'env_var' ] ], 'success', true ], [ 900 ], 'script_failure',
+		"ok 1\nnot ok 2 - boom\nERROR: Job failed", 'pending', 'canceled', 'error', [ 200, 2, true ], [ true, false, true, false ] ], [
+		[ $sent($sentP, 'POST', '/pipeline')['variables'] ?? null, $p1?->getVariable('x')['status'] ?? null, $p1?->getVariable('x')['finished'] ?? null ],
+		array_column($p2?->getVariable('x')['items'] ?? [], 'id'), $p3?->getVariable('x')['items'][0]['failureReason'] ?? null, $p4?->getVariable('x')['text'] ?? null,
+		$p5?->getVariable('x')['status'] ?? null, $p6?->getVariable('x')['status'] ?? null, $p7?->getVariable('route'),
+		[ $api?->getVariable('z')['status'] ?? null, count($api?->getVariable('z')['data'] ?? []), str_contains((string)($api?->getVariable('z')['next'] ?? ''), 'page=2') ],
+		[ $ops['gitlab_issues_create']['writes'] ?? null, $ops['gitlab_issues_list']['writes'] ?? null, $ops['gitlab_merge_requests_merge']['writes'] ?? null, $ops['gitlab_repository_get_file']['writes'] ?? null ] ]);
+
+	    //the event trigger: webhook values and filters
+	    $cfgHook = [ 'receive' => 'webhook', 'events' => [ 'merge_request', 'push', 'pipeline' ], 'actions' => 'open, merge, failed', 'branches' => 'main, release/*', 'project' => 'acme/web' ];
+	    $mrOpen = $TG::valueOf([ 'object_kind' => 'merge_request', 'user' => [ 'username' => 'dan' ], 'project' => [ 'path_with_namespace' => 'acme/web' ], 'object_attributes' => [ 'iid' => 9, 'title' => 'X',
+		'action' => 'open', 'state' => 'opened', 'source_branch' => 'f', 'target_branch' => 'main', 'url' => 'https://gitlab.com/acme/web/-/merge_requests/9', 'last_commit' => [ 'id' => 'abc' ] ] ], 'u1');
+	    $mrUpdate = $TG::valueOf([ 'object_kind' => 'merge_request', 'project' => [ 'path_with_namespace' => 'acme/web' ], 'object_attributes' => [ 'iid' => 9, 'action' => 'update' ] ]);
+	    $push = $TG::valueOf([ 'object_kind' => 'push', 'ref' => 'refs/heads/release/1.1', 'checkout_sha' => 'def', 'total_commits_count' => 2, 'user_username' => 'ana', 'project' => [ 'path_with_namespace' => 'acme/web' ] ]);
+	    $pipeFailed = $TG::valueOf([ 'object_kind' => 'pipeline', 'project' => [ 'path_with_namespace' => 'acme/web' ], 'object_attributes' => [ 'id' => 950, 'ref' => 'main', 'status' => 'failed', 'tag' => false, 'sha' => 's1' ] ]);
+	    $pipeOther = $TG::valueOf([ 'object_kind' => 'pipeline', 'project' => [ 'path_with_namespace' => 'acme/web' ], 'object_attributes' => [ 'id' => 951, 'ref' => 'wip', 'status' => 'failed', 'tag' => false ] ]);
+	    $issue = $TG::valueOf([ 'object_kind' => 'issue', 'project' => [ 'path_with_namespace' => 'acme/web' ], 'object_attributes' => [ 'iid' => 1, 'action' => 'open' ] ]);
+	    $wf = $this->workflow('gitlab hook', [ $n('t', 'trigger::gitlab', $TG::initConfig() + $cfgHook), $n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ gitlab.title }}' ]), $e('e1', 't', 's') ]);
+	    $hookValid = $wf->validates();
+	    $wf->save();
+	    $this->created[] = $wf->_id;
+	    $wfs[] = $wf;
+	    $this->check('gitlab: event: webhook values (a merge request opened; a push: its branch, commits, user; a pipeline: its status as the action); the filters (actions, branches, events); '
+		. 'each delivery once; the step valid; not scheduled', [
+		[ [ 'merge_request', 'open', 9, 'dan', 'f', 'main', 'abc', 'u1' ], [ 'release/1.1', 2, 'ana', 'def' ], [ 'failed', 'main' ] ], [ true, false, true, true, false, false ], [ false, true ], true, false ], [
+		[ [ $mrOpen['event'], $mrOpen['action'], $mrOpen['number'], $mrOpen['user'], $mrOpen['source'], $mrOpen['target'], $mrOpen['sha'], $mrOpen['delivery'] ],
+		    [ $push['branch'] ?? null, $push['commits'] ?? null, $push['user'] ?? null, $push['sha'] ?? null ], [ $pipeFailed['action'] ?? null, $pipeFailed['branch'] ?? null ] ],
+		[ $TG::wanted($cfgHook, $mrOpen), $TG::wanted($cfgHook, $mrUpdate), $TG::wanted($cfgHook, $push), $TG::wanted($cfgHook, $pipeFailed), $TG::wanted($cfgHook, $pipeOther), $TG::wanted($cfgHook, $issue) ],
+		[ $TG::seenDelivery($wf, 't', 'u-1'), $TG::seenDelivery($wf, 't', 'u-1') ], $hookValid, $TG::matches($cfgHook + [ 'mode' => 'interval', 'every' => 5, 'every_unit' => 'minutes' ], new \DateTimeImmutable()) ]);
+
+	    //the event trigger: polling
+	    $save = fn($x) => $x->save();
+	    $pw = $this->workflow('gitlab poll', [ $n('t', 'trigger::gitlab', $TG::initConfig() + [ 'receive' => 'poll', 'credential' => (string)$tok->_id, 'polls' => [ 'issues', 'merged', 'pipelines' ],
+		'mode' => 'interval', 'every' => 5, 'every_unit' => 'minutes' ]), $n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ gitlab.title }}' ]), $e('e1', 't', 's') ]);
+	    $this->check('gitlab: event: polling is valid', true, $pw->validates());
+	    $pw->save();
+	    $this->created[] = $pw->_id;
+	    $wfs[] = $pw;
+	    $pnode = $pw->nodes['t'];
+	    [ $s0, $none ] = $TG::check($pw, $pnode, [], $save);
+	    $s0['since'] = '2026-11-01T12:00:00Z';
+	    [ $s1, $first ] = $TG::check($pw, $pnode, $s0, $save);
+	    [ , $again ] = $TG::check($pw, $pnode, $s1 + [ 'since' => '2026-11-01T12:00:00Z' ], $save);
+	    $started = array_merge($started, $first, $again);
+	    $got = array_map(fn($x) => [ $x->getVariable('gitlab')['event'] ?? null, $x->getVariable('gitlab')['action'] ?? null, $x->getVariable('gitlab')['number'] ?? $x->getVariable('gitlab')['status'] ?? null ], $first);
+	    $this->check('gitlab: event: polling: the first check only notes the time; then the issues opened since, the merge request merged, the pipelines finished; checked again: none (seen)', [
+		[], true, true, true, [] ], [ $none, in_array([ 'issue', 'opened', $num ], $got, true), in_array([ 'merge_request', 'merged', 3 ], $got, true), in_array([ 'pipeline', 'success', 'success' ], $got, true), $again ]);
+
+	    //the address
+	    $init = $TG::initConfig();
+	    $ev = $this->workflow('gitlab events', [ $n('t', 'trigger::gitlab', $init + $cfgHook), $n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ gitlab.title }}' ]), $e('e1', 't', 's') ]);
+	    $ev->save();
+	    $this->created[] = $ev->_id;
+	    $wfs[] = $ev;
+	    $version = $om->create('WfVersion', [ 'aid' => $ev->aid, 'project' => $ev->project, 'wf' => $ev->_id, 'number' => 1, 'name' => (string)$ev->name, 'nodes' => $ev->nodes ]);
+	    $version->save();
+	    $ev->version = $version->_id;
+	    $ev->status = \models\Workflow::PUBLISHED;
+	    $ev->save();
+	    $host = (string)parse_url($init['url'], PHP_URL_HOST);
+	    $post = function($body, $secret, $method = 'POST', $uuid = 'g-1') use ($init, $host) {
+		$ch = curl_init($init['url']);
+		curl_setopt_array($ch, [ CURLOPT_CUSTOMREQUEST => $method, CURLOPT_POSTFIELDS => $body, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20,
+		    CURLOPT_HTTPHEADER => [ 'Content-Type: application/json', 'X-Gitlab-Event: Merge Request Hook', "X-Gitlab-Token: {$secret}", "X-Gitlab-Event-UUID: {$uuid}" ],
+		    CURLOPT_RESOLVE => [ "{$host}:443:127.0.0.1" ], CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0 ]);
+		$answer = json_decode((string)curl_exec($ch), true);
+		$status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+		curl_close($ch);
+		return [ $status, $answer ];
+	    };
+	    [ $status ] = $post('', $init['secret'], 'GET');
+	    if ($status === 0) {
+		echo "  skipped: the event trigger's address (this installation's web server cannot be reached from here)\n";
+	    } else {
+		$mrBody = json_encode([ 'object_kind' => 'merge_request', 'project' => [ 'path_with_namespace' => 'acme/web' ], 'object_attributes' => [ 'iid' => 9, 'title' => 'From the hook', 'action' => 'open' ] ]);
+		[ $wrongSecret ] = $post($mrBody, 'wrong');
+		[ $okStatus, $accepted ] = $post($mrBody, $init['secret'], 'POST', 'g-9');
+		[ , $dup ] = $post($mrBody, $init['secret'], 'POST', 'g-9');
+		[ , $ignored ] = $post(json_encode([ 'object_kind' => 'issue', 'project' => [ 'path_with_namespace' => 'acme/web' ], 'object_attributes' => [ 'iid' => 1, 'action' => 'open' ] ]), $init['secret'], 'POST', 'g-10');
+		$runs = iterator_to_array($om->find('WfExecution', [ 'wf' => $ev->_id, 'trigger' => 'gitlab' ]), false);
+		$started = array_merge($started, $runs);
+		$this->check('gitlab: event: the address: a GET refused, a wrong secret token refused; a merge request opened: one run (the same delivery again: duplicate; an event not chosen: ignored)', [
+		    405, 401, 200, 'accepted', 'duplicate', 'ignored', [ 'From the hook' ] ], [
+		    $status, $wrongSecret, $okStatus, $accepted['state'] ?? null, $dup['state'] ?? null, $ignored['state'] ?? null, array_map(fn($x) => $x->getVariable('gitlab')['title'] ?? null, $runs) ]);
+	    }
+	} finally {
+	    $G::$testing = null;
+	    \models\node\NodeAppGitLabPipelines::$poll = 5;
+	    foreach($started as $x) {
+		foreach($om->find('Job', [ 'job_spec' => '\\util\\Scheduler::start', 'job_data.exe' => (string)$x->_id ]) as $job)
+		    $job->delete();
+		$x->delete();
+	    }
+	    foreach($wfs as $wf) {
+		\models\TriggerState::beforeWorkflowDelete($wf);
+		foreach($om->find('WfVersion', [ 'wf' => $wf->_id ]) as $v)
+		    $v->delete();
+		foreach($om->find('TriggerToken', [ 'wf' => $wf->_id ]) as $t)
+		    $t->delete();
+	    }
 	    foreach($files as $f)
 		$om->findOne('File', [ '_id' => $f ])?->delete();
 	    foreach($creds as $c)

@@ -338,6 +338,21 @@ class SysObjects {
 		'class' => 'models\credential\CredentialAmazonSes',
 		'variant-of' => 'Credential',
 	    ],
+	    //CLD: 2026-11-26T02:00:00+02:00: an Okta org (the Okta steps and event trigger), core for every account
+	    'CredentialOkta' => [
+		'class' => 'models\credential\CredentialOkta',
+		'variant-of' => 'Credential',
+	    ],
+	    //CLD: 2026-11-26T01:00:00+02:00: a Microsoft Entra ID tenant's app (the Entra ID steps and change trigger), core for every account
+	    'CredentialEntra' => [
+		'class' => 'models\credential\CredentialEntra',
+		'variant-of' => 'Credential',
+	    ],
+	    //CLD: 2026-11-26T00:00:00+02:00: a GitLab account, gitlab.com or self-managed (the GitLab steps and event trigger), core for every account
+	    'CredentialGitLab' => [
+		'class' => 'models\credential\CredentialGitLab',
+		'variant-of' => 'Credential',
+	    ],
 	    //CLD: 2026-11-25T21:00:00+02:00: a GitHub account, github.com or Enterprise Server (the GitHub steps and event trigger), core for every account
 	    'CredentialGitHub' => [
 		'class' => 'models\credential\CredentialGitHub',
@@ -891,6 +906,73 @@ class SysObjects {
 	    ],
 	    'NodeAppChatReply' => [
 		'class' => 'models\node\NodeAppChatReply',
+		'wfNode' => true,
+	    ],
+	    //CLD: 2026-11-26T02:00:00+02:00: Okta (Users, Groups, Access, API; NodeAppOkta their base; the event trigger: the System Log on a schedule, or an event hook at /okta/<token>), core for every account
+	    'NodeAppOktaUsers' => [
+		'class' => 'models\node\NodeAppOktaUsers',
+		'wfNode' => true,
+	    ],
+	    'NodeAppOktaGroups' => [
+		'class' => 'models\node\NodeAppOktaGroups',
+		'wfNode' => true,
+	    ],
+	    'NodeAppOktaAccess' => [
+		'class' => 'models\node\NodeAppOktaAccess',
+		'wfNode' => true,
+	    ],
+	    'NodeAppOktaApi' => [
+		'class' => 'models\node\NodeAppOktaApi',
+		'wfNode' => true,
+	    ],
+	    'NodeTriggerOkta' => [
+		'class' => 'models\node\NodeTriggerOkta',
+		'wfNode' => true,
+	    ],
+	    //CLD: 2026-11-26T01:00:00+02:00: Entra ID (Users, Groups, Access, API; NodeAppEntra their base; the change trigger: delta queries on a schedule, or Graph's notifications at /entra/<token>), core for every account
+	    'NodeAppEntraUsers' => [
+		'class' => 'models\node\NodeAppEntraUsers',
+		'wfNode' => true,
+	    ],
+	    'NodeAppEntraGroups' => [
+		'class' => 'models\node\NodeAppEntraGroups',
+		'wfNode' => true,
+	    ],
+	    'NodeAppEntraAccess' => [
+		'class' => 'models\node\NodeAppEntraAccess',
+		'wfNode' => true,
+	    ],
+	    'NodeAppEntraApi' => [
+		'class' => 'models\node\NodeAppEntraApi',
+		'wfNode' => true,
+	    ],
+	    'NodeTriggerEntra' => [
+		'class' => 'models\node\NodeTriggerEntra',
+		'wfNode' => true,
+	    ],
+	    //CLD: 2026-11-26T00:00:00+02:00: GitLab (Issues, Merge Requests, Repository, Pipelines, API; NodeAppGitLab their base; the event trigger: a webhook at /gitlab/<token>, or polling), core for every account
+	    'NodeAppGitLabIssues' => [
+		'class' => 'models\node\NodeAppGitLabIssues',
+		'wfNode' => true,
+	    ],
+	    'NodeAppGitLabMergeRequests' => [
+		'class' => 'models\node\NodeAppGitLabMergeRequests',
+		'wfNode' => true,
+	    ],
+	    'NodeAppGitLabRepository' => [
+		'class' => 'models\node\NodeAppGitLabRepository',
+		'wfNode' => true,
+	    ],
+	    'NodeAppGitLabPipelines' => [
+		'class' => 'models\node\NodeAppGitLabPipelines',
+		'wfNode' => true,
+	    ],
+	    'NodeAppGitLabApi' => [
+		'class' => 'models\node\NodeAppGitLabApi',
+		'wfNode' => true,
+	    ],
+	    'NodeTriggerGitLab' => [
+		'class' => 'models\node\NodeTriggerGitLab',
 		'wfNode' => true,
 	    ],
 	    //CLD: 2026-11-25T21:00:00+02:00: GitHub (Issues, Pull Requests, Repository, Actions, API; NodeAppGitHub their base; the event trigger: a webhook at /github/<token>, or polling), core for every account

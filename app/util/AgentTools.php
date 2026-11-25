@@ -44,6 +44,12 @@ class AgentTools {
 	'brevo' => [ 'label' => 'Brevo', 'prefix' => 'brevo', 'capability' => 'brevo', 'steps' => [ \models\node\NodeAppBrevoEmail::class, \models\node\NodeAppBrevoContacts::class, \models\node\NodeAppBrevoApi::class ] ],
 	'mailjet' => [ 'label' => 'Mailjet', 'prefix' => 'mailjet', 'capability' => 'mailjet', 'steps' => [ \models\node\NodeAppMailjetEmail::class, \models\node\NodeAppMailjetContacts::class, \models\node\NodeAppMailjetApi::class ] ],
 	'amazonses' => [ 'label' => 'Amazon SES', 'prefix' => 'ses', 'capability' => 'amazonses', 'steps' => [ \models\node\NodeAppSesEmail::class, \models\node\NodeAppSesAccount::class, \models\node\NodeAppSesApi::class ] ],
+	//CLD: 2026-11-26T02:00:00+02:00: Okta's steps as tools
+	'okta' => [ 'label' => 'Okta', 'prefix' => 'okta', 'capability' => 'okta', 'base' => \models\node\NodeAppOkta::class ],
+	//CLD: 2026-11-26T01:00:00+02:00: Entra ID's steps as tools
+	'entra' => [ 'label' => 'Entra ID', 'prefix' => 'entra', 'capability' => 'entra', 'base' => \models\node\NodeAppEntra::class ],
+	//CLD: 2026-11-26T00:00:00+02:00: GitLab's steps as tools
+	'gitlab' => [ 'label' => 'GitLab', 'prefix' => 'gitlab', 'capability' => 'gitlab', 'base' => \models\node\NodeAppGitLab::class ],
 	//CLD: 2026-11-25T21:00:00+02:00: GitHub's steps as tools
 	'github' => [ 'label' => 'GitHub', 'prefix' => 'github', 'capability' => 'github', 'base' => \models\node\NodeAppGitHub::class ],
 	//CLD: 2026-11-25T18:00:00+02:00: the S3 steps as tools

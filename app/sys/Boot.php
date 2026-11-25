@@ -138,6 +138,15 @@ class Boot {
 	//CLD: 2026-11-25T21:00:00+02:00: the GitHub event trigger's endpoint: `/github/<32 hex token>` -> GitHubController::receive (a repository's or organization's webhook; no session)
 	\V::app()->session->noSessionFor('/github/');
 	\V::app()->router->add_rule('github/<id:[a-f0-9]{32}>', 'github/receive', true);
+	//CLD: 2026-11-26T00:00:00+02:00: the GitLab event trigger's endpoint: `/gitlab/<32 hex token>` -> GitLabController::receive (a project's or group's webhook; no session)
+	\V::app()->session->noSessionFor('/gitlab/');
+	\V::app()->router->add_rule('gitlab/<id:[a-f0-9]{32}>', 'gitlab/receive', true);
+	//CLD: 2026-11-26T01:00:00+02:00: the Entra ID change trigger's endpoint: `/entra/<32 hex token>` -> EntraController::receive (Graph's change notifications and their validation; no session)
+	\V::app()->session->noSessionFor('/entra/');
+	\V::app()->router->add_rule('entra/<id:[a-f0-9]{32}>', 'entra/receive', true);
+	//CLD: 2026-11-26T02:00:00+02:00: the Okta event trigger's endpoint: `/okta/<32 hex token>` -> OktaController::receive (an event hook and its verification; no session)
+	\V::app()->session->noSessionFor('/okta/');
+	\V::app()->router->add_rule('okta/<id:[a-f0-9]{32}>', 'okta/receive', true);
 	\V::app()->router->add_rule('form/<id:[a-f0-9]{32}>', 'form/open', true);
 	\V::app()->router->add_rule('task/<id:[a-f0-9]{24}>', 'task/open', true);
 	//the chat page of a Chat trigger: `/agent/<32 hex token>`; its embeddable page: `/chat/<32 hex token>`, its token is the credential: no session
