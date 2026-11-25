@@ -36,8 +36,22 @@ class AiPrices {
 	usort($ids, fn($a, $b) => strlen($b) <=> strlen($a));
 	foreach($ids as $id) {
 	    if ($model === $id || str_starts_with($model, $id . '-'))
-		return $prices[$id];
+		return self::dated($prices[$id]);
 	}
 	return null;
+    }
+
+    //CLD: 2026-11-25T12:30:00+02:00: a price that changes on known dates ([ 'YYYY-MM-DD' => [ input, output, cached input ], ... ], ascending): the last one started today (UTC),
+    //before the first date the first; a plain [ input, output, cached input ] as it is
+    private static function dated($price) {
+	if (!is_string(array_key_first($price)))
+	    return $price;
+	$today = gmdate('Y-m-d');
+	$found = reset($price);
+	foreach($price as $from => $p) {
+	    if ($from <= $today)
+		$found = $p;
+	}
+	return $found;
     }
 }

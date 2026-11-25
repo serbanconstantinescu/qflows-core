@@ -104,6 +104,7 @@ class AiProviders {
     //the list prices of the cloud models, USD per 1M tokens: [ input, output, cached input ], by model id or the start of one (util\AiPrices::of: the longest that matches, followed by
     //the end of the id or a `-`). Standard tier, text, short prompts: the higher rates of very long prompts (above 200k or 272k tokens) are not counted. A model with no cached rate: its
     //input price. Read from the providers' pricing pages on 2026-11-02; they change: check them when a model is added.
+    //CLD: 2026-11-25T12:30:00+02:00: a price known to change: [ 'YYYY-MM-DD' => [ input, output, cached input ], ... ], each from that day (UTC) on; before the first date, the first
     const PRICES = [
 	'anthropic' => [
 	    'claude-fable-5' => [ 10.00, 50.00, 0.25 ],
@@ -155,12 +156,11 @@ class AiProviders {
 	    'o1-pro' => [ 150.00, 600.00, 150.00 ],
 	    'o1' => [ 15.00, 60.00, 7.50 ],
 	],
-	//aistudio.google.com/docs/pricing, paid tier. Introductory prices that end: gemini-4-argon on 2026-12-01 (then 4.00 / 20.00 / 0.20), gemini-3.8-flash and gemini-3.6-flash on
-	//2027-01-01 (then 1.50 / 7.50 / 0.15)
+	//aistudio.google.com/docs/pricing, paid tier. Introductory prices that end: gemini-4-argon on 2026-12-01, gemini-3.8-flash and gemini-3.6-flash on 2027-01-01
 	'gemini' => [
-	    'gemini-4-argon' => [ 2.00, 10.00, 0.10 ],
-	    'gemini-3.8-flash' => [ 0.75, 3.75, 0.075 ],
-	    'gemini-3.6-flash' => [ 0.75, 3.75, 0.075 ],
+	    'gemini-4-argon' => [ '2026-11-02' => [ 2.00, 10.00, 0.10 ], '2026-12-01' => [ 4.00, 20.00, 0.20 ] ],
+	    'gemini-3.8-flash' => [ '2026-11-02' => [ 0.75, 3.75, 0.075 ], '2027-01-01' => [ 1.50, 7.50, 0.15 ] ],
+	    'gemini-3.6-flash' => [ '2026-11-02' => [ 0.75, 3.75, 0.075 ], '2027-01-01' => [ 1.50, 7.50, 0.15 ] ],
 	    'gemini-3.5-flash-lite' => [ 0.30, 2.50, 0.03 ],
 	    'gemini-3.1-pro-preview' => [ 2.00, 12.00, 0.20 ],
 	    'gemini-3.1-flash-lite' => [ 0.25, 1.50, 0.025 ],
