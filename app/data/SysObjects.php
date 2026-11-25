@@ -338,6 +338,11 @@ class SysObjects {
 		'class' => 'models\credential\CredentialAmazonSes',
 		'variant-of' => 'Credential',
 	    ],
+	    //CLD: 2026-11-25T18:00:00+02:00: an S3 storage account, Amazon S3 or S3-compatible (the S3 steps and object trigger), core for every account
+	    'CredentialS3' => [
+		'class' => 'models\credential\CredentialS3',
+		'variant-of' => 'Credential',
+	    ],
 	    //CLD: 2026-11-25T14:00:00+02:00: a Slack workspace's app (the Slack steps and message trigger), core for every account
 	    'CredentialSlack' => [
 		'class' => 'models\credential\CredentialSlack',
@@ -881,6 +886,27 @@ class SysObjects {
 	    ],
 	    'NodeAppChatReply' => [
 		'class' => 'models\node\NodeAppChatReply',
+		'wfNode' => true,
+	    ],
+	    //CLD: 2026-11-25T18:00:00+02:00: S3 storage (Objects, Links, Buckets, API; NodeAppS3 their base; the object trigger: polling, or S3's event notifications through SNS at /s3/<token>), core for every account
+	    'NodeAppS3Objects' => [
+		'class' => 'models\node\NodeAppS3Objects',
+		'wfNode' => true,
+	    ],
+	    'NodeAppS3Links' => [
+		'class' => 'models\node\NodeAppS3Links',
+		'wfNode' => true,
+	    ],
+	    'NodeAppS3Buckets' => [
+		'class' => 'models\node\NodeAppS3Buckets',
+		'wfNode' => true,
+	    ],
+	    'NodeAppS3Api' => [
+		'class' => 'models\node\NodeAppS3Api',
+		'wfNode' => true,
+	    ],
+	    'NodeTriggerS3' => [
+		'class' => 'models\node\NodeTriggerS3',
 		'wfNode' => true,
 	    ],
 	    //CLD: 2026-11-25T14:00:00+02:00: Slack (one step per area, NodeAppSlack their base; the message trigger: an agent conversation, events at /slack/<token> or polling), core for every account

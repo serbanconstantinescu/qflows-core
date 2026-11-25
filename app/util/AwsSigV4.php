@@ -7,7 +7,10 @@
     AwsSigV4::headers($method, $url, $headers, $body, $key) => the headers to send: $headers + host, x-amz-date, x-amz-content-sha256 ($key['payloadHeader']),
 	x-amz-security-token (a temporary key), authorization
 	$url      the full URL, its path already URI-encoded once (rawurlencode of each segment) and its query as it is sent
-	$key      [ accessKeyId, secretAccessKey, sessionToken (optional), region, service, time (optional: a Unix time, for the tests), payloadHeader (optional) ]
+	$key      [ accessKeyId, secretAccessKey, sessionToken (optional), region, service, time (optional: a Unix time, for the tests), payloadHeader (optional),
+	          payloadHash (optional: the payload's hash as sent, e.g. UNSIGNED-PAYLOAD for an S3 upload read from a stream) ]
+    AwsSigV4::presign($method, $url, $key, $expires) => $url with the signature in its query (S3's presigned links; only `host` signed, UNSIGNED-PAYLOAD),
+	valid $expires seconds (CLD: 2026-11-25T18:00:00+02:00: the S3 steps' links)
 */
 
 namespace util;
@@ -22,7 +25,7 @@ class AwsSigV4 {
 	$time = (int)($key['time'] ?? time());
 	$amzDate = gmdate('Ymd\THis\Z', $time);
 	$day = gmdate('Ymd', $time);
-	$payload = hash('sha256', (string)$body);
+	$payload = (string)($key['payloadHash'] ?? hash('sha256', (string)$body));
 
 	$headers['host'] = $host;
 	$headers['x-amz-date'] = $amzDate;
@@ -46,15 +49,40 @@ class AwsSigV4 {
 	$scope = "{$day}/{$key['region']}/{$key['service']}/aws4_request";
 	$toSign = implode("\n", [ self::ALGORITHM, $amzDate, $scope, hash('sha256', $request) ]);
 
-	$k = hash_hmac('sha256', $day, 'AWS4' . $key['secretAccessKey'], true);
-	$k = hash_hmac('sha256', (string)$key['region'], $k, true);
-	$k = hash_hmac('sha256', (string)$key['service'], $k, true);
-	$k = hash_hmac('sha256', 'aws4_request', $k, true);
-	$signature = hash_hmac('sha256', $toSign, $k);
+	$signature = hash_hmac('sha256', $toSign, self::signingKey($key, $day));
 
 	unset($headers['host']);
 	$headers['Authorization'] = self::ALGORITHM . " Credential={$key['accessKeyId']}/{$scope}, SignedHeaders={$signed}, Signature={$signature}";
 	return $headers;
+    }
+
+    //the key the string to sign is signed with, for day $day (Ymd)
+    private static function signingKey(array $key, $day) {
+	$k = hash_hmac('sha256', $day, 'AWS4' . $key['secretAccessKey'], true);
+	$k = hash_hmac('sha256', (string)$key['region'], $k, true);
+	$k = hash_hmac('sha256', (string)$key['service'], $k, true);
+	return hash_hmac('sha256', 'aws4_request', $k, true);
+    }
+
+    //a presigned address: $url (its path encoded once, its query as sent) with X-Amz-* and the signature, valid $expires seconds (1 to 604800)
+    public static function presign($method, $url, array $key, $expires) {
+	$u = parse_url($url);
+	$host = strtolower((string)($u['host'] ?? '')) . (isset($u['port']) ? ':' . $u['port'] : '');
+	$time = (int)($key['time'] ?? time());
+	$amzDate = gmdate('Ymd\THis\Z', $time);
+	$day = gmdate('Ymd', $time);
+	$scope = "{$day}/{$key['region']}/{$key['service']}/aws4_request";
+	$add = [ 'X-Amz-Algorithm' => self::ALGORITHM, 'X-Amz-Credential' => "{$key['accessKeyId']}/{$scope}", 'X-Amz-Date' => $amzDate,
+	    'X-Amz-Expires' => (string)max(1, min(604800, (int)$expires)), 'X-Amz-SignedHeaders' => 'host' ];
+	if (!empty($key['sessionToken']))
+	    $add['X-Amz-Security-Token'] = (string)$key['sessionToken'];
+	$query = (string)($u['query'] ?? '');
+	$query .= ($query !== '' ? '&' : '') . http_build_query($add, '', '&', PHP_QUERY_RFC3986);
+	$request = implode("\n", [ strtoupper((string)$method), self::canonicalPath((string)($u['path'] ?? '/'), $key['service'] ?? ''), self::canonicalQuery($query),
+	    "host:{$host}\n", 'host', 'UNSIGNED-PAYLOAD' ]);
+	$toSign = implode("\n", [ self::ALGORITHM, $amzDate, $scope, hash('sha256', $request) ]);
+	$signature = hash_hmac('sha256', $toSign, self::signingKey($key, $day));
+	return strtok($url, '?') . '?' . $query . '&X-Amz-Signature=' . $signature;
     }
 
     //the path of the canonical request: each segment encoded again (S3: as it is)

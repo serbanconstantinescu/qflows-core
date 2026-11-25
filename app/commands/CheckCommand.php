@@ -15,7 +15,7 @@
 namespace commands;
 
 class CheckCommand extends \sys\BaseController {
-    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'slack', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'demo', 'ssh', 'windows', 'logpatterns' ];
+    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'slack', 's3', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'demo', 'ssh', 'windows', 'logpatterns' ];
     //not run unless named in --only (demo: an account made and deleted, public services called)
     const SLOW = [ 'steps', 'demo' ];
 
@@ -7659,6 +7659,275 @@ class CheckCommand extends \sys\BaseController {
 	    }
 	    foreach($wfs as $wf)
 		\models\TriggerState::beforeWorkflowDelete($wf);
+	    foreach($files as $f)
+		$om->findOne('File', [ '_id' => $f ])?->delete();
+	    foreach($creds as $c)
+		$c->delete();
+	    proc_terminate($proc);
+	    proc_close($proc);
+	    foreach(glob("{$dir}/*") as $f)
+		@unlink($f);
+	    @rmdir($dir);
+	}
+    }
+
+    //CLD: 2026-11-25T18:00:00+02:00: S3 against a fake service (commands/tests/S3TestServer.php, path style, every signature checked again; util\S3::$testing: its address):
+    //values (keys, buckets, XML, errors, AWS's own SigV4 examples, an SNS signature), the credential (a default bucket, the buckets, a wrong secret, an endpoint's form), Objects
+    //(list with folders and At most, upload a text with metadata and a class, a project file, When the key exists: Fail, download into a project file, read text / JSON, info,
+    //exists, copy, move, delete many with an error, 503 sent again), Links (download with a name, upload; S3 takes them; 7 days at most), Buckets, the API step, the AI tools,
+    //the object trigger (polling: new, changed, names, Run in the designer; notifications: S3's records, the bucket, the names, each SNS message once; the address's refusals)
+    private function suiteS3() {
+	$S = \util\S3::class;
+	$TS = \models\node\NodeTriggerS3::class;
+	$om = \V::app()->om;
+	$n = [ self::class, 'node' ];
+	$e = [ self::class, 'edge' ];
+	$thrown = function(\Closure $f) {
+	    try {
+		$f();
+		return 'no error';
+	    } catch (\Throwable $x) {
+		return $x->getMessage();
+	    }
+	};
+	$example = [ 'accessKeyId' => 'AKIAIOSFODNN7EXAMPLE', 'secretAccessKey' => 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY', 'region' => 'us-east-1', 'service' => 's3', 'time' => strtotime('2013-05-24T00:00:00Z') ];
+	$pk = openssl_pkey_new([ 'private_key_bits' => 2048 ]);
+	$crt = openssl_csr_sign(openssl_csr_new([ 'commonName' => 'sns.check' ], $pk, [ 'digest_alg' => 'sha256' ]), null, $pk, 1, [ 'digest_alg' => 'sha256' ]);
+	openssl_x509_export($crt, $pem);
+	$snsSign = function(array $m) use ($pk) {
+	    $m += [ 'Timestamp' => gmdate('Y-m-d\TH:i:s.000\Z'), 'SignatureVersion' => '2', 'SigningCertURL' => 'https://sns.eu-central-1.amazonaws.com/SimpleNotificationService-x.pem' ];
+	    openssl_sign(\util\Sns::signedString($m), $sig, $pk, OPENSSL_ALGO_SHA256);
+	    return $m + [ 'Signature' => base64_encode($sig) ];
+	};
+	\util\Sns::$testing = [ 'cert' => $pem ];
+	$signedMsg = $snsSign([ 'Type' => 'Notification', 'MessageId' => 'm1', 'TopicArn' => 'arn:aws:sns:eu-central-1:123456789012:uploads', 'Message' => '{}' ]);
+	$this->check('s3: values: keys and buckets (s3:// addresses, an item), not a bucket name, XML (repeated elements a list), S3\'s error said, AWS\'s SigV4 examples (a header, a presigned link), '
+	    . 'an SNS signature (right, changed)', [
+	    [ 'x/y.pdf', 'my-bucket', 'a.txt', 'Bucket: not a bucket name (3 to 63 lower case letters, digits, dots and hyphens): `My_Bucket`' ], [ 'b' => [ '1', '2' ], 'c' => [ 'd' => 'x' ] ],
+	    'NoSuchKey: no such object', [ true, true ], [ '', 'the signature does not match' ] ], [
+	    [ $S::key('s3://b/x/y.pdf'), $S::bucket('s3://my-bucket/x'), $S::key([ 'key' => 'a.txt' ]), $thrown(fn() => $S::bucket('My_Bucket')) ], $S::xmlArray('<a><b>1</b><b>2</b><c><d>x</d></c></a>'),
+	    $S::errorOf('<Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>', 404),
+	    [ str_contains(\util\AwsSigV4::headers('GET', 'https://examplebucket.s3.amazonaws.com/test.txt', [ 'Range' => 'bytes=0-9' ], '', $example + [ 'payloadHeader' => true ])['Authorization'],
+		'f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41'),
+	      str_ends_with(\util\AwsSigV4::presign('GET', 'https://examplebucket.s3.amazonaws.com/test.txt', $example, 86400), 'aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404') ],
+	    [ \util\Sns::verify($signedMsg), \util\Sns::verify([ 'Message' => '{"x":1}' ] + $signedMsg) ] ]);
+
+	$dir = sys_get_temp_dir() . '/qflows-check-s3-' . uniqid();
+	@mkdir($dir, 0700, true);
+	$server = $this->startServer('s3', 'S3TestServer.php', $dir, [ 'S3_STATE' => $dir ]);
+	if (!$server) {
+	    \util\Sns::$testing = null;
+	    return;
+	}
+	[ $port, $proc ] = $server;
+	$S::$testing = "http://127.0.0.1:{$port}";
+	$requests = function() use ($dir) {
+	    $list = array_map(fn($l) => json_decode($l, true), array_filter(explode("\n", (string)@file_get_contents("{$dir}/requests.jsonl"))));
+	    @unlink("{$dir}/requests.jsonl");
+	    return $list;
+	};
+	$db = fn() => json_decode((string)@file_get_contents("{$dir}/db.json"), true);
+	$body = fn($bucket, $key) => base64_decode((string)($db()['buckets'][$bucket]['objects'][$key]['body'] ?? ''));
+	$creds = [];
+	$files = [];
+	$wfs = [];
+	$started = [];
+	try {
+	    $make = function(array $over) use ($om, &$creds) {
+		$c = $om->create('CredentialS3', $over + [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'name' => 'Check: S3 ' . uniqid(), 'region' => 'eu-central-1', 'accessKeyId' => 'AKIDCHECK',
+		    'secretAccessKey' => 'secret-check' ]);
+		if (!$c->validates() || !$c->save()) {
+		    $this->fail('s3: the credential was not saved: ' . json_encode($c->errors()));
+		    return null;
+		}
+		$creds[] = $c;
+		return $om->findById('CredentialS3', (string)$c->_id);
+	    };
+	    $docs = $make([ 'bucket' => 'docs' ]);
+	    $plain = $make([]);
+	    $wrong = $make([ 'secretAccessKey' => 'nope' ]);
+	    if (!$docs || !$plain || !$wrong)
+		return;
+	    $bad = $om->create('CredentialS3', [ 'name' => 'x', 'endpoint' => 'http://minio.local:9000', 'accessKeyId' => 'AKID', 'secretAccessKey' => 's', 'bucket' => 'Bad_Name' ]);
+	    $bad->validates();
+	    $this->check('s3: the form (an endpoint over https only, a bucket\'s name); Test: the default bucket, else the buckets; a wrong secret said', [
+		[ 'endpoint', 'bucket' ], 'connected to Amazon S3 (eu-central-1): bucket docs has objects', 'connected to Amazon S3 (eu-central-1): 2 buckets (docs, empty)', 'SignatureDoesNotMatch: the secret access key is wrong' ], [
+		array_values(array_intersect([ 'endpoint', 'region', 'accessKeyId', 'bucket' ], array_keys((array)$bad->errors()))), $docs->test(), $plain->test(), $thrown(fn() => $wrong->test()) ]);
+
+	    $step = function($fq, $cfg, $vars = [], $cred = null) use ($n, $e, $docs, $requests) {
+		$requests();
+		$exe = $this->runFlow("s3 {$fq}", [ $n('m', 'trigger::manual'), $n('s', $fq, $cfg + [ 'credential' => (string)($cred ?? $docs)->_id, 'onError' => 'output' ]),
+		    $n('err', 'app::set', [ 'variable' => 'route', 'value' => 'error' ]), $e('e1', 'm', 's'), $e('e2', 's', 'err', 1) ], $vars);
+		return [ $exe, $requests() ];
+	    };
+	    $O = 'app::s3-objects';
+
+	    //Objects
+	    [ $l1, ] = $step($O, [ 'operation' => 'list', 'prefix' => 'inbox', 'folders' => true, 'variable' => 'x' ]);
+	    [ $l2, ] = $step($O, [ 'operation' => 'list', 'maxItems' => 2, 'variable' => 'x' ]);
+	    [ $l3, ] = $step($O, [ 'operation' => 'list', 'variable' => 'x' ], [], $plain);
+	    [ $u1, $sentU ] = $step($O, [ 'operation' => 'upload', 'key' => 'reports/{{ month }}.csv', 'source' => 'text', 'content' => "a,b\n1,{{ 1 + 1 }}", 'metadata' => '{"dept": "ops"}',
+		'storageClass' => 'standard_ia', 'ifExists' => 'fail', 'variable' => 'x' ], [ 'month' => '2026-11' ]);
+	    [ $u2, ] = $step($O, [ 'operation' => 'upload', 'key' => 'reports/2026-11.csv', 'source' => 'text', 'content' => 'x', 'ifExists' => 'fail', 'variable' => 'x' ]);
+	    $pf = \models\File::createFromString('scan é.pdf', '%PDF-1 project', [ 'metadata' => [ 'project' => $this->project->_id, 'aid' => $this->account->_id, 'owner' => null, 'source' => 'check',
+		'created_at' => new \MongoDB\BSON\UTCDateTime() ] ]);
+	    $files[] = $pf;
+	    [ $u3, $sentP ] = $step($O, [ 'operation' => 'upload', 'key' => 's3://docs/inbox/scan é.pdf', 'source' => 'file', 'sourceFile' => '{{ f }}', 'variable' => 'x' ], [ 'f' => (string)$pf ]);
+	    $this->check('s3: Objects list: one level below a prefix, the folders apart; At most: truncated; no bucket and no default: error. Upload a text (its key from an expression, a content type '
+		. 'from the name, metadata, a storage class, If-None-Match), again: refused; a project file (streamed: UNSIGNED-PAYLOAD), an s3:// key', [
+		[ [ 'inbox/one.pdf', 'inbox/two.pdf' ], [ 'inbox/sub/' ], 's3://docs/inbox/one.pdf' ], [ 2, true ], 'error',
+		[ 's3://docs/reports/2026-11.csv', "a,b\n1,2", 'text/csv', 'ops', 'STANDARD_IA', '*' ], [ 'error', 's3://docs/reports/2026-11.csv exists (When the key exists: Fail)' ], [ '%PDF-1 project', 'UNSIGNED-PAYLOAD', 'application/pdf' ] ], [
+		[ array_column($l1?->getVariable('x')['items'] ?? [], 'key'), $l1?->getVariable('x')['folders'] ?? null, $l1?->getVariable('x')['items'][0]['url'] ?? null ],
+		[ $l2?->getVariable('x')['count'] ?? null, $l2?->getVariable('x')['truncated'] ?? null ], $l3?->getVariable('route'),
+		[ $u1?->getVariable('x')['url'] ?? null, $body('docs', 'reports/2026-11.csv'), $sentU[0]['type'] ?? null, $sentU[0]['meta'] ?? null, $sentU[0]['class'] ?? null, $sentU[0]['ifNone'] ?? null ],
+		[ $u2?->getVariable('route'), preg_replace('/^.*upload: /', '', (string)self::logLine($u2, 'S3 Objects upload: ')) ], [ $body('docs', 'inbox/scan é.pdf'), $sentP[0]['sha'] ?? null, $sentP[0]['type'] ?? null ] ]);
+
+	    [ $d1, ] = $step($O, [ 'operation' => 'download', 'key' => 'inbox/one.pdf', 'variable' => 'x' ]);
+	    $saved = $d1?->getVariable('x')['id'] ?? null;
+	    if ($saved)
+		$files[] = $saved;
+	    $savedFile = $saved ? $om->findOne('File', [ '_id' => $saved ]) : null;
+	    $bytes = $savedFile ? stream_get_contents(\models\File::_bucket()->openDownloadStream($savedFile->_id)) : null;
+	    [ $d2, ] = $step($O, [ 'operation' => 'download', 'key' => 'nope.pdf', 'variable' => 'x' ]);
+	    $step($O, [ 'operation' => 'upload', 'key' => 'conf/app.json', 'source' => 'text', 'content' => '{{ conf }}', 'variable' => 'x' ], [ 'conf' => [ 'debug' => true, 'n' => 3 ] ]);
+	    [ $r1, ] = $step($O, [ 'operation' => 'read', 'key' => 'conf/app.json', 'as' => 'json', 'variable' => 'x' ]);
+	    [ $r2, ] = $step($O, [ 'operation' => 'read', 'key' => 'a.txt', 'variable' => 'x' ]);
+	    [ $i1, ] = $step($O, [ 'operation' => 'info', 'key' => 'reports/2026-11.csv', 'variable' => 'x' ]);
+	    [ $x1, ] = $step($O, [ 'operation' => 'exists', 'key' => 'nope.txt', 'variable' => 'x' ]);
+	    [ $i2, ] = $step($O, [ 'operation' => 'info', 'key' => 'nope.txt', 'variable' => 'x' ]);
+	    [ $c1, $sentC ] = $step($O, [ 'operation' => 'copy', 'key' => 'a.txt', 'toBucket' => 'empty', 'toKey' => 'copies/a.txt', 'variable' => 'x' ]);
+	    [ $c2, ] = $step($O, [ 'operation' => 'copy', 'key' => 'missing.txt', 'toKey' => 'b.txt', 'variable' => 'x' ]);
+	    [ $m1, ] = $step($O, [ 'operation' => 'move', 'key' => 'conf/app.json', 'toKey' => 'conf/old/app.json', 'variable' => 'x' ]);
+	    $put = $db();
+	    $put['buckets']['docs']['objects']['locked/keep.txt'] = [ 'body' => base64_encode('k'), 'type' => 'text/plain', 'modified' => '2026-11-01T10:00:00Z', 'meta' => [], 'class' => 'STANDARD' ];
+	    file_put_contents("{$dir}/db.json", json_encode($put, JSON_UNESCAPED_SLASHES));
+	    file_put_contents("{$dir}/slow.json", '1');
+	    [ $x2, $sentD ] = $step($O, [ 'operation' => 'delete', 'keys' => '{{ old }}', 'variable' => 'x' ], [ 'old' => [ [ 'key' => 'inbox/two.pdf' ], 'reports/2026-11.csv', 'locked/keep.txt' ] ]);
+	    $this->check('s3: Objects download into a project file, a missing key said; read JSON and text; info (type, metadata, class); exists: false; info of a missing one: error; copy to another '
+		. 'bucket, of a missing key (S3\'s error in a 200): error; move; delete many (DeleteObjects, Content-MD5; one refused: its error), after a 503 sent again', [
+		[ '%PDF-1 one', 'one.pdf', 'application/pdf', 'error' ], [ [ 'debug' => true, 'n' => 3 ], 'hello' ], [ 'text/csv', [ 'dept' => 'ops' ], 'STANDARD_IA', 7 ], [ false, 'error' ],
+		[ 'hello', '/docs/a.txt', 'error' ], [ false, true ], [ [ 'inbox/two.pdf', 'reports/2026-11.csv' ], [ [ 'key' => 'locked/keep.txt', 'error' => 'AccessDenied: Access Denied' ] ], 2 ] ], [
+		[ $bytes, $d1?->getVariable('x')['filename'] ?? null, $d1?->getVariable('x')['contentType'] ?? null, $d2?->getVariable('route') ], [ $r1?->getVariable('x'), $r2?->getVariable('x') ],
+		[ $i1?->getVariable('x')['contentType'] ?? null, $i1?->getVariable('x')['metadata'] ?? null, $i1?->getVariable('x')['storageClass'] ?? null, $i1?->getVariable('x')['size'] ?? null ],
+		[ $x1?->getVariable('x')['exists'] ?? null, $i2?->getVariable('route') ], [ $body('empty', 'copies/a.txt'), $sentC[0]['copy'] ?? null, $c2?->getVariable('route') ],
+		[ isset($db()['buckets']['docs']['objects']['conf/app.json']), isset($db()['buckets']['docs']['objects']['conf/old/app.json']) ],
+		[ $x2?->getVariable('x')['deleted'] ?? null, $x2?->getVariable('x')['errors'] ?? null, count(array_filter($sentD, fn($r) => $r['method'] === 'POST')) ] ]);
+
+	    //Links, Buckets, API, the tools
+	    $L = 'app::s3-links';
+	    [ $k1, ] = $step($L, [ 'operation' => 'download', 'key' => 'a.txt', 'valid' => 30, 'unit' => 'minutes', 'saveAs' => 'Hello é.txt', 'variable' => 'l' ]);
+	    $link = (string)($k1?->getVariable('l')['url'] ?? '');
+	    $got = \util\Http::request('GET', $link, []);
+	    $tampered = \util\Http::request('GET', str_replace('a.txt', 'inbox/one.pdf', $link), []);
+	    [ $k2, ] = $step($L, [ 'operation' => 'upload', 'key' => 'drop/in.txt', 'valid' => 1, 'unit' => 'hours', 'variable' => 'l' ]);
+	    $putLink = \util\Http::request('PUT', (string)($k2?->getVariable('l')['url'] ?? ''), [ 'body' => 'dropped' ]);
+	    [ $k3, ] = $step($L, [ 'operation' => 'download', 'key' => 'a.txt', 'valid' => 8, 'unit' => 'days', 'variable' => 'l' ]);
+	    $B = 'app::s3-buckets';
+	    [ $b1, ] = $step($B, [ 'operation' => 'list', 'variable' => 'b' ]);
+	    [ $b2, ] = $step($B, [ 'operation' => 'create', 'bucket' => 'check-new', 'variable' => 'b' ]);
+	    [ $b3, ] = $step($B, [ 'operation' => 'info', 'bucket' => 'check-new', 'variable' => 'b' ]);
+	    [ $b4, ] = $step($B, [ 'operation' => 'delete', 'bucket' => 'docs', 'variable' => 'b' ]);
+	    [ $b5, ] = $step($B, [ 'operation' => 'delete', 'bucket' => 'check-new', 'variable' => 'b' ]);
+	    [ $a1, ] = $step('app::s3-api', [ 'operation' => 'request', 'method' => 'GET', 'bucket' => 'docs', 'key' => 'a.txt', 'query' => '{"tagging": ""}', 'variable' => 'z' ]);
+	    [ $a2, ] = $step('app::s3-api', [ 'operation' => 'request', 'method' => 'GET', 'key' => 'a.txt', 'variable' => 'z' ]);
+	    $ops = \util\AgentTools::operations('s3');
+	    $this->check('s3: Links: a download link S3 takes (the name to save as), another key with its signature refused, an upload link (PUT), 8 days refused; Buckets list, create, info, delete '
+		. '(not empty: S3\'s error); API: a sub-resource (tagging) read as XML, a key without a bucket refused; as AI tools', [
+		[ 200, 'hello', true, 403 ], [ 'dropped', 'PUT' ], 'error', [ [ 'docs', 'empty' ], 'check-new', 'eu-central-1', 'error', true ], [ 'ops', 'error' ], [ false, true, false, true ] ], [
+		[ $got['status'], $got['body'], str_contains((string)($got['headers']['content-disposition'] ?? ''), "filename*=UTF-8''Hello%20%C3%A9.txt"), $tampered['status'] ],
+		[ $body('docs', 'drop/in.txt'), $k2?->getVariable('l')['method'] ?? null ], $k3?->getVariable('route'),
+		[ array_column($b1?->getVariable('b')['items'] ?? [], 'name'), $b2?->getVariable('b')['name'] ?? null, $b3?->getVariable('b')['region'] ?? null, $b4?->getVariable('route'), $b5?->getVariable('b')['deleted'] ?? null ],
+		[ $a1?->getVariable('z')['body']['TagSet']['Tag'][0]['Value'] ?? null, $a2?->getVariable('route') ],
+		[ $ops['s3_objects_list']['writes'] ?? null, $ops['s3_objects_upload']['writes'] ?? null, $ops['s3_links_download']['writes'] ?? null, $ops['s3_buckets_delete']['writes'] ?? null ] ]);
+
+	    //the object trigger: polling
+	    $save = fn($x) => $x->save();
+	    $wf = $this->workflow('s3 object', [ $n('t', 'trigger::s3', $TS::initConfig() + [ 'credential' => (string)$docs->_id, 'receive' => 'poll', 'prefix' => 'inbox/', 'pattern' => '*.pdf',
+		'changes' => 'new', 'runs' => 'each', 'variable' => 'object', 'mode' => 'interval', 'every' => 5, 'every_unit' => 'minutes' ]), $n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ object.key }}' ]), $e('e1', 't', 's') ]);
+	    $this->check('s3: object: the workflow is valid', true, $wf->validates());
+	    $wf->save();
+	    $this->created[] = $wf->_id;
+	    $wfs[] = $wf;
+	    $node = $wf->nodes['t'];
+	    [ $s0, $none ] = $TS::check($wf, $node, [], $save);
+	    $step($O, [ 'operation' => 'upload', 'key' => 'inbox/new.pdf', 'source' => 'text', 'content' => 'n', 'variable' => 'x' ]);
+	    $step($O, [ 'operation' => 'upload', 'key' => 'inbox/note.txt', 'source' => 'text', 'content' => 'n', 'variable' => 'x' ]);
+	    $step($O, [ 'operation' => 'upload', 'key' => 'other/x.pdf', 'source' => 'text', 'content' => 'n', 'variable' => 'x' ]);
+	    [ $s1, $first ] = $TS::check($wf, $node, $s0, $save);
+	    [ $s2, $again ] = $TS::check($wf, $node, $s1, $save);
+	    $nodeC = array_replace_recursive($node, [ 'config' => [ 'changes' => 'changed', 'runs' => 'batch' ] ]);
+	    $step($O, [ 'operation' => 'upload', 'key' => 'inbox/one.pdf', 'source' => 'text', 'content' => 'changed', 'variable' => 'x' ]);
+	    [ , $changed ] = $TS::check($wf, $nodeC, $s2, $save);
+	    $now = $TS::startNow($wf, $node);
+	    $started = array_merge($started, $first, $again, $changed, $now['executions'] ?? []);
+	    $this->check('s3: object: polling: the first check only notes the objects; then the new one of the prefix and names (not a .txt, not another prefix); again: none; New or changed, '
+		. 'one run per check: the changed one; Run in the designer: the newest', [
+		[ [], [ [ 'inbox/new.pdf', 'new', 's3://docs/inbox/new.pdf' ] ], [], [ 1, [ [ 'inbox/one.pdf', 'changed' ] ] ], true ], [
+		$none, array_map(fn($x) => [ $x->getVariable('object')['key'] ?? null, $x->getVariable('object')['change'] ?? null, $x->getVariable('object')['url'] ?? null ], $first), $again,
+		[ count($changed), array_map(fn($o) => [ $o['key'], $o['change'] ], $changed[0]?->getVariable('object')['objects'] ?? []) ], str_starts_with((string)($now['message'] ?? ''), 'Run with the newest object: s3://docs/inbox/') ] ]);
+
+	    //the object trigger: notifications
+	    $topic = 'arn:aws:sns:eu-central-1:123456789012:uploads';
+	    $noTopic = $this->errorsOf('s3 no topic', [ $n('t', 'trigger::s3', $TS::initConfig() + [ 'credential' => (string)$docs->_id, 'receive' => 'sns', 'events' => [ 'created' ] ]) ]);
+	    $cfgSns = [ 'receive' => 'sns', 'topicArn' => $topic, 'bucket' => 'docs', 'prefix' => 'inbox/', 'pattern' => '*.pdf', 'events' => [ 'created', 'removed' ] ];
+	    $record = fn($name, $bucket, $key) => [ 'eventName' => $name, 'eventTime' => '2026-11-25T10:00:00.000Z', 's3' => [ 'bucket' => [ 'name' => $bucket ], 'object' => [ 'key' => $key, 'size' => 7, 'eTag' => 'abc' ] ] ];
+	    $objs = $TS::objectsOfEvent($cfgSns, 'docs', [ 'Records' => [ $record('ObjectCreated:Put', 'docs', 'inbox/my+scan%C3%A9.pdf'), $record('ObjectRemoved:Delete', 'docs', 'inbox/old.pdf'),
+		$record('ObjectCreated:Put', 'other', 'inbox/x.pdf'), $record('ObjectCreated:Put', 'docs', 'inbox/x.txt'), $record('ObjectRestore:Completed', 'docs', 'inbox/y.pdf') ] ]);
+	    $onlyCreated = $TS::objectsOfEvent([ 'events' => [ 'created' ] ] + $cfgSns, 'docs', [ 'Records' => [ $record('ObjectRemoved:Delete', 'docs', 'inbox/old.pdf') ] ]);
+	    $this->check('s3: object: notifications: a Topic ARN needed; S3\'s records of the bucket, prefix and names (the key decoded), created and removed; not another bucket, a .txt, a restore; '
+		. 'only the kinds chosen; each SNS message once; not scheduled', [
+		true, [ [ 'inbox/my scané.pdf', 'new', 'ObjectCreated:Put', 7 ], [ 'inbox/old.pdf', 'removed', 'ObjectRemoved:Delete', 7 ] ], [], [ false, true, false ], false ], [
+		str_contains(json_encode($noTopic), 'Topic ARN'), array_map(fn($o) => [ $o['key'], $o['change'], $o['event'], $o['size'] ], $objs), $onlyCreated,
+		[ $TS::seenMessage($wf, 't', 'm-1'), $TS::seenMessage($wf, 't', 'm-1'), $TS::seenMessage($wf, 't', 'm-2') ],
+		$TS::matches($cfgSns + [ 'mode' => 'interval', 'every' => 5, 'every_unit' => 'minutes' ], new \DateTimeImmutable()) ]);
+
+	    //the address: what the web server refuses (it checks the certificate is AWS's: the suite's own cannot pass there)
+	    $init = $TS::initConfig();
+	    $ev = $this->workflow('s3 events', [ $n('t', 'trigger::s3', $init + [ 'credential' => (string)$docs->_id ] + $cfgSns), $n('s', 'app::set', [ 'variable' => 'got', 'value' => '{{ object.key }}' ]), $e('e1', 't', 's') ]);
+	    $this->check('s3: object: notifications: the workflow is valid; its address', [ true, true ], [ $ev->validates(), (bool)preg_match('~/s3/[a-f0-9]{32}$~', (string)$init['url']) ]);
+	    $ev->save();
+	    $this->created[] = $ev->_id;
+	    $wfs[] = $ev;
+	    $version = $om->create('WfVersion', [ 'aid' => $ev->aid, 'project' => $ev->project, 'wf' => $ev->_id, 'number' => 1, 'name' => (string)$ev->name, 'nodes' => $ev->nodes ]);
+	    $version->save();
+	    $ev->version = $version->_id;
+	    $ev->status = \models\Workflow::PUBLISHED;
+	    $ev->save();
+	    $host = (string)parse_url($init['url'], PHP_URL_HOST);
+	    $post = function($body, $method = 'POST') use ($init, $host) {
+		$ch = curl_init($init['url']);
+		curl_setopt_array($ch, [ CURLOPT_CUSTOMREQUEST => $method, CURLOPT_POSTFIELDS => $body, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20,
+		    CURLOPT_HTTPHEADER => [ 'Content-Type: text/plain; charset=UTF-8', 'x-amz-sns-message-type: Notification' ], CURLOPT_RESOLVE => [ "{$host}:443:127.0.0.1" ],
+		    CURLOPT_SSL_VERIFYPEER => false, CURLOPT_SSL_VERIFYHOST => 0 ]);
+		$answer = json_decode((string)curl_exec($ch), true);
+		$status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+		curl_close($ch);
+		return [ $status, $answer ];
+	    };
+	    [ $status ] = $post('', 'GET');
+	    if ($status === 0) {
+		echo "  skipped: the object trigger's address (this installation's web server cannot be reached from here)\n";
+	    } else {
+		[ $notJson ] = $post('not json');
+		[ $selfSigned, $why ] = $post(json_encode($snsSign([ 'SigningCertURL' => 'https://example.com/cert.pem', 'Type' => 'Notification', 'MessageId' => 'm9', 'TopicArn' => $topic, 'Message' => json_encode([ 'Records' => [ $record('ObjectCreated:Put', 'docs', 'inbox/a.pdf') ] ]) ])));
+		$this->check('s3: object: notifications: the address: a GET refused, not JSON refused, a certificate that is not AWS\'s refused', [ 405, 400, 401, 'Unauthorized (its certificate is not AWS\'s)' ],
+		    [ $status, $notJson, $selfSigned, $why['error'] ?? null ]);
+	    }
+	} finally {
+	    $S::$testing = null;
+	    \util\Sns::$testing = null;
+	    foreach($started as $x) {
+		foreach($om->find('Job', [ 'job_spec' => '\\util\\Scheduler::start', 'job_data.exe' => (string)$x->_id ]) as $job)
+		    $job->delete();
+		$x->delete();
+	    }
+	    foreach($wfs as $wf) {
+		\models\TriggerState::beforeWorkflowDelete($wf);
+		foreach($om->find('WfVersion', [ 'wf' => $wf->_id ]) as $v)
+		    $v->delete();
+		foreach($om->find('TriggerToken', [ 'wf' => $wf->_id ]) as $t)
+		    $t->delete();
+	    }
 	    foreach($files as $f)
 		$om->findOne('File', [ '_id' => $f ])?->delete();
 	    foreach($creds as $c)
