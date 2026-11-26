@@ -41,7 +41,7 @@ class CredentialEntra extends \models\Credential {
     public function validates($options = []) {
 	$valid = parent::validates($options);
 	if (($this->auth ?? 'secret') === 'certificate') {
-	    if (trim((string)$this->certificate) !== '' && openssl_x509_read(trim((string)$this->certificate)) === false) {
+	    if (trim((string)$this->certificate) !== '' && @openssl_x509_read(trim((string)$this->certificate)) === false) {
 		$this->errors('certificate', 'not a PEM certificate');
 		$valid = false;
 	    }

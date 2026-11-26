@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-25T21:00:00+02:00: GitHub event - starts the workflow on what happens in GitHub. How events are noticed (setting Receive):
-	webhook  a repository's (or organization's) webhook posts to the step's address /github/<token> (controllers\GitHubController), signed with the step's secret
+	webhook  a repository's (or organization's) webhook posts to the step's address /github/<token> (controllers\GithubController), signed with the step's secret
 	         (X-Hub-Signature-256): the events chosen, optionally only some actions (opened, closed, …), branches (push, workflow runs) and a repository; each delivery once
 	poll     the step checks a repository on its schedule (models\wf\WfSchedule, every 5 minutes by default) with the credential: issues opened, pull requests opened or merged,
 	         workflow runs completed or failed, releases published, since the last check (models\TriggerState: { since, seen }); the first check only notes the time

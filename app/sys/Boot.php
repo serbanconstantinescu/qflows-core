@@ -135,10 +135,10 @@ class Boot {
 	//CLD: 2026-11-25T18:00:00+02:00: the S3 object trigger's endpoint: `/s3/<32 hex token>` -> S3Controller::receive (SNS's posts of S3 event notifications; no session)
 	\V::app()->session->noSessionFor('/s3/');
 	\V::app()->router->add_rule('s3/<id:[a-f0-9]{32}>', 's3/receive', true);
-	//CLD: 2026-11-25T21:00:00+02:00: the GitHub event trigger's endpoint: `/github/<32 hex token>` -> GitHubController::receive (a repository's or organization's webhook; no session)
+	//CLD: 2026-11-25T21:00:00+02:00: the GitHub event trigger's endpoint: `/github/<32 hex token>` -> GithubController::receive (a repository's or organization's webhook; no session)
 	\V::app()->session->noSessionFor('/github/');
 	\V::app()->router->add_rule('github/<id:[a-f0-9]{32}>', 'github/receive', true);
-	//CLD: 2026-11-26T00:00:00+02:00: the GitLab event trigger's endpoint: `/gitlab/<32 hex token>` -> GitLabController::receive (a project's or group's webhook; no session)
+	//CLD: 2026-11-26T00:00:00+02:00: the GitLab event trigger's endpoint: `/gitlab/<32 hex token>` -> GitlabController::receive (a project's or group's webhook; no session)
 	\V::app()->session->noSessionFor('/gitlab/');
 	\V::app()->router->add_rule('gitlab/<id:[a-f0-9]{32}>', 'gitlab/receive', true);
 	//CLD: 2026-11-26T01:00:00+02:00: the Entra ID change trigger's endpoint: `/entra/<32 hex token>` -> EntraController::receive (Graph's change notifications and their validation; no session)

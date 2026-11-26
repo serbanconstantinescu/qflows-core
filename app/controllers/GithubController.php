@@ -11,7 +11,7 @@ namespace controllers;
 
 use \models\node\NodeTriggerGitHub;
 
-class GitHubController extends \sys\APIController {
+class GithubController extends \sys\APIController {
 
     const REFUSED = 'github.refused';
 

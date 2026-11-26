@@ -92,14 +92,17 @@ class NodeAppGitLabIssues extends NodeAppGitLab {
 	return (int)$found[0]['id'];
     }
 
+    //CLD: 2026-11-26T03:00:00+02:00: a date as written (2026-12-31 stays that day); another form read in the server's time zone (not UTC: a bare date is its midnight)
     private static function dateOf($v) {
 	$t = trim(\util\Expression::toText($v));
 	if ($t === '')
 	    return null;
+	if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $t) && checkdate((int)substr($t, 5, 2), (int)substr($t, 8, 2), (int)substr($t, 0, 4)))
+	    return $t;
 	$ts = strtotime($t);
 	if ($ts === false)
 	    throw new \RuntimeException("Due date: not a date: `" . mb_substr($t, 0, 40) . '`');
-	return gmdate('Y-m-d', $ts);
+	return date('Y-m-d', $ts);
     }
 
     protected function runOperation($operation, \Closure $text, \Closure $value) {

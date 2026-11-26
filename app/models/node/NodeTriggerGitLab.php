@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-26T00:00:00+02:00: GitLab event - starts the workflow on what happens in GitLab. How events are noticed (setting Receive):
-	webhook  a project's (or group's) webhook posts to the step's address /gitlab/<token> (controllers\GitLabController) with the step's secret token (X-Gitlab-Token): the
+	webhook  a project's (or group's) webhook posts to the step's address /gitlab/<token> (controllers\GitlabController) with the step's secret token (X-Gitlab-Token): the
 	         events chosen (by their object_kind), optionally only some actions (open, close, merge, …; a pipeline's: its status), branches (pushes, pipelines) and a project;
 	         each delivery once (X-Gitlab-Event-UUID, Idempotency-Key)
 	poll     the step checks a project on its schedule (models\wf\WfSchedule, every 5 minutes by default) with the credential: issues opened, merge requests opened or merged,

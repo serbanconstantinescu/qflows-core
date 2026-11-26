@@ -11,7 +11,7 @@ namespace controllers;
 
 use \models\node\NodeTriggerGitLab;
 
-class GitLabController extends \sys\APIController {
+class GitlabController extends \sys\APIController {
 
     const REFUSED = 'gitlab.refused';
 

@@ -12,6 +12,8 @@
 */
 
 require dirname(__DIR__, 2) . '/util/AwsSigV4.php';
+//the Content-Type as stored (PHP adds a charset to text/* types otherwise; S3 does not)
+ini_set('default_charset', '');
 
 $state = getenv('S3_STATE') ?: sys_get_temp_dir();
 $method = $_SERVER['REQUEST_METHOD'];

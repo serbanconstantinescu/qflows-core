@@ -28,7 +28,7 @@ class Jwt {
     }
 
     public static function thumbprint($certPem, $algo = 'sha1') {
-	$fp = openssl_x509_fingerprint(trim((string)$certPem), $algo, true);
+	$fp = @openssl_x509_fingerprint(trim((string)$certPem), $algo, true);
 	if ($fp === false)
 	    throw new \RuntimeException('the certificate is not a PEM certificate');
 	return self::b64($fp);

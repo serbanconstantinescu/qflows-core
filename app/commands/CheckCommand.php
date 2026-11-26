@@ -7838,7 +7838,9 @@ class CheckCommand extends \sys\BaseController {
 	    [ , $again ] = $TE::check($wf, $node, $s2, $save);
 	    $started = array_merge($started, $changes, $deleted, $again);
 	    $kinds = array_map(fn($x) => [ $x->getVariable('change')['kind'] ?? null, $x->getVariable('change')['user']['upn'] ?? $x->getVariable('change')['user']['id'] ?? null, $x->getVariable('change')['group']['displayName'] ?? null ], $changes);
-	    $only = array_replace_recursive($node, [ 'config' => [ 'kinds' => [ 'memberRemoved' ], 'groups' => 'Ops' ] ]);
+	    $only = $node;
+	    $only['config']['kinds'] = [ 'memberRemoved' ];
+	    $only['config']['groups'] = 'Ops';
 	    [ , $opsOnly ] = $TE::check($wf, $only, [ 'since' => $s0['since'], 'groups' => $s0['groups'] ], $save);
 	    $started = array_merge($started, $opsOnly);
 	    $this->check('entra: change: the first check reads to the end and starts nothing; then: a user created (its UPN), changed, deleted; members added (with the user) and removed (with the group\'s name); '
@@ -7855,7 +7857,9 @@ class CheckCommand extends \sys\BaseController {
 	    [ $n1, $nr1 ] = $TE::check($wf, $nnode, $s2, $save);
 	    $subs1 = $db()['subs'] ?? [];
 	    $n1['subs'][0]['expires'] = gmdate('Y-m-d\TH:i:s\Z', time() + 3600);
-	    [ $n2, $nr2 ] = $TE::check($wf, array_replace_recursive($nnode, [ 'config' => [ 'kinds' => [ 'userCreated' ] ] ]), $n1, $save);
+	    $unode = $nnode;
+	    $unode['config']['kinds'] = [ 'userCreated' ];
+	    [ $n2, $nr2 ] = $TE::check($wf, $unode, $n1, $save);
 	    $started = array_merge($started, $nr1, $nr2);
 	    $subs2 = $db()['subs'] ?? [];
 	    $this->check('entra: change: notifications: subscriptions to users and groups (the step\'s address and secret), hourly checks; one ending within a day renewed, one no longer needed deleted', [
@@ -8258,6 +8262,7 @@ class CheckCommand extends \sys\BaseController {
 		$files[] = $r2->getVariable('x')['id'];
 	    $savedFile = ($r2?->getVariable('x')['id'] ?? null) ? $om->findOne('File', [ '_id' => $r2->getVariable('x')['id'] ]) : null;
 	    [ $r3, ] = $step($R, [ 'operation' => 'putFile', 'path' => 'notes/today.md', 'content' => '# {{ day }}', 'variable' => 'x' ], [ 'day' => 'Tuesday' ]);
+	    $written = $db()['files']['notes/today.md'] ?? null;
 	    [ $r4, $sentU ] = $step($R, [ 'operation' => 'putFile', 'path' => 'README.md', 'content' => '# Web 2', 'message' => 'Docs: the title', 'branch' => 'main', 'variable' => 'x' ]);
 	    [ $r5, ] = $step($R, [ 'operation' => 'listFolder', 'path' => '', 'variable' => 'x' ]);
 	    [ $r6, ] = $step($R, [ 'operation' => 'createBranch', 'branch' => 'release/1.1', 'ref' => 'main', 'variable' => 'x' ]);
@@ -8271,7 +8276,7 @@ class CheckCommand extends \sys\BaseController {
 		[ '{"n": 1}' ], [ 'a.md', 'A doc' ], [ true, '# Tuesday' ], [ false, 'Docs: the title', '# Web 2' ], [ 'README.md', 'docs', 'data.json', 'notes' ], str_repeat('c', 40), 'v1.1.0',
 		[ 'dist.zip', $G::$testing . '/-/project/7/uploads/abc/dist.zip', 'PK zip' ], true ], [
 		[ $r1?->getVariable('x') ], [ $r2?->getVariable('x')['filename'] ?? null, $savedFile ? stream_get_contents(\models\File::_bucket()->openDownloadStream($savedFile->_id)) : null ],
-		[ $r3?->getVariable('x')['created'] ?? null, $db()['files']['notes/today.md'] ?? null ],
+		[ $r3?->getVariable('x')['created'] ?? null, $written ],
 		[ $r4?->getVariable('x')['created'] ?? null, $sent($sentU, 'PUT', '/README.md')['commit_message'] ?? null, $db()['files']['README.md'] ?? null ],
 		array_column($r5?->getVariable('x')['items'] ?? [], 'name'), $db()['branches']['release/1.1'] ?? null, $r7?->getVariable('x')['tag'] ?? null,
 		[ $r8?->getVariable('x')['name'] ?? null, $r8?->getVariable('x')['url'] ?? null, base64_decode((string)($db()['uploads'][0]['content'] ?? '')) ], !isset($db()['files']['notes/today.md']) ]);
@@ -8536,6 +8541,7 @@ class CheckCommand extends \sys\BaseController {
 		$files[] = $r2->getVariable('x')['id'];
 	    $savedFile = ($r2?->getVariable('x')['id'] ?? null) ? $om->findOne('File', [ '_id' => $r2->getVariable('x')['id'] ]) : null;
 	    [ $r3, ] = $step($R, [ 'operation' => 'putFile', 'path' => 'notes/today.md', 'content' => '# {{ day }}', 'branch' => 'main', 'variable' => 'x' ], [ 'day' => 'Tuesday' ]);
+	    $written = $db()['files']['notes/today.md'] ?? null;
 	    [ $r4, $sentU ] = $step($R, [ 'operation' => 'putFile', 'path' => 'README.md', 'content' => '# Web 2', 'message' => 'Docs: the new title', 'variable' => 'x' ]);
 	    [ $r5, ] = $step($R, [ 'operation' => 'listFolder', 'path' => '', 'variable' => 'x' ]);
 	    [ $r6, ] = $step($R, [ 'operation' => 'createBranch', 'branch' => 'release/1.1', 'ref' => 'main', 'variable' => 'x' ]);
@@ -8549,7 +8555,7 @@ class CheckCommand extends \sys\BaseController {
 		[ '{"n": 1}', 'application/vnd.github.raw' ], [ 'a.md', 'A doc' ], [ true, '# Tuesday' ], [ false, 'Docs: the new title', sha1('# Web') ], [ 'README.md', 'docs', 'data.json', 'notes' ],
 		str_repeat('c', 40), [ 'v1.1.0', true ], [ 'dist.zip', 6 ], true ], [
 		[ $r1?->getVariable('x'), $sentR[0]['accept'] ?? null ], [ $r2?->getVariable('x')['filename'] ?? null, $savedFile ? stream_get_contents(\models\File::_bucket()->openDownloadStream($savedFile->_id)) : null ],
-		[ $r3?->getVariable('x')['created'] ?? null, $db()['files']['notes/today.md'] ?? null ],
+		[ $r3?->getVariable('x')['created'] ?? null, $written ],
 		[ $r4?->getVariable('x')['created'] ?? null, $sent($sentU, 'PUT', '/repos/acme/web/contents/README.md')['message'] ?? null, $sent($sentU, 'PUT', '/repos/acme/web/contents/README.md')['sha'] ?? null ],
 		array_column($r5?->getVariable('x')['items'] ?? [], 'name'), $db()['branches']['release/1.1'] ?? null,
 		[ $r7?->getVariable('x')['tag'] ?? null, str_contains((string)($r7?->getVariable('x')['body'] ?? ''), "Highlights\n\n## What's Changed") ], [ $r8?->getVariable('x')['name'] ?? null, $r8?->getVariable('x')['size'] ?? null ],
@@ -8874,10 +8880,10 @@ class CheckCommand extends \sys\BaseController {
 	    $now = $TS::startNow($wf, $node);
 	    $started = array_merge($started, $first, $again, $changed, $now['executions'] ?? []);
 	    $this->check('s3: object: polling: the first check only notes the objects; then the new one of the prefix and names (not a .txt, not another prefix); again: none; New or changed, '
-		. 'one run per check: the changed one; Run in the designer: the newest', [
+		. 'one run per check: the changed one; Run in the designer: the newest',
 		[ [], [ [ 'inbox/new.pdf', 'new', 's3://docs/inbox/new.pdf' ] ], [], [ 1, [ [ 'inbox/one.pdf', 'changed' ] ] ], true ], [
 		$none, array_map(fn($x) => [ $x->getVariable('object')['key'] ?? null, $x->getVariable('object')['change'] ?? null, $x->getVariable('object')['url'] ?? null ], $first), $again,
-		[ count($changed), array_map(fn($o) => [ $o['key'], $o['change'] ], $changed[0]?->getVariable('object')['objects'] ?? []) ], str_starts_with((string)($now['message'] ?? ''), 'Run with the newest object: s3://docs/inbox/') ] ]);
+		[ count($changed), array_map(fn($o) => [ $o['key'], $o['change'] ], $changed[0]?->getVariable('object')['objects'] ?? []) ], str_starts_with((string)($now['message'] ?? ''), 'Run with the newest object: s3://docs/inbox/') ]);
 
 	    //the object trigger: notifications
 	    $topic = 'arn:aws:sns:eu-central-1:123456789012:uploads';
@@ -9052,7 +9058,7 @@ class CheckCommand extends \sys\BaseController {
 	    $this->check('slack: Messages send: to #name (looked up), Markdown as mrkdwn, the link; to a person by email: their direct messages, plain text escaped; in a thread given by link, '
 		. 'also in the channel, blocks; not in the channel and no such channel: the error output', [
 		[ 'CGEN00001', 'Deploy *1.2* done &lt;ok&gt;', 'true' ], true, [ 'DANA00001', 'Hi' ], [ $x1['ts'] ?? null, 'true', 'section' ], [ 'error', 'error' ],
-		[ 'not_in_channel: the app is not a member of the channel: invite it (/invite @app)', 'no channel #nowhere the app can see (a private one: invite the app first)' ] ], [
+		[ 'not_in_channel: the app is not a member of the channel: invite it (/invite @app)', 'To: no channel #nowhere the app can see (a private one: invite the app first)' ] ], [
 		[ $post1['channel'] ?? null, $post1['text'] ?? null, $post1['mrkdwn'] ?? null ], str_starts_with((string)($x1['link'] ?? ''), 'https://acme.slack.com/archives/CGEN00001/p'),
 		[ $calls($sent2, 'conversations.open')[0]['args']['users'] === 'UANA00001' ? ($calls($sent2, 'chat.postMessage')[0]['args']['channel'] ?? null) : null, $m2?->getVariable('x')['text'] ?? null ],
 		[ $post3['thread_ts'] ?? null, $post3['reply_broadcast'] ?? null, json_decode((string)($post3['blocks'] ?? '[]'), true)[0]['type'] ?? null ], [ $m4?->getVariable('route'), $m5?->getVariable('route') ],
@@ -9122,7 +9128,7 @@ class CheckCommand extends \sys\BaseController {
 	    $ops = \util\AgentTools::operations('slack');
 	    $this->check('slack: Files upload a text (the address Slack gives, then shared with a comment as mrkdwn), download into a project file, list, a missing project file, delete; '
 		. 'API: any method; not a method refused; as AI tools (send writes, history reads)', [
-		[ 'report.txt', 'CGEN00001', '*Weekly* report', 9 ], 'Total: 42', [ 1, 'report.txt' ], 'error', true, [ true, 'error' ], [ true, false, false, true ] ], [
+		[ 'report.txt', 'CGEN00001', '*Weekly* report', '9' ], 'Total: 42', [ 1, 'report.txt' ], 'error', true, [ true, 'error' ], [ true, false, false, true ] ], [
 		[ $f1?->getVariable('f')['name'] ?? null, $calls($sentF, 'files.completeUploadExternal')[0]['args']['channel_id'] ?? null,
 		    $calls($sentF, 'files.completeUploadExternal')[0]['args']['initial_comment'] ?? null, $calls($sentF, 'files.getUploadURLExternal')[0]['args']['length'] ?? null ],
 		$bytes, [ $f3?->getVariable('f')['count'] ?? null, $f3?->getVariable('f')['items'][0]['name'] ?? null ], $f4?->getVariable('route'), $f5?->getVariable('f')['deleted'] ?? null,
