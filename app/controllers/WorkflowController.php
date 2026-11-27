@@ -390,6 +390,29 @@ class WorkflowController extends \sys\BaseController {
     //duplicate (POST): a new draft workflow in the same project with the saved draft's steps (or ?version=<id>: that version's), named
     //"Copy of ...", no versions, not published. Steps get new values from their initConfig() (values unique to a step, e.g. the webhook token: the copy
     //must not answer the original's URL). Workflow::read on the original, Workflow::create in its project
+    //CLD: 2026-11-27T14:00:00+02:00: the order of the current project's workflows in the sidebar (dragged there): POST `order`, their ids separated by commas, kept in the
+    //project's workflow_order (the same for every member; the ones not in it, e.g. new, after them). Who can change workflows of the project (Workflow::update) can reorder
+    public function order($req, $resp) {
+	if (!$req->is('post'))
+	    \V::app()->error(405, 'Method not allowed');
+	$project = \V::app()->om->findById('Project', \V::app()->user->crtProject);
+	if (empty($project) || (string)$project->aid !== (string)$this->account->_id)
+	    \V::app()->error(404, 'Not found');
+	if (!\V::app()->user->can('Workflow::update', [ 'object' => \V::app()->om->create('Workflow', [ 'aid' => $project->aid, 'project' => $project->_id ]) ]))
+	    \V::app()->error(403, 'Unauthorized');
+
+	//only the project's own workflows, each once
+	$ids = array_values(array_unique(array_filter(array_map('trim', explode(',', (string)($req->data['order'] ?? ''))), fn($id) => \util\Validator::rule('oid', $id))));
+	$known = [];
+	foreach(\V::app()->om->find('Workflow', [ 'aid' => $project->aid, 'project' => $project->_id, '_id' => [ '$in' => array_map(fn($id) => new \MongoDB\BSON\ObjectId($id), $ids) ] ],
+	    [ 'projection' => [ '_id' => 1 ] ]) as $wf)
+	    $known[(string)$wf->_id] = true;
+	$order = array_map(fn($id) => new \MongoDB\BSON\ObjectId($id), array_values(array_filter($ids, fn($id) => isset($known[$id]))));
+
+	\V::app()->om->updateOne('Project', [ '_id' => $project->_id, 'aid' => $project->aid ], [ '$set' => [ 'workflow_order' => $order ] ]);
+	$resp->sendJSON([ 'ok' => true, 'count' => count($order) ]);
+    }
+
     public function duplicate($req, $resp) {
 	if (!$req->is('post'))
 	    \V::app()->error(405, 'Method not allowed');

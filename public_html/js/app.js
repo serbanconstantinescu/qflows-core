@@ -171,6 +171,65 @@ window.app.sidebar = (function() {
 	    window.addEventListener('popstate', closeDrawer);
 	    mobileQuery.addEventListener('change', closeDrawer);
 
+	    //CLD: 2026-11-27T14:00:00+02:00: a list of the sidebar reordered by dragging its grips (.sidebar-sortable: the project's workflows, layouts/main_aside.php):
+	    //pointer events captured by the grip, as the resize handle below; the item moves where the pointer is, and on release the new order (the items' data-id,
+	    //separated by commas) is POSTed to the list's data-order-url; a refused save shows a toast and renders the sidebar again (the order saved before)
+	    sidebar.on('pointerdown', '.sidebar-sortable .sidebar-item-grip', (e) => {
+		if (e.button !== 0)
+		    return;
+		e.preventDefault();
+		const grip = e.currentTarget;
+		const item = grip.closest('.nav-item');
+		const list = item.parentElement;
+		const pointerId = e.originalEvent.pointerId;
+		const ids = () => [...list.querySelectorAll(':scope > .nav-item[data-id]')].map((li) => li.dataset.id).join(',');
+		const before = ids();
+		try {
+		    grip.setPointerCapture(pointerId);
+		} catch (err) {}
+		list.classList.add('sorting');
+		item.classList.add('sorting-item');
+
+		const move = (ev) => {
+		    if (ev.pointerId !== pointerId)
+			return;
+		    const others = [...list.querySelectorAll(':scope > .nav-item[data-id]')].filter((li) => li !== item);
+		    //the first item whose middle is below the pointer: the dragged one goes before it; none: after the last
+		    const next = others.find((li) => { const r = li.getBoundingClientRect(); return ev.clientY < r.top + r.height / 2; });
+		    if (next && item.nextElementSibling !== next)
+			list.insertBefore(item, next);
+		    else if (!next && others.length && others[others.length - 1].nextElementSibling !== item)
+			others[others.length - 1].after(item);
+		};
+		const end = (ev) => {
+		    if (ev.pointerId !== pointerId)
+			return;
+		    grip.removeEventListener('pointermove', move);
+		    grip.removeEventListener('pointerup', end);
+		    grip.removeEventListener('pointercancel', end);
+		    list.classList.remove('sorting');
+		    item.classList.remove('sorting-item');
+		    const order = ids();
+		    if (order === before)
+			return;
+		    const body = new FormData();
+		    const csrfParam = $('meta[name=csrf-param]').attr('content');
+		    const csrfToken = $('meta[name=csrf-token]').attr('content');
+		    if (csrfParam && csrfToken)
+			body.append(csrfParam, csrfToken);
+		    body.append('order', order);
+		    fetch(list.dataset.orderUrl, { method: 'POST', body: body, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+			.then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); })
+			.catch((err) => {
+			    app.utils.toast({ type: 'error', title: 'Order not saved', body: String(err.message || err) });
+			    app.events.dispatch({ type: 'sidebar::refresh', data: {} });
+			});
+		};
+		grip.addEventListener('pointermove', move);
+		grip.addEventListener('pointerup', end);
+		grip.addEventListener('pointercancel', end);
+	    });
+
 	    //pointer events (mouse, touch and pen), as the designer's panels
 	    //(app.workflow.js setupPanelResize): the pointer is captured by the handle, pointercancel ends the drag like pointerup; touch-action none on the
 	    //handle (theme local/_app.scss). Delegated on the sidebar: the handle is new after the aside is rendered again (sidebar::refresh)

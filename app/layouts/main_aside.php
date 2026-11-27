@@ -189,9 +189,16 @@ $dd_items = implode('', $dd_items);
 		    <div class='sidebar-heading'><i class='bi bi-diagram-3'></i><span>Workflows</span>{$wfCreateUrl}</div>
 		    ";
 		}
-		echo '<ul class="nav flex-column sidebar-group">';
+		$wfs = $canReadWf ? iterator_to_array(\V::app()->om->find('Workflow', [ 'project' => $crtProject->_id]), false) : [];
+		//CLD: 2026-11-27T14:00:00+02:00: in the project's order (workflow_order, dragged by the grip: WorkflowController::order, app.js), the others after them as created;
+		//who can change the project's workflows (Workflow::update) gets the grips
+		$rank = array_flip(array_map('strval', iterator_to_array($crtProject->workflow_order ?? [], false)));
+		usort($wfs, fn($a, $b) => [ $rank[(string)$a->_id] ?? PHP_INT_MAX, (string)$a->_id ] <=> [ $rank[(string)$b->_id] ?? PHP_INT_MAX, (string)$b->_id ]);
+		$canOrderWf = $canReadWf && count($wfs) > 1 && \V::app()->user->can('Workflow::update', [ 'object' => \V::app()->om->create('Workflow', [ 'aid' => $crtProject->aid, 'project' => $crtProject->_id ]) ]);
+		echo $canOrderWf
+		    ? \util\VString::insert('<ul class="nav flex-column sidebar-group sidebar-sortable" data-order-url="{:url}">', [ 'url' => \V::app()->createUrl('/workflow/order') ])
+		    : '<ul class="nav flex-column sidebar-group">';
 
-		$wfs = $canReadWf ? \V::app()->om->find('Workflow', [ 'project' => $crtProject->_id]) : [];
 		//CLD: 2026-11-11T12:00:00+02:00: Duplicate in each workflow's menu: Workflow::create in this project, as the designer's $canDuplicate
 		$canDuplicateWf = \V::app()->user->can('Workflow::create', [ 'object' => \V::app()->om->create('Workflow', [ 'aid' => $crtProject->aid, 'project' => $crtProject->_id ]) ]);
 		foreach($wfs as $wf) {
@@ -249,9 +256,10 @@ $dd_items = implode('', $dd_items);
 			    <a href='#' class='px-2 py-1 d-block text-body-secondary' data-bs-toggle='dropdown' data-bs-popper-config='{\"strategy\":\"fixed\"}' aria-expanded='false' title='Actions'><i class='bi bi-three-dots-vertical small'></i></a>
 			    <ul class='dropdown-menu dropdown-menu-end py-0 bg-white'>{$items}</ul>
 			</div>";
+		    $grip = $canOrderWf ? "<span class='sidebar-item-grip flex-shrink-0 text-body-secondary' title='Drag to reorder'><i class='bi bi-grip-vertical small'></i></span>" : '';
 		    echo "
-		    <li class='nav-item d-flex align-items-center'>
-			<a href='{$url}' class='nav-link flex-fill text-truncate'>{$name}</a>{$menu}
+		    <li class='nav-item d-flex align-items-center' data-id='{$wf->_id}'>
+			{$grip}<a href='{$url}' class='nav-link flex-fill text-truncate'>{$name}</a>{$menu}
 		    </li>
 		    ";
 		}
