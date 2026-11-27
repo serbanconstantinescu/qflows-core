@@ -141,6 +141,8 @@ class NodeAppReadEmail extends \models\wf\WfNode {
 		'default' => true,
 		'ui' => [ 'width' => 3, 'newRow' => true ],
 	    ],
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+	    self::filesFolderField([ 'ui' => [ 'showIf' => [ 'key' => 'saveAttachments', 'operator' => 'eq', 'value' => true ] ] ]),
 	    [
 		//layout: a limit (the last line)
 		'key' => 'maxMessages',
@@ -251,7 +253,9 @@ class NodeAppReadEmail extends \models\wf\WfNode {
     //variable (empty when none, e.g. the first run of `new`); a failed check, or another run checking this step at the same time, fails the step
     public function execute($edgeId = null) {
 	//models\MailPoll::read(), the log callable as an argument
-	$result = \models\MailPoll::read($this->exec, $this->wfid, is_array($this->config) ? $this->config : [], function($message) {
+	//CLD: 2026-11-27T12:00:00+02:00: the attachments' folder of Files with its expressions evaluated (MailPoll reads the settings as they are)
+	$cfg = [ 'filesFolder' => $this->filesFolder() ] + (is_array($this->config) ? $this->config : []);
+	$result = \models\MailPoll::read($this->exec, $this->wfid, $cfg, function($message) {
 	    $this->exec->log($this->wfid, $message);
 	});
 	if (in_array($result['status'], [ 'error', 'busy' ], true))

@@ -129,6 +129,8 @@ class NodeAppOneDrive extends NodeAppMicrosoft {
 		'help' => 'The name in the project Files; empty: the file\'s',
 		'ui' => [ 'width' => 6, 'newRow' => true, 'expression' => true, 'showIf' => static::operationIn([ 'download' ]) ],
 	    ],
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+	    self::filesFolderField([ 'ui' => [ 'showIf' => static::operationIn([ 'download' ]) ] ]),
 	    [
 		//layout: 3 wide, on a new line
 		'key' => 'source',
@@ -361,7 +363,7 @@ class NodeAppOneDrive extends NodeAppMicrosoft {
 	rewind($stream);
 	$image = \models\node\NodeAppDownload::imageInfo((string)fread($stream, \models\node\NodeAppDownload::IMAGE_SNIFF));
 	rewind($stream);
-	$fid = \models\File::createFromStream($filename, $stream, [ 'metadata' => [
+	$fid = \models\File::createFromStream($filename, $stream, [ 'folder' => $this->filesFolder(), 'metadata' => [
 	    'project' => $this->exec->project,
 	    'aid' => $this->exec->aid,
 	    'owner' => null,

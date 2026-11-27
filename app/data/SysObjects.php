@@ -60,9 +60,20 @@ class SysObjects {
 	    'Account' => [
 		'class' => 'models\Account',
 	    ],
+	    //CLD: 2026-11-27T10:00:00+02:00: the entries of a project's Files: files (the default variant: the documents without __variant) and folders
+	    'FileEntry' => [
+		'class' => 'models\FileEntry',
+		'has-variants' => true,
+	    ],
 	    'File' => [
 		'class' => 'models\File',
+		'variant-of' => 'FileEntry',
+		'default-variant' => true,
 		'userSelectable' => true,
+	    ],
+	    'Folder' => [
+		'class' => 'models\Folder',
+		'variant-of' => 'FileEntry',
 	    ],
 	    'User' => [
 		'class' => 'models\User',

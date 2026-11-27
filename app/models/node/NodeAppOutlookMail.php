@@ -192,6 +192,8 @@ class NodeAppOutlookMail extends NodeAppMicrosoft {
 		'help' => 'Allowed file types only (attachment_files)',
 		'ui' => [ 'width' => 3, 'showIf' => static::operationIn([ 'search', 'get' ]) ],
 	    ],
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+	    self::filesFolderField([ 'ui' => [ 'showIf' => "['search', 'get'].includes(data.operation) && !!data.saveAttachments" ] ]),
 	    [
 		//layout: a limit (the last line)
 		'key' => 'maxSize',
@@ -505,7 +507,7 @@ class NodeAppOutlookMail extends NodeAppMicrosoft {
 	    if ($save && $isFile && isset($a['contentBytes'])) {
 		$filename = \models\node\NodeAppDownload::filename($entry['filename'], '', '', $entry['contentType']);
 		if (\models\File::isAllowedName($filename) && $entry['size'] <= $maxBytes) {
-		    $entry['file'] = (string)\models\File::createFromString($filename, (string)base64_decode((string)$a['contentBytes']), [ 'metadata' => [
+		    $entry['file'] = (string)\models\File::createFromString($filename, (string)base64_decode((string)$a['contentBytes']), [ 'folder' => $this->filesFolder(), 'metadata' => [
 			'project' => $this->exec->project,
 			'aid' => $this->exec->aid,
 			'owner' => null,

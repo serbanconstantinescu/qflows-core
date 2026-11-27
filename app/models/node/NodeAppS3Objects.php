@@ -57,6 +57,8 @@ class NodeAppS3Objects extends NodeAppS3 {
 	    self::field('metadata', 'Metadata', [ 'upload' ], [ 'type' => 'textarea', 'help' => 'Optional: a JSON object of names and values (x-amz-meta-*)', 'ui' => [ 'rows' => 2, 'expression' => true, 'code' => true, 'advanced' => true ] ]),
 	    self::field('storageClass', 'Storage class', [ 'upload' ], [ 'help' => 'Optional: e.g. STANDARD_IA, INTELLIGENT_TIERING, GLACIER_IR', 'ui' => [ 'expression' => 'text', 'width' => 6, 'advanced' => true ] ]),
 	    self::field('filename', 'Save as', [ 'download' ], [ 'help' => 'Empty: the key\'s name', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+	    self::filesFolderField([ 'ops' => [ 'download' ] ]),
 	    self::field('as', 'Read as', [ 'read' ], [ 'type' => 'select', 'required' => true, 'default' => 'text', 'choices' => [ 'text' => 'Text', 'json' => 'JSON' ], 'ui' => [ 'width' => 3 ] ]),
 	    self::field('maxSize', 'Largest size (MB)', [ 'upload', 'download', 'read' ], [ 'type' => 'number', 'required' => true, 'default' => 25,
 		'validate' => [ [ 'inRange', 'lower' => 1, 'upper' => self::MAX_SIZE_MB, 'skipEmpty' => true, 'message' => 'from 1 to ' . self::MAX_SIZE_MB ] ], 'ui' => [ 'limit' => true, 'step' => 1, 'width' => 6 ] ]),
@@ -241,7 +243,7 @@ class NodeAppS3Objects extends NodeAppS3 {
 	    rewind($stream);
 	    $image = NodeAppDownload::imageInfo((string)fread($stream, NodeAppDownload::IMAGE_SNIFF));
 	    rewind($stream);
-	    $fid = \models\File::createFromStream($filename, $stream, [ 'metadata' => [
+	    $fid = \models\File::createFromStream($filename, $stream, [ 'folder' => $this->filesFolder(), 'metadata' => [
 		'project' => $this->exec->project,
 		'aid' => $this->exec->aid,
 		'owner' => null,

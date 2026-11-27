@@ -50,7 +50,8 @@ trait DataTrait {
     }
 
     //the request's search, filter, sort and page as [ query, options ] for om->find on the objects of $o
-    private function __listQuery($o, $sys_query = []) {
+    //CLD: 2026-11-27T10:00:00+02:00: $sortFirst: keys sorted on before the request's sort (e.g. the folders before the files: [ '__variant' => -1 ]), then by $sortFirst's own
+    private function __listQuery($o, $sys_query = [], $sortFirst = []) {
 	$req = \V::app()->request;
 
 	$options = [];
@@ -66,6 +67,8 @@ trait DataTrait {
 	//sort only by _id or a readable field (sort order also reveals values)
 	if ($sortField !== null && $sortDir !== null && ($sortField === '_id' || $this->__readableField($o, $sortField)))
 	    $options['sort'] = [ $sortField => $sortDir == 'asc' ? 1 : -1 ];
+	if ($sortFirst)
+	    $options['sort'] = array_merge($sortFirst, $options['sort'] ?? []);
 
 	$query = [];
 	if (!$o->config('global'))
@@ -99,12 +102,13 @@ trait DataTrait {
 	return [ $query, $options ];
     }
 
-    private function __data($objectName, $sys_query = []) {
+    //CLD: 2026-11-27T10:00:00+02:00: $sortFirst as __listQuery's; $more($o): more keys of an object's record (e.g. the path of a file's folder)
+    private function __data($objectName, $sys_query = [], $sortFirst = [], ?\Closure $more = null) {
 
 	$response = [ 'nRecords' => 0, 'data' => [] ];
 
 	$o = \V::app()->om->create($objectName, [ 'aid' => $this->account->_id ]);
-	[ $query, $options ] = $this->__listQuery($o, $sys_query);
+	[ $query, $options ] = $this->__listQuery($o, $sys_query, $sortFirst);
 
 	$response['nRecords'] = \V::app()->om->count($objectName, $query);
 	$objs = \V::app()->om->find($objectName, $query, $options);
@@ -121,6 +125,8 @@ trait DataTrait {
 		}
 	    }
 	    $record['_id'] = (string)$o->_id;
+	    if ($more)
+		$record = $more($o) + $record;
 
 	    $response['data'][] = $record;
 	}

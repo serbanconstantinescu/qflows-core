@@ -30,6 +30,11 @@ class NodeAppFgtSystem extends NodeAppFortiGate {
     ];
     //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
     const WRITES = [ 'backup' ];
+
+    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+    protected static function operationFields() {
+	return [ self::filesFolderField([ 'ops' => [ 'backup' ] ]) ];
+    }
     const MAX_BACKUP = 50 * 1024 * 1024;
 
     public static function outputVariables($config) {
@@ -75,7 +80,7 @@ class NodeAppFgtSystem extends NodeAppFortiGate {
 		    if (!str_starts_with(ltrim($head), '#config-version') && !str_starts_with(ltrim($head), 'config '))
 			throw new \RuntimeException('the answer is not a FortiOS configuration');
 		    rewind($tmp);
-		    $id = \models\File::createFromStream($filename, $tmp, [ 'metadata' => [
+		    $id = \models\File::createFromStream($filename, $tmp, [ 'folder' => $this->filesFolder(), 'metadata' => [
 			'project' => $this->exec->project,
 			'aid' => $this->exec->aid,
 			'owner' => null,

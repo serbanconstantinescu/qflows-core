@@ -223,6 +223,8 @@ class NodeAppGmail extends NodeAppGoogle {
 		'default' => false,
 		'ui' => [ 'width' => 3, 'showIf' => static::operationIn([ 'search', 'get' ]) ],
 	    ],
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+	    self::filesFolderField([ 'ui' => [ 'showIf' => "['search', 'get'].includes(data.operation) && !!data.saveAttachments" ] ]),
 	    [
 		//layout: a limit (the last line)
 		'key' => 'maxSize',
@@ -524,7 +526,7 @@ class NodeAppGmail extends NodeAppGoogle {
 	$raw = base64_decode(strtr((string)($data['raw'] ?? ''), '-_', '+/'), false);
 	if ($raw === false || $raw === '')
 	    throw new \RuntimeException("message {$id}: no content");
-	[ $msg ] = \models\MailPoll::messageVars($raw, [ 'saveAttachments' => (bool)$this->cfg('saveAttachments', false), 'maxBody' => \models\node\NodeAppReadEmail::MAX_BODY,
+	[ $msg ] = \models\MailPoll::messageVars($raw, [ 'saveAttachments' => (bool)$this->cfg('saveAttachments', false), 'filesFolder' => $this->filesFolder(), 'maxBody' => \models\node\NodeAppReadEmail::MAX_BODY,
 	    'mail' => [ 'id' => (string)($data['id'] ?? $id), 'thread_id' => (string)($data['threadId'] ?? ''), 'labels' => array_values((array)($data['labelIds'] ?? [])),
 		'snippet' => html_entity_decode((string)($data['snippet'] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'), 'account' => (string)$this->cred->name ],
 	    'meta' => [ 'project' => $this->exec->project, 'aid' => $this->exec->aid, 'wf' => $this->exec->wf ] ]);

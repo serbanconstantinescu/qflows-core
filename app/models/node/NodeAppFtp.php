@@ -222,6 +222,8 @@ class NodeAppFtp extends \models\wf\WfNode {
 		'validate' => [ [ 'inRange', 'lower' => 1, 'upper' => self::MAX_FILES, 'skipEmpty' => true, 'message' => 'from 1 to ' . self::MAX_FILES ] ],
 		'ui' => [ 'limit' => true, 'width' => 6, 'step' => 1 ],
 	    ],
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+	    self::filesFolderField([ 'ui' => [ 'newRow' => true, 'showIf' => $download ] ]),
 	    [
 		//layout: 3 wide, on a new line
 		'key' => 'decrypt',
@@ -791,7 +793,7 @@ class NodeAppFtp extends \models\wf\WfNode {
 	    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 	    $contentType = \models\File::CONTENT_TYPES[$ext] ?? 'application/octet-stream';
 	    try {
-		$id = \models\File::createFromStream($filename, $stream, [ 'metadata' => [
+		$id = \models\File::createFromStream($filename, $stream, [ 'folder' => $this->filesFolder(), 'metadata' => [
 		    'project' => $this->exec->project,
 		    'aid' => $this->exec->aid,
 		    'owner' => null,

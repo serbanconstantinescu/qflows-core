@@ -36,6 +36,22 @@ class NodeTriggerFile extends \models\wf\WfNode {
 		'help' => 'Files uploaded to this project\'s Files start the workflow once it is published; none chosen: any file',
 		'ui' => [ 'placeholder' => 'Any file' ],
 	    ],
+	    //CLD: 2026-11-27T10:00:00+02:00: only the files uploaded to a folder (its path; a rename of the folder needs the path changed here too)
+	    [
+		'key' => 'folder',
+		'type' => 'text',
+		'label' => 'Only in this folder',
+		'help' => 'Its path in Files, e.g. Invoices/2026; empty: any folder',
+		'transform' => 'trim',
+		'ui' => [ 'placeholder' => 'Any folder', 'width' => 8 ],
+	    ],
+	    [
+		'key' => 'subfolders',
+		'type' => 'switch',
+		'label' => 'And the folders inside it',
+		'default' => true,
+		'ui' => [ 'width' => 4, 'showIf' => [ 'key' => 'folder', 'operator' => 'notEmpty' ] ],
+	    ],
 	    [
 		'key' => 'variable',
 		'type' => 'text',
@@ -54,10 +70,11 @@ class NodeTriggerFile extends \models\wf\WfNode {
     public static function outputVariables($config) {
 	$name = is_array($config) ? (string)($config['variable'] ?? 'file') : 'file';
 	return \util\Validator::isIdentifier($name) ? [ $name => [ 'type' => 'object',
-	    'info' => 'the uploaded file: { id, filename, extension, type, size, uploaded_by: { id, name, email } }',
+	    'info' => 'the uploaded file: { id, filename, extension, type, size, folder, uploaded_by: { id, name, email } }',
 	    'fields' => [
 		'id' => [ 'type' => 'string' ],
 		'filename' => [ 'type' => 'string' ],
+		'folder' => [ 'type' => 'string', 'info' => 'the path of its folder, e.g. Invoices/2026; empty: the top level' ],
 		'extension' => [ 'type' => 'string', 'info' => 'lower case, e.g. pdf' ],
 		'type' => [ 'type' => 'string', 'info' => 'e.g. PDF, Excel, Image' ],
 		'size' => [ 'type' => 'number', 'info' => 'bytes' ],
@@ -65,19 +82,27 @@ class NodeTriggerFile extends \models\wf\WfNode {
 	    ] ] ] : [];
     }
 
-    //whether a file of type $type is one step config $cfg accepts
-    public static function accepts(array $cfg, $type) {
+    //whether a file of type $type in folder $path (its path, '' the top level) is one step config $cfg accepts
+    public static function accepts(array $cfg, $type, $path = '') {
 	$types = array_map('strval', (array)($cfg['types'] ?? []));
-	return !$types || in_array((string)$type, $types, true);
+	if ($types && !in_array((string)$type, $types, true))
+	    return false;
+	//the paths compared as Folder::resolve reads them (spaces around the names, slashes)
+	$norm = fn($p) => implode('/', array_filter(array_map('trim', explode('/', str_replace('\\', '/', (string)$p))), fn($n) => $n !== ''));
+	$want = $norm($cfg['folder'] ?? '');
+	if ($want === '')
+	    return true;
+	$path = $norm($path);
+	return $path === $want || (($cfg['subfolders'] ?? true) && str_starts_with($path, $want . '/'));
     }
 
-    //the published workflows of project $project with a File upload step accepting $type: [ [ wf, node ] ]
-    protected static function stepsFor($aid, $project, $type) {
+    //the published workflows of project $project with a File upload step accepting $type in folder $path: [ [ wf, node ] ]
+    protected static function stepsFor($aid, $project, $type, $path) {
 	$found = [];
 	foreach(\V::app()->om->find('Workflow', [ 'aid' => $aid, 'project' => $project, 'status' => \models\Workflow::PUBLISHED, 'version' => [ '$ne' => null ] ]) as $wf) {
 	    $version = $wf->publishedVersion();
 	    foreach((is_array($version->nodes ?? null) ? $version->nodes : []) as $n) {
-		if (!empty($n['isNode']) && ($n['fqname'] ?? '') === 'trigger::file' && !empty($n['wfid']) && self::accepts(is_array($n['config'] ?? null) ? $n['config'] : [], $type))
+		if (!empty($n['isNode']) && ($n['fqname'] ?? '') === 'trigger::file' && !empty($n['wfid']) && self::accepts(is_array($n['config'] ?? null) ? $n['config'] : [], $type, $path))
 		    $found[] = [ $wf, $n ];
 	    }
 	}
@@ -91,7 +116,7 @@ class NodeTriggerFile extends \models\wf\WfNode {
 	    return;
 	$aid = $file->metadata['aid'] ?? null;
 	$project = $file->metadata['project'] ?? null;
-	foreach(self::stepsFor($aid, $project, $file->type) as [ $wf, $node ]) {
+	foreach(self::stepsFor($aid, $project, $file->type, $file->folderPath()) as [ $wf, $node ]) {
 	    \models\Job::submit('\models\node\NodeTriggerFile::deliver', [
 		'wf' => (string)$wf->_id,
 		'node' => (string)$node['wfid'],
@@ -119,7 +144,8 @@ class NodeTriggerFile extends \models\wf\WfNode {
 		$node = $n;
 	}
 	$cfg = is_array($node['config'] ?? null) ? $node['config'] : [];
-	if (!$node || !self::accepts($cfg, $file->type)) {
+	$path = $file ? $file->folderPath() : '';
+	if (!$node || !self::accepts($cfg, $file->type, $path)) {
 	    \V::app()->log->info('File upload: workflow ' . ($data->wf ?? '?') . ', file ' . ($data->file ?? '?') . ': the workflow is not published, or the step or the file is gone, skipped');
 	    return;
 	}
@@ -135,6 +161,7 @@ class NodeTriggerFile extends \models\wf\WfNode {
 	    'extension' => $file->extension(),
 	    'type' => (string)$file->type,
 	    'size' => (int)$file->length,
+	    'folder' => $path,
 	    'uploaded_by' => $user ? [ 'id' => (string)$user->_id, 'name' => (string)$user->name, 'email' => (string)$user->email ] : null,
 	];
 	$exe = \models\wf\WfExecution::startFor($live, 'file', [ 'file' => (string)$file->_id, 'user' => $user ? (string)$user->_id : null,

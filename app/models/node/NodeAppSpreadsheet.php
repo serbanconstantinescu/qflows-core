@@ -67,6 +67,8 @@ class NodeAppSpreadsheet extends \models\wf\WfNode {
 		'help' => 'Excel only, at most 31 characters',
 		'ui' => [ 'width' => 4, 'expression' => true, 'showIf' => [ 'key' => 'format', 'operator' => 'eq', 'value' => 'xlsx' ] ],
 	    ],
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files it is saved in
+	    self::filesFolderField([ 'ui' => [ 'newRow' => true ] ]),
 	    [
 		'key' => 'columns',
 		'type' => 'nested',
@@ -138,7 +140,7 @@ class NodeAppSpreadsheet extends \models\wf\WfNode {
 
 	$size = (int)filesize($path);
 	$stream = fopen($path, 'rb');
-	$id = \models\File::createFromStream($filename, $stream, [ 'metadata' => [
+	$id = \models\File::createFromStream($filename, $stream, [ 'folder' => $this->filesFolder(), 'metadata' => [
 	    'project' => $this->exec->project,
 	    'aid' => $this->exec->aid,
 	    'owner' => null,

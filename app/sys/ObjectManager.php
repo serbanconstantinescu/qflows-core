@@ -176,6 +176,24 @@ class ObjectManager {
 	return $objDef['variant-of'] ?? false;
     }
 
+    //CLD: 2026-11-27T10:00:00+02:00: $query limited to the objects of variant $objectName (none: $query as given). A family's default variant ('default-variant' => true,
+    //e.g. File of FileEntry) also has the documents without __variant: those stored before the family had variants, or written outside the models (GridFS uploads)
+    protected function variantQuery($objectName, array $query) {
+	if (!$this->isVariant($objectName))
+	    return $query;
+	$query['__variant'] = empty($this->getObjectDef($objectName)['default-variant']) ? $objectName : [ '$in' => [ $objectName, null ] ];
+	return $query;
+    }
+
+    //the default variant of family $objectName (its 'default-variant'), null when it has none
+    public function defaultVariant($objectName) {
+	foreach($this->registry as $object => $objDef) {
+	    if (($objDef['variant-of'] ?? null) === $objectName && !empty($objDef['default-variant']))
+		return $object;
+	}
+	return null;
+    }
+
     public function getVariants($objectName) {
 	if (empty($objectName))
 	    throw new \ErrorException("OM::getVariants: empty object name");
@@ -317,8 +335,7 @@ class ObjectManager {
 	//a string _id that is not an ObjectId is kept (keyIdQuery)
 	$query = self::keyIdQuery($query, __METHOD__);
 
-	if ($this->isVariant($objectName))
-	    $query['__variant'] = $objectName;
+	$query = $this->variantQuery($objectName, $query);
 
 	$objectClass = $objDef['class'] ?? null;
 	if (empty($objectClass))
@@ -365,8 +382,7 @@ class ObjectManager {
 	$query = self::keyIdQuery($query, __METHOD__);
 
 	//also when querying by _id (a variant's findById returned an object of another variant with that id)
-	if ($this->isVariant($objectName))
-	    $query['__variant'] = $objectName;
+	$query = $this->variantQuery($objectName, $query);
 
 	$objectClass = $objDef['class'] ?? null;
 	if (empty($objectClass))
@@ -445,8 +461,7 @@ class ObjectManager {
 	//a string _id that is not an ObjectId is kept (keyIdQuery)
 	$query = self::keyIdQuery($query, __METHOD__);
 	//a variant changes only its own objects (as find)
-	if ($this->isVariant($objectName))
-	    $query['__variant'] = $objectName;
+	$query = $this->variantQuery($objectName, $query);
 
 	$objectClass = $objDef['class'] ?? null;
 	if (empty($objectClass))
@@ -473,8 +488,7 @@ class ObjectManager {
 	//special case for id
 	//a string _id that is not an ObjectId is kept (keyIdQuery)
 	$query = self::keyIdQuery($query, __METHOD__);
-	if ($this->isVariant($objectName))
-	    $query['__variant'] = $objectName;
+	$query = $this->variantQuery($objectName, $query);
 
 	$objectClass = $objDef['class'] ?? null;
 	if (empty($objectClass))
@@ -501,8 +515,7 @@ class ObjectManager {
 	//special case for id
 	//a string _id that is not an ObjectId is kept (keyIdQuery)
 	$query = self::keyIdQuery($query, __METHOD__);
-	if ($this->isVariant($objectName))
-	    $query['__variant'] = $objectName;
+	$query = $this->variantQuery($objectName, $query);
 
 	$objectClass = $objDef['class'] ?? null;
 	if (empty($objectClass))
@@ -526,8 +539,7 @@ class ObjectManager {
 	    throw new \ErrorException(__METHOD__ . ": unknown object: $objectName");
 
 	$query = self::keyIdQuery($query, __METHOD__);
-	if ($this->isVariant($objectName))
-	    $query['__variant'] = $objectName;
+	$query = $this->variantQuery($objectName, $query);
 
 	$objectClass = $objDef['class'] ?? null;
 	if (empty($objectClass))
@@ -555,8 +567,7 @@ class ObjectManager {
 	//special case for id
 	//a string _id that is not an ObjectId is kept (keyIdQuery)
 	$query = self::keyIdQuery($query, __METHOD__);
-	if ($this->isVariant($objectName))
-	    $query['__variant'] = $objectName;
+	$query = $this->variantQuery($objectName, $query);
 
 	$objectClass = $objDef['class'] ?? null;
 	if (empty($objectClass))
@@ -598,8 +609,7 @@ class ObjectManager {
 	    throw new \ErrorException(__METHOD__ . ": unknown object: $objectName");
 
 	$query = self::keyIdQuery($query, __METHOD__);
-	if ($this->isVariant($objectName))
-	    $query['__variant'] = $objectName;
+	$query = $this->variantQuery($objectName, $query);
 
 	$objectClass = $objDef['class'] ?? null;
 	if (empty($objectClass))
@@ -684,8 +694,7 @@ class ObjectManager {
 
 	$match = isset($pipeline[0]['$match']) ? (array)array_shift($pipeline)['$match'] : [];
 	$match = self::keyIdQuery($match, __METHOD__);
-	if ($this->isVariant($objectName))
-	    $match['__variant'] = $objectName;
+	$match = $this->variantQuery($objectName, $match);
 	//the account guard (accountQuery)
 	$match = $this->accountQuery($objectName, $objectClass, $match, __METHOD__);
 	if ($match)
@@ -709,8 +718,7 @@ class ObjectManager {
 	$query = self::keyIdQuery($query, __METHOD__);
 
 	//a variant counts only its own objects
-	if ($this->isVariant($objectName))
-	    $query['__variant'] = $objectName;
+	$query = $this->variantQuery($objectName, $query);
 
 	//get object collection
 	$objectClass = $objDef['class'] ?? null;

@@ -250,7 +250,7 @@ class MailPoll extends \sys\BaseModel {
 
 		//the message object (messageVars(), shared with startMessage() of the Email inbound trigger), with the mailbox's fields, is added to the list; bodies kept shorter
 		//(the list is stored in the execution)
-		[ $msg ] = self::messageVars($raw, [ 'saveAttachments' => $saveAttachments, 'maxBody' => \models\node\NodeAppReadEmail::MAX_BODY,
+		[ $msg ] = self::messageVars($raw, [ 'saveAttachments' => $saveAttachments, 'filesFolder' => (string)($cfg['filesFolder'] ?? ''), 'maxBody' => \models\node\NodeAppReadEmail::MAX_BODY,
 		    'mail' => [ 'account' => (string)$cred->name, 'folder' => $folder, 'uid' => (int)$uid ],
 		    'meta' => [ 'project' => $exec->project, 'aid' => $exec->aid, 'wf' => $exec->wf ] ]);
 		$mails[] = $msg;
@@ -310,10 +310,19 @@ class MailPoll extends \sys\BaseModel {
     }
 
     //message $raw as [ the variable's object, the execution input (without vars) ]; $o: saveAttachments,
-    //mail (fields first in the object), input (fields first in the input), meta (project, aid, wf of the saved attachment files), maxBody (text / html kept, default MAX_BODY)
+    //mail (fields first in the object), input (fields first in the input), meta (project, aid, wf of the saved attachment files), maxBody (text / html kept, default MAX_BODY),
+    //CLD: 2026-11-27T12:00:00+02:00: filesFolder (the path of the folder of Files the attachments go in, made when missing; a path that cannot be a folder's: the top level, logged)
     public static function messageVars($raw, array $o = []) {
 	$saveAttachments = !empty($o['saveAttachments']);
 	$meta = (array)($o['meta'] ?? []);
+	$folder = null;
+	if ($saveAttachments && trim((string)($o['filesFolder'] ?? '')) !== '') {
+	    try {
+		$folder = \models\Folder::resolve($meta['aid'] ?? null, $meta['project'] ?? null, (string)$o['filesFolder']);
+	    } catch (\RuntimeException $e) {
+		\V::app()->log->warn('mail attachments: saved at the top level of Files: ' . $e->getMessage());
+	    }
+	}
 	$maxBody = (int)($o['maxBody'] ?? self::MAX_BODY);
 	$mail = new \util\MailParser($raw);
 
@@ -329,6 +338,7 @@ class MailPoll extends \sys\BaseModel {
 			'aid' => $meta['aid'] ?? null,
 			'owner' => null,
 			'source' => 'mail',
+			'folder' => $folder,
 			'wf' => $meta['wf'] ?? null,
 			'created_at' => new \MongoDB\BSON\UTCDateTime(),
 		    ] ]);

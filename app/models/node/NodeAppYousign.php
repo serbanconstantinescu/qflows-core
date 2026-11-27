@@ -258,7 +258,7 @@ abstract class NodeAppYousign extends \models\wf\WfNode {
 	fwrite($stream, $body);
 	rewind($stream);
 	try {
-	    $id = \models\File::createFromStream($filename, $stream, [ 'metadata' => [
+	    $id = \models\File::createFromStream($filename, $stream, [ 'folder' => $this->filesFolder(), 'metadata' => [
 		'project' => $this->exec->project,
 		'aid' => $this->exec->aid,
 		'owner' => null,

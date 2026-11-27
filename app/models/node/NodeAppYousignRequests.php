@@ -91,6 +91,8 @@ class NodeAppYousignRequests extends NodeAppYousign {
 	    self::field('note', 'Note', [ 'cancel' ], [ 'help' => 'At most 500 characters', 'ui' => [ 'expression' => 'text' ] ]),
 	    self::field('signerId', 'Signer ID', [ 'remind', 'audit' ], [ 'help' => 'Empty: every signer not done yet (audit: the whole request)', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
 	    self::field('filename', 'File name', [ 'download', 'audit' ], [ 'help' => 'Empty: the request\'s name', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+	    self::filesFolderField([ 'ops' => [ 'download', 'audit' ] ]),
 	];
     }
 

@@ -43,6 +43,8 @@ class NodeAppGitHubRepository extends NodeAppGitHub {
 		'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
 	    self::field('ref', 'Branch, tag or commit', [ 'getFile', 'listFolder', 'commits', 'createBranch' ], [ 'help' => 'Empty: the default branch (Create a branch: where it starts)', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
 	    self::field('as', 'Read as', [ 'getFile' ], [ 'type' => 'select', 'required' => true, 'default' => 'text', 'choices' => [ 'text' => 'Text (into the variable)', 'file' => 'A project file' ], 'ui' => [ 'width' => 6 ] ]),
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+	    self::filesFolderField([ 'ui' => [ 'showIf' => "data.operation === 'getFile' && data.as === 'file'" ] ]),
 	    self::field('branch', 'Branch', [ 'putFile', 'deleteFile', 'createBranch' ], [ 'help' => 'Write / delete: empty is the default branch; Create a branch: its name', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
 	    self::field('source', 'Content', [ 'putFile' ], [ 'type' => 'select', 'required' => true, 'default' => 'text', 'choices' => [ 'text' => 'A text', 'file' => 'A project file' ], 'ui' => [ 'width' => 3, 'newRow' => true ] ]),
 	    self::field('content', 'Text', [ 'putFile' ], [ 'type' => 'textarea', 'help' => '{{ ... }} for expressions (a list / object is written as JSON)', 'ui' => [ 'rows' => 5, 'expression' => true,
@@ -115,7 +117,7 @@ class NodeAppGitHubRepository extends NodeAppGitHub {
 			$this->gh->request('GET', "/repos/{$repo}/contents/{$path}", $q, null, [ 'accept' => 'application/vnd.github.raw', 'sink' => $stream, 'maxBytes' => self::MAX_FILE_MB * 1024 * 1024 ]);
 			$size = (int)fstat($stream)['size'];
 			rewind($stream);
-			$fid = \models\File::createFromStream($filename, $stream, [ 'metadata' => [ 'project' => $this->exec->project, 'aid' => $this->exec->aid, 'owner' => null, 'source' => 'github',
+			$fid = \models\File::createFromStream($filename, $stream, [ 'folder' => $this->filesFolder(), 'metadata' => [ 'project' => $this->exec->project, 'aid' => $this->exec->aid, 'owner' => null, 'source' => 'github',
 			    'wf' => $this->exec->wf, 'created_at' => new \MongoDB\BSON\UTCDateTime() ] ]);
 		    } finally {
 			fclose($stream);

@@ -23,11 +23,14 @@ switch($extension) {
 ?>
 <div class="main-header py-2 px-3">
     <?= (new \sys\html\BtnExpandSidebar())->render() ?>
-    <?= (new \sys\html\Breadcrumbs([ 'items' => [
-	[ 'label' => 'Home', 'href' => '/site/index' ],
-	[ 'label' => 'Files', 'href' => '/file/list' ],
-	[ 'label' => $name ],
-    ]]))->render() ?>
+    <?php
+	//CLD: 2026-11-27T10:00:00+02:00: Files, the folders the file is in (each opens it), the file
+	$crumbs = [ [ 'label' => 'Home', 'href' => '/site/index' ], [ 'label' => 'Files', 'href' => '/file/list' ] ];
+	foreach($file->folders() as $f)
+	    $crumbs[] = [ 'label' => \V::app()->html->escape((string)$f->filename), 'href' => \V::app()->createUrl('/file/list', [ 'folder' => $f->_id ]) ];
+	$crumbs[] = [ 'label' => $name ];
+	echo (new \sys\html\Breadcrumbs([ 'items' => $crumbs ]))->render();
+    ?>
     <div class="spacer"></div>
     <div>
 	<!-- no-pjax: a download is not a page -->

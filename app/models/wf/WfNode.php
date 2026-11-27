@@ -275,6 +275,24 @@ class WfNode extends \sys\NestedModel {
 	return \util\Expression::render($this->cfg($key, $default), $this->exec->expressionVariables());
     }
 
+    //CLD: 2026-11-27T12:00:00+02:00: the setting of the steps saving files: the folder of the project's Files they go in (filesFolder(); File::createFromStream, option folder);
+    //$more: merged into it (e.g. ops, ui showIf / width)
+    public static function filesFolderField(array $more = []) {
+	return array_replace_recursive([
+	    'key' => 'filesFolder',
+	    'type' => 'text',
+	    'label' => 'Folder in Files',
+	    'default' => '',
+	    'help' => 'e.g. Invoices/{{ customer.name }}; made when missing; empty: the top level',
+	    'ui' => [ 'expression' => 'text', 'width' => 6, 'placeholder' => 'Invoices/2026' ],
+	], $more);
+    }
+
+    //the path of setting filesFolder (filesFolderField) with its expressions evaluated: '' for the top level
+    protected function filesFolder() {
+	return trim(\util\Expression::toText($this->expr('filesFolder', '')));
+    }
+
     //the syntax errors of the expression fields (ui `expression`) of form $form with values $values: [ "<label>: <message>" ] (unknown names are
     //only warnings in the designer: a variable may come from somewhere the check cannot see)
     public static function expressionErrors($form, array $values) {

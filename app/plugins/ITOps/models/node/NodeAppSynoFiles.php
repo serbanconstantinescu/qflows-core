@@ -75,6 +75,8 @@ class NodeAppSynoFiles extends NodeAppSynology {
 	    self::field('sort', 'Sort by', [ 'list' ], [ 'type' => 'select', 'default' => 'name', 'choices' => self::SORT, 'ui' => [ 'width' => 3 ] ]),
 	    self::field('descending', 'Descending', [ 'list' ], [ 'type' => 'switch', 'default' => false, 'ui' => [ 'width' => 3 ] ]),
 	    self::field('filename', 'Save as', [ 'download' ], [ 'help' => 'The name in the project Files; empty: the file\'s', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+	    self::filesFolderField([ 'ops' => [ 'download' ] ]),
 	    self::field('maxSize', 'Largest file (MB)', [ 'download', 'upload' ], [ 'type' => 'number', 'default' => 25,
 		'validate' => [ [ 'inRange', 'lower' => 1, 'upper' => self::MAX_SIZE_MB, 'skipEmpty' => true, 'message' => 'from 1 to ' . self::MAX_SIZE_MB ] ], 'ui' => [ 'step' => 1, 'width' => 3 ] ]),
 	    self::field('source', 'Upload', [ 'upload' ], [ 'type' => 'select', 'required' => true, 'default' => 'file', 'choices' => [ 'file' => 'A project file', 'text' => 'A text' ],
@@ -295,7 +297,7 @@ class NodeAppSynoFiles extends NodeAppSynology {
 	    rewind($stream);
 	    $image = \models\node\NodeAppDownload::imageInfo((string)fread($stream, \models\node\NodeAppDownload::IMAGE_SNIFF));
 	    rewind($stream);
-	    $fid = \models\File::createFromStream($filename, $stream, [ 'metadata' => [
+	    $fid = \models\File::createFromStream($filename, $stream, [ 'folder' => $this->filesFolder(), 'metadata' => [
 		'project' => $this->exec->project,
 		'aid' => $this->exec->aid,
 		'owner' => null,

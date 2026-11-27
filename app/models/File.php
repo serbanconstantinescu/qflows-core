@@ -2,19 +2,8 @@
 
 namespace models;
 
-class File extends \sys\BaseModel {
-    public static $indexes = [
-	[ [ 'metadata.project' => 1 ], [] ],
-	[ [ 'metadata.aid' => 1 ], [] ],
-    ];
-    protected static $bucketName = 'filestore';
-    protected static $chunkSizeBytes = 128 * 1024;
-
-    protected static $bucket = null;
-
-    public static function _collection() {
-	return static::$bucketName . '.files';
-    }
+//CLD: 2026-11-27T10:00:00+02:00: a file of a project's Files, the default variant of FileEntry (the bucket, the fields, the access are FileEntry's); in a folder: metadata.folder
+class File extends FileEntry {
 
     //the allow-list of uploadable files (isAllowedName; the upload's accept attribute, views/file/list.php): images, documents, presentations,
     //spreadsheets, text files and PDFs; anything else (archives, executables, scripts, unknown types) is refused
@@ -117,10 +106,6 @@ class File extends \sys\BaseModel {
     }
 
 
-    //metadata keys also kept at the top level of the file document (beforeSave, createFromStream)
-    const TOP_LEVEL_METADATA = [ 'aid', 'project' ];
-
-
     //true if a file with this name may be uploaded (its extension is in $extensions)
     public static function isAllowedName($filename) {
 	$ext = strtolower(pathinfo((string)$filename, PATHINFO_EXTENSION));
@@ -141,104 +126,10 @@ class File extends \sys\BaseModel {
 
     public function _init() {
 	parent::_init();
-	$this->_config['global'] = true;
 
 	if (!empty($this->filename)) {
 	    $this->type = self::$extensions[$this->extension()] ?? 'Unknown';
 	}
-
-	$this->owner = $this->metadata['owner'] ?? null;
-	$this->created_at = $this->metadata['created_at'] ?? null;
-	$this->updated_at = $this->metadata['updated_at'] ?? null;
-    }
-
-    public static function _bucket() {
-	if (static::$bucket)
-	    return static::$bucket;
-
-	$db = \V::app()->mongo->selectDatabase(self::_database());
-	static::$bucket = $db->selectGridFSBucket([
-	    'bucketName' => static::$bucketName,
-	    'chunkSizeBytes' => static::$chunkSizeBytes,
-	    'disableMD5' => true,
-	    'writeConcern' => new \MongoDB\Driver\WriteConcern('majority', 0, true),
-	]);
-
-	return static::$bucket;
-    }
-
-    public function getSchema() {
-	$fields = [
-	    //filename
-	    [
-		'key' => 'filename',
-		'type' => 'text',
-		'label' => 'FileName',
-		'help' => false,
-		'required' => true,
-		'perm:read' => 'everybody',
-		'perm:update' => 'permission',
-	    ],
-	    //length
-	    [
-		'key' => 'length',
-		'type' => 'number',
-		'label' => 'Length',
-		'help' => false,
-		'format' => 'bytes-human',
-		'required' => false,
-		'perm:read' => 'everybody',
-		'perm:update' => 'nobody',
-	    ],
-
-	    //type
-	    [
-		'key' => 'type',
-		'type' => 'text',
-		'label' => 'Type',
-		'help' => false,
-		'required' => false,
-		'perm:read' => 'everybody',
-		'perm:update' => 'nobody',
-	    ],
-
-	    //project
-	    [
-		'key' => 'project',
-		'type' => 'object',
-		'label' => 'Project',
-		'object' => 'Project',
-		'help' => false,
-		'required' => true,
-		'perm:read' => 'nobody',
-		'perm:update' => 'permission',
-	    ],
-
-	    //owner
-	    [
-		'key' => 'owner',
-		'type' => 'object',
-		'label' => 'Owner',
-		'object' => 'User',
-		'help' => false,
-		'required' => true,
-		'perm:read' => 'everybody',
-		'perm:update' => 'permission',
-	    ],
-
-	    //metadata
-	    [
-		'key' => 'metadata',
-		'type' => 'array',
-		'label' => 'Metadata',
-		'help' => false,
-		'required' => true,
-		'perm:read' => 'nobody',
-		//perm:update (perm:edit is read by nothing)
-		'perm:update' => 'nobody',
-	    ],
-	];
-	return array_merge($fields, $this->getSystemSchema());
     }
 
     //override delete so that we let bucket do it's job
@@ -272,9 +163,17 @@ class File extends \sys\BaseModel {
 	return $file_id;
     }
 
+    //CLD: 2026-11-27T10:00:00+02:00: $options['folder']: the path of the folder of the project it goes in (Folder::resolve: made when missing; ''/none: the top level),
+    //or metadata.folder (a folder _id) given; \RuntimeException for a path that cannot be a folder's
     public static function createFromStream($filename, $stream, $options = []) {
 	if (!is_resource($stream))
 	    throw new \ErrorException('stream is not a resource');
+
+	if (isset($options['folder'])) {
+	    if (trim((string)$options['folder']) !== '')
+		$options['metadata']['folder'] = Folder::resolve($options['metadata']['aid'] ?? null, $options['metadata']['project'] ?? null, $options['folder']);
+	    unset($options['folder']);
+	}
 
 	//the tier's limit of the account's files (util\Tiers): refused when the file's size (when the stream knows it) does not fit; checked again once written
 	//(a stream of unknown size): the file is removed when the account goes over the limit. LimitException: the step / the page shows its message
@@ -285,8 +184,8 @@ class File extends \sys\BaseModel {
 	    \util\Tiers::check($aid, 'files_bytes', $size);
 	}
 
-	//GridFS only takes custom data in `metadata`: copy metadata.aid to a top-level `aid`
-	//on the stored file document right after the upload (as File::beforeSave does on model saves)
+	//GridFS only takes custom data in `metadata`: copy metadata.aid to a top-level `aid` (+ __variant)
+	//on the stored file document right after the upload (as FileEntry::beforeSave does on model saves)
 	$file_id = self::_bucket()->uploadFromStream($filename, $stream, $options);
 
 	if (!empty($aid)) {
@@ -298,47 +197,18 @@ class File extends \sys\BaseModel {
 	    }
 	}
 
-	$set = [];
+	//a file of the FileEntry family (a document without it is one too: om's default variant)
+	$set = [ '__variant' => 'File' ];
 	foreach(self::TOP_LEVEL_METADATA as $key) {
 	    if (!empty($options['metadata'][$key]))
 		$set[$key] = $options['metadata'][$key];
 	}
-	if (!empty($set))
-	    \V::app()->mongo->selectCollection(self::_database(), self::_collection())->updateOne(
-		[ '_id' => $file_id ],
-		[ '$set' => $set ]
-	    );
+	\V::app()->mongo->selectCollection(self::_database(), self::_collection())->updateOne(
+	    [ '_id' => $file_id ],
+	    [ '$set' => $set ]
+	);
 
 	return $file_id;
-    }
-
-    //keep a top-level `aid` and `project` (queried by generic code, e.g. Field_object::objectChoices),
-    //taken from metadata.aid, metadata.project where GridFS uploads store the account
-    public function beforeSave() {
-	parent::beforeSave();
-
-	foreach(self::TOP_LEVEL_METADATA as $key) {
-	    if (empty($this->$key) && !empty($this->metadata[$key]))
-		$this->$key = $this->metadata[$key];
-	}
-    }
-
-
-    //access to a file (BaseModel's default is always false):
-    //role scope `global` -> yes; `project` -> only if the user is a member of the file's project (same account); else no.
-    //AAA::checkAccess passes the full name (File::delete), field checks the short one (read, update)
-    public function checkAccess($userId, $permName, $params = []) {
-	if (strpos($permName, '::') === false)
-	    $permName = 'File::' . $permName;
-
-	//the user's role in the file's project decides; a file without a project (an execution's, e.g. an AI step's approval) gives nothing here: global scope is sys\AAA's
-	$projectId = $this->metadata['project'] ?? $this->project;
-	return !empty($projectId) && (\V::app()->om->findById('Project', $projectId)?->checkAccess($userId, $permName) ?? false);
-    }
-
-    //label of a file (e.g. in object fields)
-    public function __toString() {
-	return (string)($this->filename ?? '');
     }
 
 }

@@ -43,6 +43,8 @@ class NodeAppSlackFiles extends NodeAppSlack {
 	    self::field('comment', 'Comment', [ 'upload' ], [ 'type' => 'textarea', 'help' => 'Optional: a message with the file (Markdown)', 'ui' => [ 'rows' => 2, 'expression' => true ] ]),
 	    self::field('file', 'File', [ 'download', 'info', 'delete' ], [ 'required' => true, 'help' => 'Its id (F…), or a file of a message, e.g. {{ slack.files[0] }}', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
 	    self::field('filename', 'Save as', [ 'download' ], [ 'help' => 'Empty: the file\'s own name', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+	    self::filesFolderField([ 'ops' => [ 'download' ] ]),
 	    self::field('channel', 'Channel', [ 'list' ], [ 'help' => 'Optional: a channel\'s files (C…, #name)', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
 	    self::field('user', 'Person', [ 'list' ], [ 'help' => 'Optional: a person\'s files (U…, an email)', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
 	    self::field('maxSize', 'Largest size (MB)', [ 'upload', 'download' ], [ 'type' => 'number', 'required' => true, 'default' => 25,
@@ -141,7 +143,7 @@ class NodeAppSlackFiles extends NodeAppSlack {
 	    rewind($stream);
 	    $image = NodeAppDownload::imageInfo((string)fread($stream, NodeAppDownload::IMAGE_SNIFF));
 	    rewind($stream);
-	    $fid = \models\File::createFromStream($filename, $stream, [ 'metadata' => [
+	    $fid = \models\File::createFromStream($filename, $stream, [ 'folder' => $this->filesFolder(), 'metadata' => [
 		'project' => $this->exec->project,
 		'aid' => $this->exec->aid,
 		'owner' => null,

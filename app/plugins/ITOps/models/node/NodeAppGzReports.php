@@ -39,6 +39,8 @@ class NodeAppGzReports extends NodeAppGravityZone {
 	    self::field('targetIds', 'Targets', [ 'create' ], [ 'type' => 'textarea', 'required' => true, 'help' => 'Endpoint or group ids: a list, or separated by commas',
 		'ui' => [ 'rows' => 2, 'expression' => true ] ]),
 	    self::field('reportId', 'Report', [ 'links', 'download', 'delete' ], [ 'required' => true, 'help' => 'The report\'s id', 'ui' => [ 'expression' => true ] ]),
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+	    self::filesFolderField([ 'ops' => [ 'download' ] ]),
 	];
     }
 
@@ -98,7 +100,7 @@ class NodeAppGzReports extends NodeAppGravityZone {
 
     //stream $stream ($size bytes) saved as a file of the project named $filename: [ id, filename, size, contentType ]
     private function saveFile($filename, $stream, $size) {
-	$id = \models\File::createFromStream($filename, $stream, [ 'metadata' => [
+	$id = \models\File::createFromStream($filename, $stream, [ 'folder' => $this->filesFolder(), 'metadata' => [
 	    'project' => $this->exec->project,
 	    'aid' => $this->exec->aid,
 	    'owner' => null,

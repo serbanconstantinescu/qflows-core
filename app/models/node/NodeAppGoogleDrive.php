@@ -228,6 +228,8 @@ class NodeAppGoogleDrive extends NodeAppGoogle {
 		'help' => 'Empty: the name in Drive (+ the export\'s extension)',
 		'ui' => [ 'width' => 6, 'placeholder' => 'report-{{ id }}.pdf', 'expression' => true, 'showIf' => static::operationIn([ 'download' ]) ],
 	    ],
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+	    self::filesFolderField([ 'ui' => [ 'showIf' => static::operationIn([ 'download' ]) ] ]),
 
 	    //upload
 	    [
@@ -530,7 +532,7 @@ class NodeAppGoogleDrive extends NodeAppGoogle {
 	rewind($stream);
 	$image = \models\node\NodeAppDownload::imageInfo((string)fread($stream, \models\node\NodeAppDownload::IMAGE_SNIFF));
 	rewind($stream);
-	$fid = \models\File::createFromStream($filename, $stream, [ 'metadata' => [
+	$fid = \models\File::createFromStream($filename, $stream, [ 'folder' => $this->filesFolder(), 'metadata' => [
 	    'project' => $this->exec->project,
 	    'aid' => $this->exec->aid,
 	    'owner' => null,

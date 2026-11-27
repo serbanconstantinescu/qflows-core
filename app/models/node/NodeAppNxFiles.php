@@ -54,6 +54,8 @@ class NodeAppNxFiles extends NodeAppNextcloud {
 	    self::field('pattern', 'Names', [ 'list' ], [ 'help' => 'Patterns, e.g. *.pdf, invoice-*; empty: all', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
 	    self::field('search', 'Name contains', [ 'search' ], [ 'required' => true, 'help' => 'Any case', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
 	    self::field('filename', 'Save as', [ 'download' ], [ 'help' => 'The name in the project Files; empty: the file\'s', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+	    self::filesFolderField([ 'ops' => [ 'download' ] ]),
 	    self::field('source', 'Upload', [ 'upload' ], [ 'type' => 'select', 'required' => true, 'default' => 'file', 'choices' => [ 'file' => 'A project file', 'text' => 'A text' ], 'ui' => [ 'width' => 3, 'newRow' => true ] ]),
 	    self::field('name', 'Name', [ 'upload' ], [ 'help' => 'Empty: the project file\'s name (a text needs one)', 'ui' => [ 'expression' => 'text', 'width' => 6 ] ]),
 	    self::field('conflict', 'When the name exists', [ 'upload' ], [ 'type' => 'select', 'required' => true, 'default' => 'rename', 'choices' => self::CONFLICT, 'ui' => [ 'width' => 3 ] ]),
@@ -199,7 +201,7 @@ class NodeAppNxFiles extends NodeAppNextcloud {
 	    rewind($stream);
 	    $image = NodeAppDownload::imageInfo((string)fread($stream, NodeAppDownload::IMAGE_SNIFF));
 	    rewind($stream);
-	    $fid = \models\File::createFromStream($filename, $stream, [ 'metadata' => [
+	    $fid = \models\File::createFromStream($filename, $stream, [ 'folder' => $this->filesFolder(), 'metadata' => [
 		'project' => $this->exec->project,
 		'aid' => $this->exec->aid,
 		'owner' => null,

@@ -77,6 +77,8 @@ class NodeTriggerEmail extends \models\wf\WfNode {
 		'label' => 'Save attachments as project files',
 		'default' => true,
 	    ],
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in
+	    self::filesFolderField([ 'help' => 'e.g. Invoices/Inbound; made when missing; empty: the top level', 'ui' => [ 'expression' => false, 'showIf' => [ 'key' => 'saveAttachments', 'operator' => 'eq', 'value' => true ] ] ]),
 	    [
 		'key' => 'variable',
 		'type' => 'text',
@@ -177,6 +179,7 @@ class NodeTriggerEmail extends \models\wf\WfNode {
 	    return;
 	}
 	$exe = \models\MailPoll::startMessage($live, $node['wfid'], 'email', $file->getContents(), [ 'saveAttachments' => !empty($cfg['saveAttachments'] ?? true),
+	    'filesFolder' => (string)($cfg['filesFolder'] ?? ''),
 	    'variable' => \util\Validator::isIdentifier((string)($cfg['variable'] ?? '')) ? (string)$cfg['variable'] : 'mail',
 	    'mail' => [ 'recipient' => (string)($data['rcpt'] ?? '') ],
 	    'input' => [ 'recipient' => (string)($data['rcpt'] ?? ''), 'mail_from' => $from, 'raw_file' => (string)$file->_id ],

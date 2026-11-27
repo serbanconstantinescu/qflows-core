@@ -32,6 +32,8 @@ class NodeAppPdf extends \models\wf\WfNode {
 		'default' => 'document',
 		'ui' => [ 'expression' => true, 'placeholder' => 'invoice-{{ invoice.number }}' ],
 	    ],
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files it is saved in
+	    self::filesFolderField(),
 	    [
 		'key' => 'title',
 		'type' => 'text',
@@ -110,7 +112,7 @@ class NodeAppPdf extends \models\wf\WfNode {
 	    throw new \ErrorException('PDF document: ' . $e->getMessage());
 	}
 
-	$id = \models\File::createFromString($filename, $r['pdf'], [ 'metadata' => [
+	$id = \models\File::createFromString($filename, $r['pdf'], [ 'folder' => $this->filesFolder(), 'metadata' => [
 	    'project' => $this->exec->project,
 	    'aid' => $this->exec->aid,
 	    'owner' => null,

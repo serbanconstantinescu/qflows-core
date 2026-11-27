@@ -69,6 +69,8 @@ class NodeAppDownload extends NodeAppHttp {
 		'help' => 'Empty: the name the server gives, else the last part of the URL',
 		'ui' => [ 'placeholder' => 'report-{{ id }}.pdf', 'expression' => true ],
 	    ],
+	    //CLD: 2026-11-27T12:00:00+02:00: the folder of Files it is saved in
+	    self::filesFolderField(),
 	    [
 		'key' => 'maxSize',
 		'type' => 'number',
@@ -175,7 +177,7 @@ class NodeAppDownload extends NodeAppHttp {
 	rewind($stream);
 	$image = self::imageInfo((string)fread($stream, self::IMAGE_SNIFF));
 	rewind($stream);
-	$id = \models\File::createFromStream($filename, $stream, [ 'metadata' => [
+	$id = \models\File::createFromStream($filename, $stream, [ 'folder' => $this->filesFolder(), 'metadata' => [
 	    'project' => $this->exec->project,
 	    'aid' => $this->exec->aid,
 	    'owner' => null,

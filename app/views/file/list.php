@@ -1,10 +1,19 @@
 <?php
 
-$this->pageTitle = 'Files';
+//CLD: 2026-11-27T10:00:00+02:00: the files and folders of $folder (null: the top level), folders first: a folder opens it, a file its page; New folder, Upload (into
+//this folder); rows: Rename (folders), Move, Delete (a folder only when empty). A search or a filter looks in every folder (the Folder column then)
+$this->pageTitle = $folder ? 'Files: ' . $folder->filename : 'Files';
+
+$here = $folder ? [ 'folder' => $folder->_id ] : [];
 
 $createBtn = '';
 if (\V::app()->user->can('File::create')) {
     $createBtn = \V::app()->html->link(
+	'<i class="bi bi-folder-plus me-1"></i>New folder',
+	\V::app()->createUrl('/file/folder', $here),
+	[ 'id' => 'btn-folder', 'class' => 'btn btn-outline-primary btn-sm me-2', 'escape' => false ]
+    );
+    $createBtn .= \V::app()->html->link(
 	'Upload',
 	\V::app()->createUrl('/file/upload'),
 	[ 'id' => 'btn-upload', 'class' => 'btn btn-primary btn-sm', 'escape' => false ]
@@ -15,11 +24,17 @@ if (\V::app()->user->can('File::create')) {
 
 //schema and filtering
 $sf = \util\WidgetsUtil::getSchema('File');
-//CLD: 2026-11-21T12:00:00+02:00: the filename opens the file's page (preview, download; link: app.GridView), no View row action
-$sf['schema']['filename']['link'] = '/file/view/{{item._id}}';
+//CLD: 2026-11-27T10:00:00+02:00: the name opens the folder, or the file's page (preview, download; link: app.GridView), no View row action
+$sf['schema']['filename']['link'] = "{% if (item.kind == 'folder') { %}/file/list?folder={{item._id}}{% } else { %}/file/view/{{item._id}}{% } %}";
+$sf['schema']['filename']['icon'] = "{% if (item.kind == 'folder') { %}bi-folder-fill text-warning{% } else { %}bi-file-earmark text-body-secondary{% } %}";
+//the folder a row is in: for a search or a filter (the server's `show`)
+$sf['schema']['folder'] = [ 'label' => 'Folder', 'type' => 'text', 'filter' => false, 'edit' => false, 'delete' => false, 'show' => false ];
 $schema = \util\JSON::encode($sf['schema']);
 $filter = \util\JSON::encode($sf['filter']);
 
+$dataUrl = \util\JSON::encode(\V::app()->createUrl('/file/list', $here + [ 'data' => 1 ]));
+$folderId = \util\JSON::encode($folder ? (string)$folder->_id : '');
+$title = \util\JSON::encode(\V::app()->html->escape($folder ? (string)$folder->filename : 'Files'));
 
 $script = "
 +function(){
@@ -27,8 +42,9 @@ $script = "
 
     new app.GridView(fileList, {
 	create: '{$createBtn}',
-	title: `<h5 class='h5 mb-0'>Files</h5>`,
-	dataUrl: '/file/list?data=1',
+	title: `<h5 class='h5 mb-0'>` + {$title} + `</h5>`,
+	dataUrl: {$dataUrl},
+	sort: {},
 	schema: {
 	    readonly: true,
 	    data: {$schema},
@@ -40,7 +56,9 @@ $script = "
 	grid: {
 	    createRowUrl: false,
 	    rowActions: {
-		delete: `<a href='/file/delete/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' data-confirm='Are you sure?' data-method='post'><i class='bi bi-trash'></i></a>`,
+		rename: `{% if (item.kind == 'folder') { %}<a href='/file/rename/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' title='Rename'><i class='bi bi-pencil'></i></a>{% } %}`,
+		move: `<a href='/file/move/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' title='Move'><i class='bi bi-folder-symlink'></i></a>`,
+		delete: `<a href='/file/delete/{{item._id}}' class='btn btn-sm btn-icon d-inline px-1 py-0 mx-1 row-action-btn' title='Delete' data-confirm='{% if (item.kind == 'folder') { %}Delete this folder? Only an empty folder is deleted.{% } else { %}Delete this file?{% } %}' data-method='post'><i class='bi bi-trash'></i></a>`,
 	    }
 	},
 	onInit: () => {
@@ -55,9 +73,8 @@ $script = "
 		fileInput._fileUpload.browse();
 	    });
 
-	    //refresh gv on file delete
-	    app.events.on('object::deleted', (e) => {
-		console.log('File manager received event:', e);
+	    //refresh gv on a new folder, a rename, a move, a delete
+	    app.events.on('object::deleted object::created object::updated', (e) => {
 		fileList._dataView.reload();
 	    })
 
@@ -68,10 +85,11 @@ $script = "
 		    const csrfParam = $('meta[name=csrf-param]').attr('content');
 		    const csrfToken = $('meta[name=csrf-token]').attr('content');
 
+		    //into the folder shown
+		    var resp = { folder: {$folderId} };
 		    if (!csrfParam.length || !csrfToken.length)
-			return {};
+			return resp;
 
-		    var resp = {};
 		    resp[csrfParam] = csrfToken;
 		    return resp;
 		},
@@ -122,10 +140,13 @@ $script = "
 ?>
 <div class="main-header py-2 px-3">
     <?= (new \sys\html\BtnExpandSidebar())->render() ?>
-    <?= (new \sys\html\Breadcrumbs([ 'items' => [
-	[ 'label' => 'Home', 'href' => '/site/index' ],
-	[ 'label' => 'Files' ],
-    ]]))->render() ?>
+    <?php
+	//Files, then the folders down to this one (each opens it); labels escaped here
+	$crumbs = [ [ 'label' => 'Home', 'href' => '/site/index' ], [ 'label' => 'Files', 'href' => $folder ? '/file/list' : null ] ];
+	foreach($folder ? array_merge($folder->folders(), [ $folder ]) : [] as $f)
+	    $crumbs[] = [ 'label' => \V::app()->html->escape((string)$f->filename), 'href' => $f === $folder ? null : \V::app()->createUrl('/file/list', [ 'folder' => $f->_id ]) ];
+	echo (new \sys\html\Breadcrumbs([ 'items' => array_map(fn($c) => array_filter($c, fn($v) => $v !== null), $crumbs) ]))->render();
+    ?>
 </div>
 
 <div id="dropzone" class="main-body p-4">

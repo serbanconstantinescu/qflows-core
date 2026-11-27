@@ -883,6 +883,9 @@ window.app.BaseDataView = (function() {
 
 		    //this.schema = data.schema;
 		    this.data = data.data;
+		    //CLD: 2026-11-27T10:00:00+02:00: data.show ({ column: true|false }): the server shows or hides columns for these rows (e.g. Files: the folder, for a search)
+		    if (data.show && this.schema)
+			Object.entries(data.show).forEach(([key, show]) => { const col = this.schema.column(key); if (col) col.show = !!show; });
 
 		    //install handlers only after some data has loaded
 		    for (const [key, widget] of Object.entries(this.widgets)) {
@@ -1344,13 +1347,25 @@ window.app.GridView = (function() {
         		    const content = document.createElement("div");
         		    content.className = "cell-content px-2 py-1 text-truncate w-100 h-100";
 		    //CLD: 2026-11-21T11:00:00+02:00: col.link (a template, {{item}} = the row): the value as a link, e.g. a list's name opening the item
+		    //CLD: 2026-11-27T10:00:00+02:00: col.icon (a template giving Bootstrap icon classes, e.g. a folder's or a file's): an icon before the value
+		    const icon = col.icon ? app.template.compile(col.icon)({ item: row }).trim() : '';
+		    const iconEl = () => {
+			const i = document.createElement('i');
+			i.className = 'bi ' + icon + ' me-2';
+			return i;
+		    };
 		    if (col.link) {
 			const a = document.createElement('a');
 			a.href = app.template.compile(col.link)({ item: row });
-			a.textContent = row[colName] ?? '';
+			if (icon)
+			    a.appendChild(iconEl());
+			a.appendChild(document.createTextNode(row[colName] ?? ''));
 			content.appendChild(a);
-		    } else
-			content.textContent = row[colName];
+		    } else {
+			if (icon)
+			    content.appendChild(iconEl());
+			content.appendChild(document.createTextNode(row[colName] ?? ''));
+		    }
         		    td.appendChild(content);
 
     /*
