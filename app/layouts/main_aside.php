@@ -190,8 +190,8 @@ $dd_items = implode('', $dd_items);
 		    ";
 		}
 		$wfs = $canReadWf ? iterator_to_array(\V::app()->om->find('Workflow', [ 'project' => $crtProject->_id]), false) : [];
-		//CLD: 2026-11-27T14:00:00+02:00: in the project's order (workflow_order, dragged by the grip: WorkflowController::order, app.js), the others after them as created;
-		//who can change the project's workflows (Workflow::update) gets the grips
+		//CLD: 2026-11-27T15:00:00+02:00: in the project's order (workflow_order: a name dragged up or down, app.js; WorkflowController::order), the others after them as created;
+		//who can change the project's workflows (Workflow::update) can drag (the list's data-order-url)
 		$rank = array_flip(array_map('strval', iterator_to_array($crtProject->workflow_order ?? [], false)));
 		usort($wfs, fn($a, $b) => [ $rank[(string)$a->_id] ?? PHP_INT_MAX, (string)$a->_id ] <=> [ $rank[(string)$b->_id] ?? PHP_INT_MAX, (string)$b->_id ]);
 		$canOrderWf = $canReadWf && count($wfs) > 1 && \V::app()->user->can('Workflow::update', [ 'object' => \V::app()->om->create('Workflow', [ 'aid' => $crtProject->aid, 'project' => $crtProject->_id ]) ]);
@@ -256,10 +256,11 @@ $dd_items = implode('', $dd_items);
 			    <a href='#' class='px-2 py-1 d-block text-body-secondary' data-bs-toggle='dropdown' data-bs-popper-config='{\"strategy\":\"fixed\"}' aria-expanded='false' title='Actions'><i class='bi bi-three-dots-vertical small'></i></a>
 			    <ul class='dropdown-menu dropdown-menu-end py-0 bg-white'>{$items}</ul>
 			</div>";
-		    $grip = $canOrderWf ? "<span class='sidebar-item-grip flex-shrink-0 text-body-secondary' title='Drag to reorder'><i class='bi bi-grip-vertical small'></i></span>" : '';
+		    //no native drag of the link: app.js moves it
+		    $draggable = $canOrderWf ? " draggable='false'" : '';
 		    echo "
 		    <li class='nav-item d-flex align-items-center' data-id='{$wf->_id}'>
-			{$grip}<a href='{$url}' class='nav-link flex-fill text-truncate'>{$name}</a>{$menu}
+			<a href='{$url}' class='nav-link flex-fill text-truncate'{$draggable}>{$name}</a>{$menu}
 		    </li>
 		    ";
 		}

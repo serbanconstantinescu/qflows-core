@@ -171,44 +171,81 @@ window.app.sidebar = (function() {
 	    window.addEventListener('popstate', closeDrawer);
 	    mobileQuery.addEventListener('change', closeDrawer);
 
-	    //CLD: 2026-11-27T14:00:00+02:00: a list of the sidebar reordered by dragging its grips (.sidebar-sortable: the project's workflows, layouts/main_aside.php):
-	    //pointer events captured by the grip, as the resize handle below; the item moves where the pointer is, and on release the new order (the items' data-id,
-	    //separated by commas) is POSTed to the list's data-order-url; a refused save shows a toast and renders the sidebar again (the order saved before)
-	    sidebar.on('pointerdown', '.sidebar-sortable .sidebar-item-grip', (e) => {
+	    //CLD: 2026-11-27T15:00:00+02:00: a list of the sidebar reordered by dragging its names (.sidebar-sortable: the project's workflows, layouts/main_aside.php). Mouse / pen:
+	    //a press that moves more than DRAG_PX starts the drag (a click still opens the item; the click after a drag is dropped); touch: a press held HOLD_MS (a swipe still
+	    //scrolls). The item moves where the pointer is; on release the new order (the items' data-id, separated by commas) is POSTed to the list's data-order-url; a refused
+	    //save shows a toast and renders the sidebar again (the order saved before)
+	    const DRAG_PX = 5, HOLD_MS = 400;
+	    sidebar.on('dragstart', '.sidebar-sortable .nav-link', (e) => e.preventDefault());
+	    sidebar.on('pointerdown', '.sidebar-sortable > .nav-item > .nav-link', (e) => {
 		if (e.button !== 0)
 		    return;
-		e.preventDefault();
-		const grip = e.currentTarget;
-		const item = grip.closest('.nav-item');
+		const ev0 = e.originalEvent;
+		const link = e.currentTarget;
+		const item = link.closest('.nav-item');
 		const list = item.parentElement;
-		const pointerId = e.originalEvent.pointerId;
+		const pointerId = ev0.pointerId;
+		const startY = ev0.clientY;
+		const touch = ev0.pointerType === 'touch';
 		const ids = () => [...list.querySelectorAll(':scope > .nav-item[data-id]')].map((li) => li.dataset.id).join(',');
 		const before = ids();
-		try {
-		    grip.setPointerCapture(pointerId);
-		} catch (err) {}
-		list.classList.add('sorting');
-		item.classList.add('sorting-item');
+		let dragging = false;
+		let timer = null;
 
-		const move = (ev) => {
-		    if (ev.pointerId !== pointerId)
-			return;
+		const begin = () => {
+		    dragging = true;
+		    list.classList.add('sorting');
+		    item.classList.add('sorting-item');
+		    $('body').css('user-select', 'none');
+		    window.getSelection()?.removeAllRanges();
+		};
+		const place = (y) => {
 		    const others = [...list.querySelectorAll(':scope > .nav-item[data-id]')].filter((li) => li !== item);
 		    //the first item whose middle is below the pointer: the dragged one goes before it; none: after the last
-		    const next = others.find((li) => { const r = li.getBoundingClientRect(); return ev.clientY < r.top + r.height / 2; });
+		    const next = others.find((li) => { const r = li.getBoundingClientRect(); return y < r.top + r.height / 2; });
 		    if (next && item.nextElementSibling !== next)
 			list.insertBefore(item, next);
 		    else if (!next && others.length && others[others.length - 1].nextElementSibling !== item)
 			others[others.length - 1].after(item);
 		};
+		const move = (ev) => {
+		    if (ev.pointerId !== pointerId)
+			return;
+		    if (!dragging) {
+			//touch: moving before the hold is a scroll, not a drag
+			if (touch) {
+			    if (Math.abs(ev.clientY - startY) > DRAG_PX * 2)
+				stop();
+			    return;
+			}
+			if (Math.abs(ev.clientY - startY) < DRAG_PX)
+			    return;
+			begin();
+		    }
+		    place(ev.clientY);
+		};
+		//while dragging by touch the page does not scroll
+		const noScroll = (ev) => { if (dragging) ev.preventDefault(); };
+		const stop = () => {
+		    clearTimeout(timer);
+		    window.removeEventListener('pointermove', move);
+		    window.removeEventListener('pointerup', end);
+		    window.removeEventListener('pointercancel', end);
+		    window.removeEventListener('touchmove', noScroll);
+		};
 		const end = (ev) => {
 		    if (ev.pointerId !== pointerId)
 			return;
-		    grip.removeEventListener('pointermove', move);
-		    grip.removeEventListener('pointerup', end);
-		    grip.removeEventListener('pointercancel', end);
+		    stop();
+		    if (!dragging)
+			return;
 		    list.classList.remove('sorting');
 		    item.classList.remove('sorting-item');
+		    $('body').css('user-select', '');
+		    //the click that ends a drag does not open the item
+		    const eat = (c) => { c.preventDefault(); c.stopImmediatePropagation(); };
+		    link.addEventListener('click', eat, { capture: true, once: true });
+		    setTimeout(() => link.removeEventListener('click', eat, { capture: true }), 0);
 		    const order = ids();
 		    if (order === before)
 			return;
@@ -225,9 +262,12 @@ window.app.sidebar = (function() {
 			    app.events.dispatch({ type: 'sidebar::refresh', data: {} });
 			});
 		};
-		grip.addEventListener('pointermove', move);
-		grip.addEventListener('pointerup', end);
-		grip.addEventListener('pointercancel', end);
+		if (touch)
+		    timer = setTimeout(begin, HOLD_MS);
+		window.addEventListener('pointermove', move);
+		window.addEventListener('pointerup', end);
+		window.addEventListener('pointercancel', end);
+		window.addEventListener('touchmove', noScroll, { passive: false });
 	    });
 
 	    //pointer events (mouse, touch and pen), as the designer's panels

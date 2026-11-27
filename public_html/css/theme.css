@@ -12223,25 +12223,10 @@ html[data-theme-choice=dark] [data-theme-cycle] .theme-icon-dark {
   opacity: 1;
 }
 
-/* CLD: 2026-11-27T14:00:00+02:00: the grip that reorders a list of the sidebar (the workflows: app.js, .sidebar-sortable), left of the group's line (the names do not move),
-   on hover as the menu; the item being dragged is dimmed */
-.sidebar .sidebar-sortable > .nav-item {
-  position: relative;
-}
-
-.sidebar .sidebar-sortable .sidebar-item-grip {
-  position: absolute;
-  left: -1.5rem;
-  width: 0.9rem;
-  text-align: center;
-  cursor: grab;
-  touch-action: none;
-  opacity: 0;
-}
-
-.sidebar .sidebar-sortable > .nav-item:hover .sidebar-item-grip,
-.sidebar .sidebar-sortable.sorting .sidebar-item-grip {
-  opacity: 1;
+/* CLD: 2026-11-27T15:00:00+02:00: a list of the sidebar reordered by dragging its names (the workflows: app.js, .sidebar-sortable): the item being dragged is dimmed, a
+   grabbing cursor while dragging; no long-press menu of the link on touch screens (a hold starts the drag) */
+.sidebar .sidebar-sortable > .nav-item > .nav-link {
+  -webkit-touch-callout: none;
 }
 
 .sidebar .sidebar-sortable > .nav-item.sorting-item {
@@ -12254,8 +12239,7 @@ html[data-theme-choice=dark] [data-theme-cycle] .theme-icon-dark {
 }
 
 @media (hover: none) {
-  .sidebar .nav-item .sidebar-item-menu,
-  .sidebar .sidebar-sortable .sidebar-item-grip {
+  .sidebar .nav-item .sidebar-item-menu {
     opacity: 1;
   }
   /* CLD: 2026-10-19T22:19:24+03:00: larger touch targets */
