@@ -21,6 +21,9 @@ class NodeAppOpenAI extends NodeAppAi {
 
     const CAPABILITY = 'openai';
     const PROVIDER = \data\AiProviders::DATA[self::CAPABILITY]['name'];
+    //CLD: 2026-11-27T10:00:00Z: true: JSON answers also sent as response_format (json_schema with the schema, else json_object), so the server can only write valid JSON;
+    //off here (compatible servers may reject it), on for Lemonade (llama.cpp). Not with tools: the model must still be able to call them
+    const RESPONSE_FORMAT = false;
 
     protected static function providerSchema() {
 	return [
@@ -88,6 +91,8 @@ class NodeAppOpenAI extends NodeAppAi {
 	    $body['tools'] = [];
 	    foreach($tools as $t)
 		$body['tools'][] = [ 'type' => 'function', 'function' => [ 'name' => $t['name'], 'description' => mb_substr($t['description'], 0, 1000), 'parameters' => $t['schema'] ] ];
+	} elseif ($schema !== null && static::RESPONSE_FORMAT) {
+	    $body['response_format'] = is_object($schema) ? [ 'type' => 'json_schema', 'json_schema' => [ 'name' => 'answer', 'schema' => $schema ] ] : [ 'type' => 'json_object' ];
 	}
 
 	$r = $this->postJson(rtrim((string)$cred->baseUrl, '/') . '/chat/completions', $cred->httpAuth()['headers'], $body);
