@@ -250,12 +250,10 @@ window.app.sidebar = (function() {
 		    if (order === before)
 			return;
 		    const body = new FormData();
-		    const csrfParam = $('meta[name=csrf-param]').attr('content');
-		    const csrfToken = $('meta[name=csrf-token]').attr('content');
-		    if (csrfParam && csrfToken)
-			body.append(csrfParam, csrfToken);
 		    body.append('order', order);
-		    fetch(list.dataset.orderUrl, { method: 'POST', body: body, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+		    //an ajax request: the CSRF token in its header (sys\BaseController::validateRequest)
+		    fetch(list.dataset.orderUrl, { method: 'POST', body: body,
+			headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': $('meta[name=csrf-token]').attr('content') || '' } })
 			.then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); })
 			.catch((err) => {
 			    app.utils.toast({ type: 'error', title: 'Order not saved', body: String(err.message || err) });
