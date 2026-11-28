@@ -2,13 +2,13 @@
 
 /*
     CLD: 2026-11-12T10:00:00+02:00: the base of the Shopify steps (Orders, Products, Inventory, Customers, Store, GraphQL; not registered itself), through a Shopify
-    credential of the project (CredentialShopify, provides `shopify`; util\Shopify, the GraphQL Admin API). As NodeAppNamecheap:
+    credential of the project (CredentialShopify, provides `shopify`; util\vendor\Shopify, the GraphQL Admin API). As NodeAppNamecheap:
 	- the shape: one input, `success` (+ `error` when On error is "Continue on the `error` output")
 	- the settings every Shopify step has: credential, operation (static::OPERATIONS), the operation's own settings (operationFields(): each shown for its operations),
 	    Other fields (advanced: a JSON object merged into a change's input, as Shopify names the fields), At most (the lists), timeout, result variable, on error
 	- execute(): runOperation() (the subclass); the result in the variable, logged as "<label> <operation>: <summary> (<n> ms)"; a \RuntimeException (Shopify's errors, no
 	    connection, a value that cannot be used) follows On error; other errors fail the step
-	- a list's result: { items, count, truncated }; items as Shopify gives them, simplified (util\Shopify::simplify: connections as lists, money as { amount, currencyCode })
+	- a list's result: { items, count, truncated }; items as Shopify gives them, simplified (util\vendor\Shopify::simplify: connections as lists, money as { amount, currencyCode })
 	- the search of a list: Shopify's search syntax (e.g. financial_status:paid tag:wholesale created_at:>2026-01-01)
 */
 
@@ -238,14 +238,14 @@ abstract class NodeAppShopify extends \models\wf\WfNode {
 	$d = $this->shop->query("query(\$id: ID!) { {$field}(id: \$id) { {$nodeFields} } }", [ 'id' => $gid ]);
 	if (empty($d[$field]))
 	    throw new \RuntimeException("no {$what} {$gid}");
-	return \util\Shopify::simplify($d[$field]);
+	return \util\vendor\Shopify::simplify($d[$field]);
     }
 
     //the first node a search finds (e.g. a customer by email), or null
     protected function findOne($field, $search, $nodeFields) {
 	$d = $this->shop->query("query(\$query: String!) { {$field}(first: 1, query: \$query) { nodes { {$nodeFields} } } }", [ 'query' => $search ]);
 	$n = $d[$field]['nodes'][0] ?? null;
-	return $n ? \util\Shopify::simplify($n) : null;
+	return $n ? \util\vendor\Shopify::simplify($n) : null;
     }
 
     //tags added to / removed from an object (tagsAdd / tagsRemove): [ { id, tags }, summary ]

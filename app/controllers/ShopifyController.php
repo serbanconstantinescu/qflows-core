@@ -31,7 +31,7 @@ class ShopifyController extends \sys\APIController {
 	$raw = $req->body();
 	if (strlen($raw) > \data\Constants::MAX_REQUEST_BODY)
 	    $this->refuse(413, 'Request body too large');
-	if (!\util\Shopify::verifyHmac($raw, (string)($_SERVER['HTTP_X_SHOPIFY_HMAC_SHA256'] ?? ''), NodeTriggerShopify::secretOf($wf, $node)))
+	if (!\util\vendor\Shopify::verifyHmac($raw, (string)($_SERVER['HTTP_X_SHOPIFY_HMAC_SHA256'] ?? ''), NodeTriggerShopify::secretOf($wf, $node)))
 	    $this->refuse(401, 'Unauthorized (the signature does not match the client secret or signing key)');
 	$shop = strtolower(trim((string)($_SERVER['HTTP_X_SHOPIFY_SHOP_DOMAIN'] ?? '')));
 	$cred = (string)($cfg['credential'] ?? '') !== '' ? NodeTriggerShopify::credentialOf($wf, $node) : null;

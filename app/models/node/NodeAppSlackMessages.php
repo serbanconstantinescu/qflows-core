@@ -117,7 +117,7 @@ class NodeAppSlackMessages extends NodeAppSlack {
 	$args = [ 'channel' => $channel ] + $this->content();
 	$thread = $text('thread');
 	if ($thread !== '')
-	    $args['thread_ts'] = \util\Slack::ts($thread, 'In thread');
+	    $args['thread_ts'] = \util\vendor\Slack::ts($thread, 'In thread');
 	if ($operation === 'schedule') {
 	    $at = (int)self::timeOf($value('at'), 'Send at');
 	    if ($at <= time() || $at > time() + self::MAX_AHEAD)
@@ -144,7 +144,7 @@ class NodeAppSlackMessages extends NodeAppSlack {
 
     private function opUpdate(\Closure $text, \Closure $value) {
 	$channel = $this->channel($value('channel'));
-	$d = $this->slack->call('chat.update', [ 'channel' => $channel, 'ts' => \util\Slack::ts($text('ts')) ] + $this->content());
+	$d = $this->slack->call('chat.update', [ 'channel' => $channel, 'ts' => \util\vendor\Slack::ts($text('ts')) ] + $this->content());
 	$m = self::messageOf((array)($d['message'] ?? []) + [ 'ts' => $d['ts'] ?? '' ], (string)($d['channel'] ?? $channel));
 	$m['link'] = $this->link($m['channel'], $m['ts']);
 	return [ $m, "message {$m['ts']} updated" ];
@@ -152,14 +152,14 @@ class NodeAppSlackMessages extends NodeAppSlack {
 
     private function opDelete(\Closure $text, \Closure $value) {
 	$channel = $this->channel($value('channel'));
-	$ts = \util\Slack::ts($text('ts'));
+	$ts = \util\vendor\Slack::ts($text('ts'));
 	$this->slack->call('chat.delete', [ 'channel' => $channel, 'ts' => $ts ]);
 	return [ [ 'channel' => $channel, 'ts' => $ts, 'deleted' => true ], "message {$ts} deleted" ];
     }
 
     private function opReact(\Closure $text, \Closure $value) {
 	$channel = $this->channel($value('channel'));
-	$ts = \util\Slack::ts($text('ts'));
+	$ts = \util\vendor\Slack::ts($text('ts'));
 	$emoji = strtolower(trim($text('emoji'), ": \t"));
 	if (!preg_match('/^[a-z0-9_+\'-]+(::skin-tone-[2-6])?$/', $emoji))
 	    throw new \RuntimeException('Emoji: a name, e.g. white_check_mark');
@@ -175,12 +175,12 @@ class NodeAppSlackMessages extends NodeAppSlack {
 
     private function opReplies(\Closure $text, \Closure $value) {
 	$channel = $this->channel($value('channel'));
-	return $this->listOf('conversations.replies', [ 'channel' => $channel, 'ts' => \util\Slack::ts($text('ts')) ], 'messages', 'message', fn($m) => self::messageOf($m, $channel));
+	return $this->listOf('conversations.replies', [ 'channel' => $channel, 'ts' => \util\vendor\Slack::ts($text('ts')) ], 'messages', 'message', fn($m) => self::messageOf($m, $channel));
     }
 
     private function opPermalink(\Closure $text, \Closure $value) {
 	$channel = $this->channel($value('channel'));
-	$ts = \util\Slack::ts($text('ts'));
+	$ts = \util\vendor\Slack::ts($text('ts'));
 	$link = (string)($this->slack->call('chat.getPermalink', [ 'channel' => $channel, 'message_ts' => $ts ])['permalink'] ?? '');
 	return [ [ 'channel' => $channel, 'ts' => $ts, 'link' => $link ], $link ];
     }

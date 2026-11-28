@@ -16,7 +16,10 @@
     GitLab::$testing: the check suite's local server (http://127.0.0.1:<port>) instead of the GitLab address
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\Expression;
+use util\Http;
 
 class GitLab {
     const CLOUD = 'https://gitlab.com';

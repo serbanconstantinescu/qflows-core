@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-12T12:00:00+02:00: the base of the Nextcloud steps (Files, Shares, Users, Talk, API; not registered itself), through a Nextcloud credential of the project
-    (CredentialNextcloud, provides `nextcloud`; util\Nextcloud: WebDAV and OCS). As NodeAppShopify:
+    (CredentialNextcloud, provides `nextcloud`; util\vendor\Nextcloud: WebDAV and OCS). As NodeAppShopify:
 	- the shape: one input, `success` (+ `error` when On error is "Continue on the `error` output")
 	- the settings every Nextcloud step has: credential, operation (static::OPERATIONS), the operation's own settings (operationFields(): each shown for its operations),
 	    At most (the lists), timeout, result variable, on error

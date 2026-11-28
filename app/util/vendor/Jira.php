@@ -20,7 +20,12 @@
     Jira::$testing: the check suite's local server (http://127.0.0.1): no https, no address guard
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\Expression;
+use util\Format;
+use util\Http;
+use util\JSON;
 
 class Jira {
     const MAX_ANSWER = 20 * 1024 * 1024;

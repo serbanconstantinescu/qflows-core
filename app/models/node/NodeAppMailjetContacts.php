@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-15T16:00:00+02:00: Mailjet Contacts - the contacts and contact lists of a Mailjet account (a Mailjet credential, util\Mailjet). Operations (setting `operation`):
+    CLD: 2026-11-15T16:00:00+02:00: Mailjet Contacts - the contacts and contact lists of a Mailjet account (a Mailjet credential, util\vendor\Mailjet). Operations (setting `operation`):
 	get          a contact by email address or ID (GET /v3/REST/contact/{id}) with its properties (GET /v3/REST/contactdata/{id}: { properties })
 	create       a contact (POST /v3/REST/contact): address, name, excluded from campaigns
 	properties   a contact's properties set (PUT /v3/REST/contactdata/{id}: a JSON object, e.g. {"firstname": "Ana"}; the properties exist in Mailjet)

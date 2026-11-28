@@ -93,13 +93,13 @@ class NodeAppS3Objects extends NodeAppS3 {
     private function target($key, $bucketKey, $label = 'Key', $sameAs = null) {
 	$v = $this->settingOf($key);
 	if (is_array($v) && isset($v['key']))
-	    return [ isset($v['bucket']) ? \util\S3::bucket($v['bucket']) : ($sameAs ?? $this->bucketOf($bucketKey)), \util\S3::key($v['key'], $label) ];
+	    return [ isset($v['bucket']) ? \util\vendor\S3::bucket($v['bucket']) : ($sameAs ?? $this->bucketOf($bucketKey)), \util\vendor\S3::key($v['key'], $label) ];
 	$t = trim(\util\Expression::toText($v));
 	if (preg_match('~^s3://([^/]+)/~i', $t, $m))
-	    return [ \util\S3::bucket($m[1]), \util\S3::key($t, $label) ];
+	    return [ \util\vendor\S3::bucket($m[1]), \util\vendor\S3::key($t, $label) ];
 	if ($sameAs !== null && trim(\util\Expression::toText($this->settingOf($bucketKey))) === '')
-	    return [ $sameAs, \util\S3::key($t, $label) ];
-	return [ $this->bucketOf($bucketKey), \util\S3::key($t, $label) ];
+	    return [ $sameAs, \util\vendor\S3::key($t, $label) ];
+	return [ $this->bucketOf($bucketKey), \util\vendor\S3::key($t, $label) ];
     }
 
     protected function runOperation($operation, \Closure $text, \Closure $value) {
@@ -285,9 +285,9 @@ class NodeAppS3Objects extends NodeAppS3 {
 	$source = '/' . $bucket . '/' . implode('/', array_map('rawurlencode', explode('/', $key)));
 	[ , $h, $body ] = $this->s3->request('PUT', $toBucket, $toKey, [], [ 'x-amz-copy-source' => $source ]);
 	//CopyObject may fail after its 200 (the error is in the body)
-	$d = \util\S3::xmlArray($body);
+	$d = \util\vendor\S3::xmlArray($body);
 	if (isset($d['Code']))
-	    throw new \RuntimeException(\util\S3::errorOf($body, 200));
+	    throw new \RuntimeException(\util\vendor\S3::errorOf($body, 200));
 	if ($operation === 'move')
 	    $this->s3->request('DELETE', $bucket, $key);
 	$slash = strrpos($toKey, '/');
@@ -304,7 +304,7 @@ class NodeAppS3Objects extends NodeAppS3 {
 	foreach($list as $k) {
 	    if (is_string($k) && trim($k) === '')
 		continue;
-	    $keys[] = \util\S3::key($k, 'Keys');
+	    $keys[] = \util\vendor\S3::key($k, 'Keys');
 	}
 	$keys = array_values(array_unique($keys));
 	if (!$keys)
@@ -319,10 +319,10 @@ class NodeAppS3Objects extends NodeAppS3 {
 	    $xml = '<?xml version="1.0" encoding="UTF-8"?><Delete xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Quiet>false</Quiet>'
 		. implode('', array_map(fn($k) => '<Object><Key>' . htmlspecialchars($k, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</Key></Object>', $chunk)) . '</Delete>';
 	    [ , , $body ] = $this->s3->request('POST', $bucket, '', [ 'delete' => '' ], [ 'Content-Type' => 'application/xml', 'Content-MD5' => base64_encode(md5($xml, true)) ], [ 'body' => $xml ]);
-	    $d = \util\S3::xmlArray($body);
-	    foreach(\util\S3::listOf($d['Deleted'] ?? null) as $x)
+	    $d = \util\vendor\S3::xmlArray($body);
+	    foreach(\util\vendor\S3::listOf($d['Deleted'] ?? null) as $x)
 		$deleted[] = (string)($x['Key'] ?? '');
-	    foreach(\util\S3::listOf($d['Error'] ?? null) as $x)
+	    foreach(\util\vendor\S3::listOf($d['Error'] ?? null) as $x)
 		$errors[] = [ 'key' => (string)($x['Key'] ?? ''), 'error' => trim(($x['Code'] ?? '') . ': ' . ($x['Message'] ?? ''), ': ') ];
 	}
 	return [ [ 'deleted' => $deleted, 'errors' => $errors ], \util\Format::plural(count($deleted), 'object') . ' deleted' . ($errors ? ', ' . count($errors) . ' not' : '') ];

@@ -2,11 +2,13 @@
 
 /*
     CLD: 2026-11-15T16:00:00+02:00: the client of Amazon SES's API v2 (https://email.<region>.amazonaws.com/v2/email/...), for the Amazon SES credential and steps: every request signed
-    with AWS Signature Version 4 (util\AwsSigV4, service `ses`) by the credential's access key (an IAM user's or role's with the SES permissions the steps use) in its region.
+    with AWS Signature Version 4 (util\vendor\AwsSigV4, service `ses`) by the credential's access key (an IAM user's or role's with the SES permissions the steps use) in its region.
     Errors: { message } and the error's type (the x-amzn-ErrorType header, or __type / code). A 429 (TooManyRequests) and a 503 are waited for. As util\EmailApi
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\EmailApi;
 
 class AmazonSes extends EmailApi {
     const NAME = 'Amazon SES';

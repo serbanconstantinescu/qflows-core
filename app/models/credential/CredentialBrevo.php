@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-15T16:00:00+02:00: a Brevo account (formerly Sendinblue), for the Brevo steps (Email, Contacts, API; util\Brevo): an API key (SMTP & API > API keys; encrypted) and
+    CLD: 2026-11-15T16:00:00+02:00: a Brevo account (formerly Sendinblue), for the Brevo steps (Email, Contacts, API; util\vendor\Brevo): an API key (SMTP & API > API keys; encrypted) and
     the sender the steps use when they name none (an address of a sender or domain verified in Brevo). Test: the account. Provides `brevo`
 */
 
@@ -38,7 +38,7 @@ class CredentialBrevo extends \models\Credential {
     }
 
     public function client($timeout = 60) {
-	return new \util\Brevo($this, $timeout);
+	return new \util\vendor\Brevo($this, $timeout);
     }
 
     public function test() {

@@ -96,7 +96,7 @@ class NodeAppZendeskTickets extends NodeAppZendesk {
     //values
 
     //a ticket of an answer, simplified (see the header); $side: the sideloaded users / groups / organizations by id
-    public static function ticketOf(array $t, \util\Zendesk $z, array $side = []) {
+    public static function ticketOf(array $t, \util\vendor\Zendesk $z, array $side = []) {
 	$custom = [];
 	foreach((array)($t['custom_fields'] ?? []) as $f)
 	    if (isset($f['id']))
@@ -216,10 +216,10 @@ class NodeAppZendeskTickets extends NodeAppZendesk {
 		if (trim((string)($in['subject'] ?? '')) === '')
 		    throw new \RuntimeException('Subject: required to create a ticket');
 		$made = (array)($Z->request('POST', '/tickets', [], [ 'ticket' => $in ])['ticket'] ?? []);
-		$t = $this->getTicket(\util\Zendesk::ticketId($made));
+		$t = $this->getTicket(\util\vendor\Zendesk::ticketId($made));
 		return [ $t, "#{$t['id']} created: {$t['subject']}" ];
 	}
-	$id = \util\Zendesk::ticketId($value('ticket'));
+	$id = \util\vendor\Zendesk::ticketId($value('ticket'));
 	switch($operation) {
 	    case 'get':
 		$t = $this->getTicket($id);
@@ -268,7 +268,7 @@ class NodeAppZendeskTickets extends NodeAppZendesk {
 	    case 'attach':
 		return $this->attach($id, $text, $value);
 	    case 'merge':
-		$sources = array_values(array_unique(array_map(fn($s) => \util\Zendesk::ticketId($s, 'Tickets to merge'),
+		$sources = array_values(array_unique(array_map(fn($s) => \util\vendor\Zendesk::ticketId($s, 'Tickets to merge'),
 		    is_array($v = $value('sources')) && !isset($v['id']) ? $v : preg_split('/[\s,]+/', trim(is_array($v) ? (string)$v['id'] : \util\Expression::toText($v)), -1, PREG_SPLIT_NO_EMPTY))));
 		$sources = array_values(array_diff($sources, [ $id ]));
 		if (!$sources)

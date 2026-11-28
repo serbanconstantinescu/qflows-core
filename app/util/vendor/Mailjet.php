@@ -7,7 +7,9 @@
     As util\EmailApi
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\EmailApi;
 
 class Mailjet extends EmailApi {
     const NAME = 'Mailjet';

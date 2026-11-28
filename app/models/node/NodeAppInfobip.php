@@ -2,14 +2,14 @@
 
 /*
     CLD: 2026-11-13T00:30:00+02:00: the base of the Infobip steps (SMS, WhatsApp, Email, 2FA, Account, API; not registered itself), through an Infobip credential of the project
-    (CredentialInfobip, provides `infobip`; util\Infobip). As NodeAppJira:
+    (CredentialInfobip, provides `infobip`; util\vendor\Infobip). As NodeAppJira:
 	- the shape: one input, `success` (+ `error` when On error is "Continue on the `error` output")
 	- the settings every Infobip step has: credential, operation (static::OPERATIONS), the operation's own settings (operationFields(): each shown for its operations),
 	    At most (the lists), timeout, result variable, on error
 	- execute(): runOperation() (the subclass); the result in the variable, logged as "<label> <operation>: <summary> (<n> ms)"; a \RuntimeException (Infobip's errors, no
 	    connection, a value that cannot be used) follows On error; other errors fail the step
 	- a list's result: { items, count, truncated }; a send's: { bulkId, messages: [ { to, messageId, status, statusGroup, description } ], count } (sent())
-    The senders: the step's, else the credential's (sender()); phone numbers: util\Infobip::numbers
+    The senders: the step's, else the credential's (sender()); phone numbers: util\vendor\Infobip::numbers
 */
 
 

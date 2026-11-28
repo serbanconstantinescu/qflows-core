@@ -180,7 +180,7 @@ class NodeTriggerGitHub extends \models\wf\WfNode {
 	    $valid = false;
 	}
 	$repo = trim((string)($cfg['repository'] ?? ''));
-	if ($repo !== '' && !preg_match(\util\GitHub::REPO, $repo)) {
+	if ($repo !== '' && !preg_match(\util\vendor\GitHub::REPO, $repo)) {
 	    $this->errors('config', 'GitHub event: Repository: owner/repository');
 	    $valid = false;
 	} elseif ($poll && $repo === '' && $cred && trim((string)$cred->repository) === '') {

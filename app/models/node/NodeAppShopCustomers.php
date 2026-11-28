@@ -60,10 +60,10 @@ class NodeAppShopCustomers extends NodeAppShopify {
 	    $v = $v['email'];
 	$t = is_array($v) ? '' : trim(\util\Expression::toText($v));
 	if (str_contains($t, '@')) {
-	    $c = $this->findOne('customers', 'email:' . \util\Shopify::quoted($t), 'id email');
+	    $c = $this->findOne('customers', 'email:' . \util\vendor\Shopify::quoted($t), 'id email');
 	    return $c && strcasecmp((string)$c['email'], $t) === 0 ? $c['id'] : null;
 	}
-	return \util\Shopify::gid('Customer', $v, 'Customer');
+	return \util\vendor\Shopify::gid('Customer', $v, 'Customer');
     }
 
     protected function customerInput(\Closure $text, \Closure $value) {
@@ -92,7 +92,7 @@ class NodeAppShopCustomers extends NodeAppShopify {
 		    $input['emailMarketingConsent'] = [ 'marketingState' => 'SUBSCRIBED', 'marketingOptInLevel' => 'SINGLE_OPT_IN' ];
 		$p = $S->mutate('mutation($input: CustomerInput!) { customerCreate(input: $input) { customer { ' . self::CUSTOMER . ' } userErrors { field message } } }',
 		    [ 'input' => $this->withFields($input) ], 'customerCreate');
-		$c = \util\Shopify::simplify($p['customer']);
+		$c = \util\vendor\Shopify::simplify($p['customer']);
 		return [ $c, (($c['displayName'] ?? '') ?: ($c['email'] ?? '')) . ' created (' . ($c['id'] ?? '?') . ')' ];
 	}
 	$id = $this->customerGid($value);
@@ -111,7 +111,7 @@ class NodeAppShopCustomers extends NodeAppShopify {
 		    throw new \RuntimeException('nothing to change');
 		$p = $S->mutate('mutation($input: CustomerInput!) { customerUpdate(input: $input) { customer { ' . self::CUSTOMER . ' } userErrors { field message } } }',
 		    [ 'input' => [ 'id' => $id ] + $input ], 'customerUpdate');
-		return [ \util\Shopify::simplify($p['customer']), ($p['customer']['displayName'] ?? $id) . ' updated: ' . implode(', ', array_keys($input)) ];
+		return [ \util\vendor\Shopify::simplify($p['customer']), ($p['customer']['displayName'] ?? $id) . ' updated: ' . implode(', ', array_keys($input)) ];
 	    case 'addTags':
 	    case 'removeTags':
 		return $this->changeTags($id, $value('tags'), $operation === 'addTags', 'customer');

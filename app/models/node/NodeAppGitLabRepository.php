@@ -95,7 +95,7 @@ class NodeAppGitLabRepository extends NodeAppGitLab {
 	$project = $this->project();
 	switch($operation) {
 	    case 'getFile':
-		$fp = \util\GitLab::filePath($value('path'));
+		$fp = \util\vendor\GitLab::filePath($value('path'));
 		$ref = self::ref($value('ref')) ?? $this->defaultBranch($project);
 		$url = "/projects/{$project}/repository/files/" . rawurlencode($fp) . '/raw';
 		if ($this->cfg('as', 'text') === 'file') {
@@ -119,7 +119,7 @@ class NodeAppGitLabRepository extends NodeAppGitLab {
 		    throw new \RuntimeException("{$fp} is not text (UTF-8): read it as a project file");
 		return [ $content, "{$fp} read (" . strlen($content) . ' bytes)' ];
 	    case 'putFile':
-		$fp = \util\GitLab::filePath($value('path'));
+		$fp = \util\vendor\GitLab::filePath($value('path'));
 		$branch = self::ref($value('branch')) ?? $this->defaultBranch($project);
 		if ($this->cfg('source', 'text') === 'file') {
 		    $file = $this->projectFile($text('sourceFile'));
@@ -136,14 +136,14 @@ class NodeAppGitLabRepository extends NodeAppGitLab {
 		    'commit_message' => $message !== '' ? $message : ($exists ? 'Update ' : 'Create ') . $fp ]);
 		return [ [ 'path' => $fp, 'branch' => (string)($d['branch'] ?? $branch), 'created' => !$exists ], "{$fp}" . ($exists ? ' updated' : ' created') . " on {$branch}" ];
 	    case 'deleteFile':
-		$fp = \util\GitLab::filePath($value('path'));
+		$fp = \util\vendor\GitLab::filePath($value('path'));
 		$branch = self::ref($value('branch')) ?? $this->defaultBranch($project);
 		$message = $text('message');
 		$this->gl->request('DELETE', "/projects/{$project}/repository/files/" . rawurlencode($fp), [], [ 'branch' => $branch, 'commit_message' => $message !== '' ? $message : "Delete {$fp}" ]);
 		return [ [ 'path' => $fp, 'branch' => $branch, 'deleted' => true ], "{$fp} deleted on {$branch}" ];
 	    case 'listFolder':
 		$t = trim(\util\Expression::toText($value('path')), '/ ');
-		$q = array_filter([ 'path' => $t !== '' ? \util\GitLab::filePath($t) : null, 'ref' => self::ref($value('ref')) ]);
+		$q = array_filter([ 'path' => $t !== '' ? \util\vendor\GitLab::filePath($t) : null, 'ref' => self::ref($value('ref')) ]);
 		return $this->listOf("/projects/{$project}/repository/tree", $q, 'item', fn($i) => [ 'name' => (string)($i['name'] ?? ''), 'path' => (string)($i['path'] ?? ''),
 		    'type' => (string)($i['type'] ?? ''), 'id' => (string)($i['id'] ?? '') ]);
 	    case 'branches':
@@ -160,7 +160,7 @@ class NodeAppGitLabRepository extends NodeAppGitLab {
 		return $this->listOf("/projects/{$project}/repository/tags", [], 'tag', fn($t) => [ 'name' => (string)($t['name'] ?? ''), 'sha' => (string)($t['commit']['id'] ?? ''), 'message' => (string)($t['message'] ?? '') ]);
 	    case 'commits':
 		$t = trim(\util\Expression::toText($value('path')), '/ ');
-		$q = array_filter([ 'ref_name' => self::ref($value('ref')), 'path' => $t !== '' ? \util\GitLab::filePath($t) : null, 'since' => self::timeOf($value('since'), 'Since') ]);
+		$q = array_filter([ 'ref_name' => self::ref($value('ref')), 'path' => $t !== '' ? \util\vendor\GitLab::filePath($t) : null, 'since' => self::timeOf($value('since'), 'Since') ]);
 		return $this->listOf("/projects/{$project}/repository/commits", $q, 'commit', fn($c) => [ 'sha' => (string)($c['id'] ?? ''), 'title' => (string)($c['title'] ?? ''),
 		    'message' => (string)($c['message'] ?? ''), 'author' => (string)($c['author_name'] ?? ''), 'email' => (string)($c['author_email'] ?? ''), 'date' => (string)($c['authored_date'] ?? $c['created_at'] ?? ''),
 		    'url' => (string)($c['web_url'] ?? '') ]);

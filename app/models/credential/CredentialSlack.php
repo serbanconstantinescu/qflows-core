@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-25T14:00:00+02:00: a Slack workspace, for the Slack steps and message trigger (util\Slack): the bot token of a Slack app made for it (api.slack.com/apps > Create New
+    CLD: 2026-11-25T14:00:00+02:00: a Slack workspace, for the Slack steps and message trigger (util\vendor\Slack): the bot token of a Slack app made for it (api.slack.com/apps > Create New
     App > From a manifest: the manifest of the docs page Slack; Install to Workspace; OAuth & Permissions > Bot User OAuth Token, xoxb-…) and the app's signing secret
     (Basic Information > App Credentials), which the message trigger checks Slack's events with; both encrypted. The steps act as the app's bot user: what its scopes allow,
     in the channels it was invited to. Test: the workspace and the bot (auth.test). Provides `slack`
@@ -40,7 +40,7 @@ class CredentialSlack extends \models\Credential {
     }
 
     public function client($timeout = 60) {
-	return new \util\Slack($this, $timeout);
+	return new \util\vendor\Slack($this, $timeout);
     }
 
     //the bot of the token: auth.test's { user_id, user, team, team_id, url, bot_id }

@@ -99,7 +99,7 @@ class NodeAppGitLabMergeRequests extends NodeAppGitLab {
 		'squash' => $this->cfg('squash', false) ? true : null ], fn($v) => $v !== null && $v !== '')));
 	    return [ $m, "!{$m['number']} created: {$source} into {$target}" ];
 	}
-	$n = \util\GitLab::iid($value('number'), 'Merge request');
+	$n = \util\vendor\GitLab::iid($value('number'), 'Merge request');
 	$path = "/projects/{$project}/merge_requests/{$n}";
 	switch($operation) {
 	    case 'get':

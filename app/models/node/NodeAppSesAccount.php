@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-15T16:00:00+02:00: Amazon SES Account - the SES account of a region (an Amazon SES credential, util\AmazonSes: API v2). Operations (setting `operation`):
+    CLD: 2026-11-15T16:00:00+02:00: Amazon SES Account - the SES account of a region (an Amazon SES credential, util\vendor\AmazonSes: API v2). Operations (setting `operation`):
 	account      the sending quota and its use in 24 h, the sending rate, production access or the sandbox, sending enabled, the enforcement status (GET /v2/email/account)
 	identities   the identities (addresses and domains) and their verification (GET /v2/email/identities)
 	identity     one, with its DKIM state and policies (GET /v2/email/identities/{identity})

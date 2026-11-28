@@ -31,7 +31,7 @@ class GitlabController extends \sys\APIController {
 	    $this->refuse(413, 'Request body too large');
 	if (($cfg['receive'] ?? 'webhook') !== 'webhook')
 	    $this->refuse(409, 'The step does not receive a webhook (Receive: Check a project on a schedule)');
-	if (!\util\GitLab::verify((string)($_SERVER['HTTP_X_GITLAB_TOKEN'] ?? ''), (string)($cfg['secret'] ?? '')))
+	if (!\util\vendor\GitLab::verify((string)($_SERVER['HTTP_X_GITLAB_TOKEN'] ?? ''), (string)($cfg['secret'] ?? '')))
 	    $this->refuse(401, 'Unauthorized (the secret token is not the step\'s)');
 	$data = json_decode($raw, true);
 	if (!is_array($data))

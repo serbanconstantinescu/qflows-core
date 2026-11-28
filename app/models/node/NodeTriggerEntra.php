@@ -126,17 +126,17 @@ class NodeTriggerEntra extends \models\wf\WfNode {
     }
 
     //the groups' IDs of the Groups setting (names looked up); null: all
-    private static function groupFilter(\util\Entra $g, array $cfg) {
+    private static function groupFilter(\util\vendor\Entra $g, array $cfg) {
 	$list = array_values(array_filter(array_map('trim', explode(',', (string)($cfg['groups'] ?? ''))), fn($v) => $v !== ''));
 	if (!$list)
 	    return null;
 	$ids = [];
 	foreach($list as $v) {
-	    if (\util\Entra::isGuid($v)) {
+	    if (\util\vendor\Entra::isGuid($v)) {
 		$ids[] = strtolower($v);
 		continue;
 	    }
-	    foreach((array)($g->request('GET', '/groups', [ '$filter' => 'displayName eq ' . \util\Entra::quote($v), '$select' => 'id', '$top' => 5 ])['value'] ?? []) as $x)
+	    foreach((array)($g->request('GET', '/groups', [ '$filter' => 'displayName eq ' . \util\vendor\Entra::quote($v), '$select' => 'id', '$top' => 5 ])['value'] ?? []) as $x)
 		$ids[] = strtolower((string)$x['id']);
 	}
 	return $ids;
@@ -235,7 +235,7 @@ class NodeTriggerEntra extends \models\wf\WfNode {
     }
 
     //the step's subscriptions kept: made when missing, renewed when they end within a day; [ { id, resource, expires } ]
-    public static function subscriptions(\util\Entra $g, array $cfg, array $subs, $users, $groups) {
+    public static function subscriptions(\util\vendor\Entra $g, array $cfg, array $subs, $users, $groups) {
 	$want = array_values(array_filter([ $users ? 'users' : null, $groups ? 'groups' : null ]));
 	$kept = [];
 	$until = gmdate('Y-m-d\TH:i:s\Z', time() + self::SUB_DAYS * 86400);

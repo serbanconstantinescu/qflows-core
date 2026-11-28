@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-15T16:00:00+02:00: Mailjet API - any request of Mailjet's APIs (a Mailjet credential, util\Mailjet): what the other Mailjet steps do not have (senders, campaigns,
+    CLD: 2026-11-15T16:00:00+02:00: Mailjet API - any request of Mailjet's APIs (a Mailjet credential, util\vendor\Mailjet): what the other Mailjet steps do not have (senders, campaigns,
     statistics, parse routes, webhooks - eventcallbackurl -, …): the method, the path with its version (/v3/REST/…, /v3.1/…, /v4/…), the query and the JSON body. The result:
     Mailjet's answer
 */

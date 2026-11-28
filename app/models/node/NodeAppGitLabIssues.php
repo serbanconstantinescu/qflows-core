@@ -124,7 +124,7 @@ class NodeAppGitLabIssues extends NodeAppGitLab {
 	    $i = self::issueOf($this->gl->request('POST', "/projects/{$project}/issues", [], $body));
 	    return [ $i, "#{$i['number']} created: {$i['title']}" ];
 	}
-	$n = \util\GitLab::iid($value('number'), 'Issue');
+	$n = \util\vendor\GitLab::iid($value('number'), 'Issue');
 	$path = "/projects/{$project}/issues/{$n}";
 	switch($operation) {
 	    case 'get':

@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-12T23:45:00+02:00: the base of the Zendesk steps (Tickets, Users, Setup, API; not registered itself), through a Zendesk credential of the project
-    (CredentialZendesk, provides `zendesk`; util\Zendesk). As NodeAppJira:
+    (CredentialZendesk, provides `zendesk`; util\vendor\Zendesk). As NodeAppJira:
 	- the shape: one input, `success` (+ `error` when On error is "Continue on the `error` output")
 	- the settings every Zendesk step has: credential, operation (static::OPERATIONS), the operation's own settings (operationFields(): each shown for its operations),
 	    At most (the lists), timeout, result variable, on error

@@ -111,19 +111,19 @@ class NodeTriggerSalesforce extends \models\wf\WfNode {
 
     public static function objectOf(array $cfg) {
 	$o = (string)($cfg['object'] ?? 'Lead');
-	return $o === 'custom' ? \util\Salesforce::name($cfg['customObject'] ?? '', 'API name') : (isset(NodeAppSfRecords::OBJECTS[$o]) ? $o : 'Lead');
+	return $o === 'custom' ? \util\vendor\Salesforce::name($cfg['customObject'] ?? '', 'API name') : (isset(NodeAppSfRecords::OBJECTS[$o]) ? $o : 'Lead');
     }
 
     public static function fieldsOf(array $cfg) {
 	$o = self::objectOf($cfg);
-	$more = array_map(fn($x) => \util\Salesforce::name($x, 'Fields', true), NodeAppSfRecords::names((string)($cfg['fields'] ?? '')));
+	$more = array_map(fn($x) => \util\vendor\Salesforce::name($x, 'Fields', true), NodeAppSfRecords::names((string)($cfg['fields'] ?? '')));
 	return array_values(array_unique(array_merge(NodeAppSfRecords::FIELDS[$o] ?? [ 'Id', 'Name', 'CreatedDate', 'LastModifiedDate' ], [ 'CreatedDate', 'SystemModstamp' ], $more)));
     }
 
     //the query of the records changed since $fromMs: the user's condition, the time field, the oldest first
     public static function soql(array $cfg, $field, $fromMs, $limit) {
 	$where = trim((string)($cfg['where'] ?? ''));
-	return 'SELECT ' . implode(', ', self::fieldsOf($cfg)) . ' FROM ' . self::objectOf($cfg) . ' WHERE ' . ($where !== '' ? "({$where}) AND " : '') . "{$field} >= " . \util\Salesforce::datetime($fromMs)
+	return 'SELECT ' . implode(', ', self::fieldsOf($cfg)) . ' FROM ' . self::objectOf($cfg) . ' WHERE ' . ($where !== '' ? "({$where}) AND " : '') . "{$field} >= " . \util\vendor\Salesforce::datetime($fromMs)
 	    . " ORDER BY {$field} ASC, Id ASC LIMIT " . (int)$limit;
     }
 
@@ -184,7 +184,7 @@ class NodeTriggerSalesforce extends \models\wf\WfNode {
 	    $id = (string)($r['Id'] ?? '') . '|' . $ms;
 	    if ($ms === null || $ms <= $floor || isset($seen[$id]))
 		continue;
-	    $rec = \util\Salesforce::record((array)$r, $s->instance());
+	    $rec = \util\vendor\Salesforce::record((array)$r, $s->instance());
 	    $new[] = $rec + [ 'event' => $event === 'updated' && self::ms($r['CreatedDate'] ?? null) !== $ms ? 'updated' : 'created' ];
 	    $seen[$id] = $ms;
 	    $since = max($since, $ms);
@@ -218,7 +218,7 @@ class NodeTriggerSalesforce extends \models\wf\WfNode {
 	}
 	if (!$raw)
 	    return [ 'executions' => [], 'message' => 'Salesforce record: no record matches' ];
-	$rec = \util\Salesforce::record((array)$raw[0], $s->instance()) + [ 'event' => $event ];
+	$rec = \util\vendor\Salesforce::record((array)$raw[0], $s->instance()) + [ 'event' => $event ];
 	$name = \util\Validator::isIdentifier((string)($cfg['variable'] ?? '')) ? (string)$cfg['variable'] : 'record';
 	$value = ($cfg['runs'] ?? 'each') === 'batch' ? [ 'records' => [ $rec ], 'count' => 1 ] : $rec;
 	$exe = \models\wf\WfExecution::startFor($wf, 'salesforce', [ 'started_at' => new \MongoDB\BSON\UTCDateTime(), 'vars' => [ $name => $value ] ], (string)$node['wfid']);

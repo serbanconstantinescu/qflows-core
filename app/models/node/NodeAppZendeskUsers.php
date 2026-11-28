@@ -57,13 +57,13 @@ class NodeAppZendeskUsers extends NodeAppZendesk {
 	];
     }
 
-    public static function userOf(array $u, \util\Zendesk $z) {
+    public static function userOf(array $u, \util\vendor\Zendesk $z) {
 	return [ 'id' => isset($u['id']) ? (int)$u['id'] : null, 'url' => isset($u['id']) ? $z->agentUrl('user', $u['id']) : null, 'name' => $u['name'] ?? null, 'email' => $u['email'] ?? null,
 	    'role' => $u['role'] ?? null, 'organizationId' => $u['organization_id'] ?? null, 'phone' => $u['phone'] ?? null, 'active' => $u['active'] ?? null, 'suspended' => $u['suspended'] ?? null,
 	    'tags' => array_values((array)($u['tags'] ?? [])), 'created' => $u['created_at'] ?? null, 'lastLogin' => $u['last_login_at'] ?? null, 'userFields' => (array)($u['user_fields'] ?? []), 'fields' => $u ];
     }
 
-    public static function organizationOf(array $o, \util\Zendesk $z) {
+    public static function organizationOf(array $o, \util\vendor\Zendesk $z) {
 	return [ 'id' => isset($o['id']) ? (int)$o['id'] : null, 'url' => isset($o['id']) ? $z->agentUrl('organization', $o['id']) : null, 'name' => $o['name'] ?? null,
 	    'domains' => array_values((array)($o['domain_names'] ?? [])), 'tags' => array_values((array)($o['tags'] ?? [])), 'created' => $o['created_at'] ?? null,
 	    'organizationFields' => (array)($o['organization_fields'] ?? []), 'fields' => $o ];

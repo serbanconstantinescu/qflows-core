@@ -5,7 +5,9 @@
     of the account: SMTP & API > API keys). Errors: Brevo's { code, message }. As util\EmailApi
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\EmailApi;
 
 class Brevo extends EmailApi {
     const NAME = 'Brevo';

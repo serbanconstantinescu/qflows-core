@@ -49,9 +49,9 @@ class NodeAppS3Api extends NodeAppS3 {
     protected function runOperation($operation, \Closure $text, \Closure $value) {
 	$method = isset(self::METHODS[(string)$this->cfg('method', 'GET')]) ? (string)$this->cfg('method', 'GET') : 'GET';
 	$b = $text('bucket');
-	$bucket = $b === '' ? '' : \util\S3::bucket($b);
+	$bucket = $b === '' ? '' : \util\vendor\S3::bucket($b);
 	$k = \util\Expression::toText($value('key'));
-	$key = trim($k) === '' ? '' : \util\S3::key($k);
+	$key = trim($k) === '' ? '' : \util\vendor\S3::key($k);
 	if ($key !== '' && $bucket === '')
 	    throw new \RuntimeException('Bucket: a key needs its bucket');
 	$headers = $this->pairs('headers', 'Headers');
@@ -63,7 +63,7 @@ class NodeAppS3Api extends NodeAppS3 {
 	[ $status, $h, $answer ] = $this->s3->request($method, $bucket, $key, $this->pairs('query', 'Query'), $headers, $body !== '' ? [ 'body' => $body ] : []);
 	$parsed = $answer;
 	if (str_starts_with(ltrim($answer), '<'))
-	    $parsed = \util\S3::xmlArray($answer);
+	    $parsed = \util\vendor\S3::xmlArray($answer);
 	elseif (($j = json_decode($answer, true)) !== null)
 	    $parsed = $j;
 	return [ [ 'status' => $status, 'headers' => $h, 'body' => $parsed ], "{$method} " . ($bucket !== '' ? "{$bucket}/{$key}" : '/') . " ({$status})" ];

@@ -58,12 +58,12 @@ class NodeAppShopInventory extends NodeAppShopify {
 	    $sku = trim(\util\Expression::toText($value('variant')));
 	    if ($sku === '')
 		throw new \RuntimeException('Variant: empty');
-	    $v = $this->findOne('productVariants', 'sku:' . \util\Shopify::quoted($sku), $fields);
+	    $v = $this->findOne('productVariants', 'sku:' . \util\vendor\Shopify::quoted($sku), $fields);
 	    if (!$v || (string)$v['sku'] !== $sku)
 		throw new \RuntimeException("Variant: no variant with the SKU `{$sku}`");
 	    return $v;
 	}
-	return $this->one('productVariant', \util\Shopify::gid('ProductVariant', $value('variant'), 'Variant'), $fields, 'variant');
+	return $this->one('productVariant', \util\vendor\Shopify::gid('ProductVariant', $value('variant'), 'Variant'), $fields, 'variant');
     }
 
     //a variant's levels: [ { location, locationId, available, on_hand, ... } ]
@@ -91,11 +91,11 @@ class NodeAppShopInventory extends NodeAppShopify {
 	    throw new \RuntimeException('Location: required (the store has ' . count($all) . ' active locations)');
 	}
 	if (preg_match('/^\d+$|^gid:/', $want))
-	    return \util\Shopify::gid('Location', $want, 'Location');
+	    return \util\vendor\Shopify::gid('Location', $want, 'Location');
 	foreach($levels as $l)
 	    if (mb_strtolower($l['location']) === mb_strtolower($want))
 		return $l['locationId'];
-	$found = $this->findOne('locations', 'name:' . \util\Shopify::quoted($want), 'id name');
+	$found = $this->findOne('locations', 'name:' . \util\vendor\Shopify::quoted($want), 'id name');
 	if (!$found || mb_strtolower((string)$found['name']) !== mb_strtolower($want))
 	    throw new \RuntimeException("Location: no location `{$want}`");
 	return $found['id'];

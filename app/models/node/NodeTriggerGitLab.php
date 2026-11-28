@@ -111,7 +111,7 @@ class NodeTriggerGitLab extends \models\wf\WfNode {
 	    $valid = false;
 	}
 	$project = trim((string)($cfg['project'] ?? ''));
-	if ($project !== '' && !preg_match(\util\GitLab::PROJECT, $project) && !preg_match('/^\d{1,20}$/', $project)) {
+	if ($project !== '' && !preg_match(\util\vendor\GitLab::PROJECT, $project) && !preg_match('/^\d{1,20}$/', $project)) {
 	    $this->errors('config', 'GitLab event: Project: group/project');
 	    $valid = false;
 	} elseif ($poll && $project === '' && $cred && trim((string)$cred->defaultProject) === '') {

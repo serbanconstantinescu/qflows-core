@@ -98,10 +98,10 @@ class NodeAppNxShares extends NodeAppNextcloud {
 	switch($operation) {
 	    case 'list':
 		$which = (string)$this->cfg('which', 'mine');
-		$q = $which === 'withMe' ? [ 'shared_with_me' => 'true' ] : ($which === 'path' ? [ 'path' => \util\Nextcloud::path($value('path')), 'reshares' => 'true' ] : []);
+		$q = $which === 'withMe' ? [ 'shared_with_me' => 'true' ] : ($which === 'path' ? [ 'path' => \util\vendor\Nextcloud::path($value('path')), 'reshares' => 'true' ] : []);
 		return $this->listResult((array)$this->nc->ocs('GET', self::API, $q), 'share');
 	    case 'share':
-		$path = \util\Nextcloud::path($value('path'));
+		$path = \util\vendor\Nextcloud::path($value('path'));
 		if ($path === '/')
 		    throw new \RuntimeException('Path: a file or folder, not the top');
 		$with = isset(self::WITH[(string)$this->cfg('with', 'link')]) ? (string)$this->cfg('with', 'link') : 'link';

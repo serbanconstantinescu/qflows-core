@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-15T16:00:00+02:00: Amazon SES (Simple Email Service) of an AWS account, for the Amazon SES steps (Email, Account, API; util\AmazonSes, API v2): the region, an access
+    CLD: 2026-11-15T16:00:00+02:00: Amazon SES (Simple Email Service) of an AWS account, for the Amazon SES steps (Email, Account, API; util\vendor\AmazonSes, API v2): the region, an access
     key (an IAM user's: the access key ID and the secret, encrypted; a temporary key's session token, encrypted, optional) with the SES permissions the steps use, the
     configuration set of the messages (optional: its event destinations, e.g. SNS for bounces) and the sender the steps use when they name none (a verified identity). Test: the
     account's sending quota. Provides `amazonses`
@@ -79,7 +79,7 @@ class CredentialAmazonSes extends \models\Credential {
     }
 
     public function client($timeout = 60) {
-	return new \util\AmazonSes($this, $timeout);
+	return new \util\vendor\AmazonSes($this, $timeout);
     }
 
     public function test() {

@@ -44,7 +44,7 @@ class NodeAppSfOrg extends NodeAppSalesforce {
 		    (array)($S->request('GET', '/sobjects')['sobjects'] ?? [])), $has));
 		return $this->listResult($all, 'object');
 	    case 'describe':
-		$o = \util\Salesforce::name($text('object'), 'Object');
+		$o = \util\vendor\Salesforce::name($text('object'), 'Object');
 		$d = (array)$S->request('GET', "/sobjects/{$o}/describe");
 		$all = array_values(array_filter(array_map(fn($f) => [ 'name' => $f['name'] ?? null, 'label' => $f['label'] ?? null, 'type' => $f['type'] ?? null, 'length' => $f['length'] ?? null,
 		    'required' => !($f['nillable'] ?? true) && !($f['defaultedOnCreate'] ?? false) && ($f['createable'] ?? false), 'createable' => (bool)($f['createable'] ?? false),

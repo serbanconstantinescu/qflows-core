@@ -21,7 +21,10 @@
     Slack::$testing: the check suite's local server (http://127.0.0.1:<port>) instead of https://slack.com
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\Expression;
+use util\Http;
 
 class Slack {
     const MAX_ANSWER = 20 * 1024 * 1024;

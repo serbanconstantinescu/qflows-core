@@ -11,7 +11,7 @@ namespace util\agent;
 
 use util\Http;
 use util\Markdown;
-use util\Slack;
+use util\vendor\Slack;
 
 class Channels {
     public static $sink = null;

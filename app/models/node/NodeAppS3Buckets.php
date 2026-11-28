@@ -37,7 +37,7 @@ class NodeAppS3Buckets extends NodeAppS3 {
 	if ($operation === 'list') {
 	    $d = $this->s3->xml('GET', '');
 	    $all = array_map(fn($b) => [ 'name' => (string)($b['Name'] ?? ''), 'created' => isset($b['CreationDate']) ? gmdate('Y-m-d\TH:i:s\Z', strtotime($b['CreationDate'])) : '' ],
-		\util\S3::listOf($d['Buckets']['Bucket'] ?? null));
+		\util\vendor\S3::listOf($d['Buckets']['Bucket'] ?? null));
 	    $items = array_slice($all, 0, $this->maxItems());
 	    return [ [ 'items' => $items, 'count' => count($items), 'truncated' => count($all) > count($items) ], \util\Format::plural(count($items), 'bucket') ];
 	}

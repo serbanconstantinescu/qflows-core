@@ -65,7 +65,7 @@ class NodeAppInfobipWhatsapp extends NodeAppInfobip {
 	$from = $this->sender($text, 'from', 'whatsappSender');
 	if ($from === '')
 	    throw new \RuntimeException('From: no WhatsApp sender (the step\'s or the credential\'s)');
-	$from = \util\Infobip::number($from, 'From');
+	$from = \util\vendor\Infobip::number($from, 'From');
 	if ($operation === 'templates') {
 	    $all = (array)($I->request('GET', '/whatsapp/2/senders/' . rawurlencode($from) . '/templates')['templates'] ?? []);
 	    return $this->listResult(array_map(function($t) {
@@ -76,7 +76,7 @@ class NodeAppInfobipWhatsapp extends NodeAppInfobip {
 		    'body' => $body !== '' ? $body : null, 'placeholders' => preg_match_all('/\{\{\d+\}\}/', $body) ];
 	    }, $all), 'template');
 	}
-	$to = \util\Infobip::numbers($value('to'));
+	$to = \util\vendor\Infobip::numbers($value('to'));
 	if (!$to)
 	    throw new \RuntimeException('To: no number');
 	if (count($to) > self::MAX_TO)

@@ -93,7 +93,7 @@ class NodeAppNxFiles extends NodeAppNextcloud {
     }
 
     //the items of a folder (and its subfolders to $depth levels): files, folders or both ($include), names matching $pattern; at most $max: [ items, more left out ]
-    public static function walk(\util\Nextcloud $nc, $folder, $depth, $include, $pattern, $max) {
+    public static function walk(\util\vendor\Nextcloud $nc, $folder, $depth, $include, $pattern, $max) {
 	$depth = max(0, min(self::MAX_DEPTH, (int)$depth));
 	$all = [];
 	$queue = [ [ $folder, 0 ] ];
@@ -127,7 +127,7 @@ class NodeAppNxFiles extends NodeAppNextcloud {
     }
 
     protected function runOperation($operation, \Closure $text, \Closure $value) {
-	$N = \util\Nextcloud::class;
+	$N = \util\vendor\Nextcloud::class;
 	switch($operation) {
 	    case 'list':
 		[ $all, $more ] = self::walk($this->nc, $N::path($value('folder'), 'Folder'), (int)$this->cfg('depth', 0), (string)$this->cfg('include', 'all'), $text('pattern'), $this->maxItems());
@@ -184,7 +184,7 @@ class NodeAppNxFiles extends NodeAppNextcloud {
     }
 
     protected function download(\Closure $text, \Closure $value) {
-	$path = \util\Nextcloud::path($value('path'));
+	$path = \util\vendor\Nextcloud::path($value('path'));
 	$item = $this->nc->items($path, 0)[0] ?? null;
 	if (!$item || $item['isFolder'])
 	    throw new \RuntimeException("{$path} is not a file");
@@ -245,7 +245,7 @@ class NodeAppNxFiles extends NodeAppNextcloud {
 	try {
 	    if (str_contains($name, '/') || preg_match('/[\x00-\x1f\\\\]/', $name) || trim($name, ' .') === '')
 		throw new \RuntimeException('not a file name: `' . mb_substr($name, 0, 100) . '`');
-	    $folder = \util\Nextcloud::path($value('folder'), 'Folder');
+	    $folder = \util\vendor\Nextcloud::path($value('folder'), 'Folder');
 	    $dest = rtrim($folder, '/') . '/' . $name;
 	    $conflict = isset(self::CONFLICT[(string)$this->cfg('conflict', 'rename')]) ? (string)$this->cfg('conflict', 'rename') : 'rename';
 	    $headers = [ 'Content-Type' => 'application/octet-stream' ];

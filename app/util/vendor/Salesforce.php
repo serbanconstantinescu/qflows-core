@@ -17,7 +17,10 @@
     Salesforce::$testing: the check suite's local server (http://127.0.0.1): no https, no address guard
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\Expression;
+use util\Http;
 
 class Salesforce {
     const DEFAULT_VERSION = '64.0';

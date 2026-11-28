@@ -48,7 +48,7 @@ class NodeAppShopStore extends NodeAppShopify {
 	    case 'shop':
 		$d = $S->query('{ shop { id name email contactEmail myshopifyDomain primaryDomain { url host } currencyCode enabledPresentmentCurrencies ianaTimezone weightUnit'
 		    . ' plan { displayName partnerDevelopment shopifyPlus } billingAddress { country countryCodeV2 city } } }');
-		$shop = \util\Shopify::simplify($d['shop'] ?? []);
+		$shop = \util\vendor\Shopify::simplify($d['shop'] ?? []);
 		return [ $shop, ($shop['name'] ?? '?') . ' (' . ($shop['myshopifyDomain'] ?? '') . ')' ];
 	    case 'webhooks':
 		$max = $this->maxItems();
@@ -65,7 +65,7 @@ class NodeAppShopStore extends NodeAppShopify {
 		$w = self::subscribe($S, $topic, $url);
 		return [ $w, "{$topic} → {$url}" ];
 	    case 'unsubscribe':
-		$id = \util\Shopify::gid('WebhookSubscription', $value('webhook'), 'Webhook');
+		$id = \util\vendor\Shopify::gid('WebhookSubscription', $value('webhook'), 'Webhook');
 		$p = $S->mutate('mutation($id: ID!) { webhookSubscriptionDelete(id: $id) { deletedWebhookSubscriptionId userErrors { field message } } }', [ 'id' => $id ], 'webhookSubscriptionDelete');
 		return [ [ 'id' => $p['deletedWebhookSubscriptionId'] ?? $id, 'deleted' => true ], "{$id} deleted" ];
 	}
@@ -73,15 +73,15 @@ class NodeAppShopStore extends NodeAppShopify {
     }
 
     //a subscription of $topic (orders/create) to $url: the subscription ({ id, topic, callbackUrl, ... })
-    public static function subscribe(\util\Shopify $S, $topic, $url) {
+    public static function subscribe(\util\vendor\Shopify $S, $topic, $url) {
 	$p = $S->mutate('mutation($topic: WebhookSubscriptionTopic!, $sub: WebhookSubscriptionInput!) { webhookSubscriptionCreate(topic: $topic, webhookSubscription: $sub) {'
-	    . ' webhookSubscription { ' . self::WEBHOOK . ' } userErrors { field message } } }', [ 'topic' => \util\Shopify::topicEnum($topic), 'sub' => [ 'callbackUrl' => (string)$url, 'format' => 'JSON' ] ],
+	    . ' webhookSubscription { ' . self::WEBHOOK . ' } userErrors { field message } } }', [ 'topic' => \util\vendor\Shopify::topicEnum($topic), 'sub' => [ 'callbackUrl' => (string)$url, 'format' => 'JSON' ] ],
 	    'webhookSubscriptionCreate');
 	return self::webhookOf((array)$p['webhookSubscription']);
     }
 
     //the app's subscriptions (at most $max; webhookSubscriptions has no search)
-    public static function webhooks(\util\Shopify $S, $max = 1000) {
+    public static function webhooks(\util\vendor\Shopify $S, $max = 1000) {
 	$S->pageSize = 250;
 	[ $items ] = $S->connection('query($first: Int!, $after: String) { webhookSubscriptions(first: $first, after: $after) { nodes { ' . self::WEBHOOK . ' } pageInfo { hasNextPage endCursor } } }',
 	    [], 'webhookSubscriptions', $max);

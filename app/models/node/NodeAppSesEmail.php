@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-15T16:00:00+02:00: Amazon SES Email - email sent through Amazon SES (an Amazon SES credential, util\AmazonSes: API v2). Operations (setting `operation`):
+    CLD: 2026-11-15T16:00:00+02:00: Amazon SES Email - email sent through Amazon SES (an Amazon SES credential, util\vendor\AmazonSes: API v2). Operations (setting `operation`):
 	send       a message (POST /v2/email/outbound-emails): the message of NodeAppEmailService; text / HTML without attachments as Simple content, with attachments or a designed
 	           message (its images inline) as a raw MIME message (util\EmailSend::compose, as the Send email step's), or an SES template by its name with its data (Template;
 	           SES sends no attachments with it); the credential's configuration set; the tags as message tags (name=value, or a name: value true)

@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-12T18:00:00+02:00: the base of the Salesforce steps (Records, Org, API; not registered itself), through a Salesforce credential of the project
-    (CredentialSalesforce, provides `salesforce`; util\Salesforce: client credentials). As NodeAppHubSpot:
+    (CredentialSalesforce, provides `salesforce`; util\vendor\Salesforce: client credentials). As NodeAppHubSpot:
 	- the shape: one input, `success` (+ `error` when On error is "Continue on the `error` output")
 	- the settings every Salesforce step has: credential, operation (static::OPERATIONS), the operation's own settings (operationFields(): each shown for its operations),
 	    At most (the lists), timeout, result variable, on error

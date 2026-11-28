@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-13T00:30:00+02:00: an Infobip account, for the Infobip steps (SMS, WhatsApp, Email, 2FA, Account, API; util\Infobip): its base URL (the portal's home page) and an API
+    CLD: 2026-11-13T00:30:00+02:00: an Infobip account, for the Infobip steps (SMS, WhatsApp, Email, 2FA, Account, API; util\vendor\Infobip): its base URL (the portal's home page) and an API
     key (Developer tools > API keys; encrypted; its scopes limit what the steps may do), and the senders the steps use when they name none: an SMS sender (alphanumeric or a
     number), the WhatsApp sender (the number registered with Infobip), the email sender (of a domain verified in Infobip). Test: the account's balance. Provides `infobip`
 */
@@ -68,7 +68,7 @@ class CredentialInfobip extends \models\Credential {
     }
 
     public function client($timeout = 60) {
-	return new \util\Infobip($this, $timeout);
+	return new \util\vendor\Infobip($this, $timeout);
     }
 
     public function test() {

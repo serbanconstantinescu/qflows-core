@@ -15,7 +15,10 @@
     Okta::$testing: the check suite's local server (http://127.0.0.1:<port>) instead of the org's address
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\Http;
+use util\Jwt;
 
 class Okta {
     const MAX_ANSWER = 20 * 1024 * 1024;

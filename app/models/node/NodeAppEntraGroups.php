@@ -78,7 +78,7 @@ class NodeAppEntraGroups extends NodeAppEntra {
     private function userIds($value, $label) {
 	$ids = [];
 	foreach(self::userRefs($value, $label) as $ref)
-	    $ids[] = \util\Entra::isGuid($ref) ? $ref : (string)($this->graph->request('GET', "/users/{$ref}", [ '$select' => 'id' ])['id'] ?? '');
+	    $ids[] = \util\vendor\Entra::isGuid($ref) ? $ref : (string)($this->graph->request('GET', "/users/{$ref}", [ '$select' => 'id' ])['id'] ?? '');
 	return $ids;
     }
 

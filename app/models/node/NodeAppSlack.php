@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-25T14:00:00+02:00: the base of the Slack steps (Messages, Channels, Users, Files, API; not registered itself), through a Slack credential of the project
-    (CredentialSlack, provides `slack`; util\Slack). As NodeAppZendesk:
+    (CredentialSlack, provides `slack`; util\vendor\Slack). As NodeAppZendesk:
 	- the shape: one input, `success` (+ `error` when On error is "Continue on the `error` output")
 	- the settings every Slack step has: credential, operation (static::OPERATIONS), the operation's own settings (operationFields(): each shown for its operations),
 	    At most (the lists), timeout, result variable, on error
@@ -211,10 +211,10 @@ abstract class NodeAppSlack extends \models\wf\WfNode {
 
     //a channel's id of setting value $value (an id, #name, a link, an item); a name looked up in the workspace's channels the app can see
     protected function channel($value, $label = 'Channel') {
-	$v = \util\Slack::channelId($value);
+	$v = \util\vendor\Slack::channelId($value);
 	if ($v === '')
 	    throw new \RuntimeException("{$label}: empty");
-	if (\util\Slack::isChannelId($v))
+	if (\util\vendor\Slack::isChannelId($v))
 	    return $v;
 	$name = strtolower(ltrim($v, '#'));
 	if (!preg_match('/^[a-z0-9][a-z0-9_-]{0,79}$/', $name))
@@ -271,7 +271,7 @@ abstract class NodeAppSlack extends \models\wf\WfNode {
     protected function messageText($key = 'message', $format = null) {
 	$content = trim(\util\Expression::toText($this->settingOf($key)));
 	$format = $format ?? (string)$this->cfg('format', 'markdown');
-	$text = match($format) { 'mrkdwn' => $content, 'text' => \util\Slack::escape($content), default => \util\Slack::mrkdwn($content) };
+	$text = match($format) { 'mrkdwn' => $content, 'text' => \util\vendor\Slack::escape($content), default => \util\vendor\Slack::mrkdwn($content) };
 	if (mb_strlen($text) > self::MAX_TEXT)
 	    throw new \RuntimeException('the message is longer than ' . self::MAX_TEXT . ' characters');
 	return [ $text, $format !== 'text' ];
@@ -300,7 +300,7 @@ abstract class NodeAppSlack extends \models\wf\WfNode {
 	    'channel' => (string)($m['channel'] ?? $channel),
 	    'thread_ts' => (string)($m['thread_ts'] ?? ''),
 	    'user' => (string)($m['user'] ?? $m['bot_id'] ?? ''),
-	    'text' => \util\Slack::plain((string)($m['text'] ?? '')),
+	    'text' => \util\vendor\Slack::plain((string)($m['text'] ?? '')),
 	    'replies' => (int)($m['reply_count'] ?? 0),
 	    'reactions' => array_map(fn($r) => [ 'name' => (string)($r['name'] ?? ''), 'count' => (int)($r['count'] ?? 0) ], (array)($m['reactions'] ?? [])),
 	    'files' => array_map(fn($f) => (string)($f['name'] ?? $f['id'] ?? ''), (array)($m['files'] ?? [])),

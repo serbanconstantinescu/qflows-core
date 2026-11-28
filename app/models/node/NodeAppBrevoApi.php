@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-15T16:00:00+02:00: Brevo API - any request of Brevo's API v3 (a Brevo credential, util\Brevo): what the other Brevo steps do not have (campaigns, SMS, WhatsApp,
+    CLD: 2026-11-15T16:00:00+02:00: Brevo API - any request of Brevo's API v3 (a Brevo credential, util\vendor\Brevo): what the other Brevo steps do not have (campaigns, SMS, WhatsApp,
     senders and domains, webhooks, CRM deals, …): the method, the path below /v3, the query and the JSON body. The result: Brevo's answer
 */
 

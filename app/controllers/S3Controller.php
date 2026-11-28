@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-25T18:00:00+02:00: the public endpoint of the S3 object trigger receiving event notifications (/s3/<token>, NodeTriggerS3, Receive: S3 event notifications):
-    Amazon SNS POSTs JSON (Content-Type text/plain), signed (util\Sns::verify), of the step's topic only:
+    Amazon SNS POSTs JSON (Content-Type text/plain), signed (util\vendor\Sns::verify), of the step's topic only:
 	SubscriptionConfirmation  confirmed (its SubscribeURL), when the subscription is made
 	Notification              its Message: S3's event ({ Records: [ … ] }; s3:TestEvent ignored): a run per object of the bucket, prefix and names (or one with them all);
 	                          each SNS message once
@@ -37,7 +37,7 @@ class S3Controller extends \sys\APIController {
 	    $this->refuse(400, 'Not JSON');
 	if (($cfg['receive'] ?? 'poll') !== 'sns')
 	    $this->refuse(409, 'The step does not receive event notifications (Receive: S3 event notifications)');
-	$why = \util\Sns::verify($m);
+	$why = \util\vendor\Sns::verify($m);
 	if ($why !== '')
 	    $this->refuse(401, "Unauthorized ({$why})");
 	if ((string)($m['TopicArn'] ?? '') !== trim((string)($cfg['topicArn'] ?? '')))
@@ -47,7 +47,7 @@ class S3Controller extends \sys\APIController {
 	$type = (string)$m['Type'];
 	if ($type === 'SubscriptionConfirmation') {
 	    try {
-		\util\Sns::confirm($m);
+		\util\vendor\Sns::confirm($m);
 	    } catch (\RuntimeException $e) {
 		$this->refuse(502, $e->getMessage());
 	    }

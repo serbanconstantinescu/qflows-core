@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-25T21:00:00+02:00: the base of the GitHub steps (Issues, Pull Requests, Repository, Actions, API; not registered itself), through a GitHub credential of the
-    project (CredentialGitHub, provides `github`; util\GitHub). As NodeAppSlack:
+    project (CredentialGitHub, provides `github`; util\vendor\GitHub). As NodeAppSlack:
 	- the shape: one input, `success` (+ `error` when On error is "Continue on the `error` output")
 	- the settings every GitHub step has: credential, repository (empty: the credential's default), operation (static::OPERATIONS), the operation's own settings
 	    (operationFields(): each shown for its operations), At most (the lists), timeout, result variable, on error

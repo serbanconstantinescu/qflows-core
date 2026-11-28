@@ -30,7 +30,7 @@ class YousignController extends \sys\APIController {
 	$raw = $req->body();
 	if (strlen($raw) > \data\Constants::MAX_REQUEST_BODY)
 	    $this->refuse(413, 'Request body too large');
-	if (!\util\Yousign::verify($raw, (string)($_SERVER['HTTP_X_YOUSIGN_SIGNATURE_256'] ?? ''), trim((string)($cfg['secretKey'] ?? ''))))
+	if (!\util\vendor\Yousign::verify($raw, (string)($_SERVER['HTTP_X_YOUSIGN_SIGNATURE_256'] ?? ''), trim((string)($cfg['secretKey'] ?? ''))))
 	    $this->refuse(401, 'Unauthorized (the signature does not match the secret key)');
 	$data = json_decode($raw, true);
 	if (!is_array($data))

@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-15T16:00:00+02:00: Amazon SES API - any request of Amazon SES's API v2 (an Amazon SES credential, util\AmazonSes, signed): what the other Amazon SES steps do not
+    CLD: 2026-11-15T16:00:00+02:00: Amazon SES API - any request of Amazon SES's API v2 (an Amazon SES credential, util\vendor\AmazonSes, signed): what the other Amazon SES steps do not
     have (configuration sets and their event destinations, contact lists, dedicated IPs, bulk email, the deliverability dashboard, …): the method, the path below /v2/email, the
     query and the JSON body. The result: SES's answer
 */

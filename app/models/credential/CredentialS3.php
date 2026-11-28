@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-25T18:00:00+02:00: an S3 storage account, for the S3 steps (Objects, Links, Buckets, API) and the S3 object trigger (util\S3): Amazon S3 (a region) or an
+    CLD: 2026-11-25T18:00:00+02:00: an S3 storage account, for the S3 steps (Objects, Links, Buckets, API) and the S3 object trigger (util\vendor\S3): Amazon S3 (a region) or an
     S3-compatible service (its endpoint: MinIO, Wasabi, Backblaze B2, Cloudflare R2, Hetzner, OVH, …; path-style addresses by default), an access key (the ID, the secret
     encrypted; a temporary key's session token, encrypted, optional) and a default bucket (optional: the steps' Bucket when empty). Test: the default bucket (one object
     listed), else the buckets. Provides `s3`
@@ -99,7 +99,7 @@ class CredentialS3 extends \models\Credential {
     }
 
     public function client($aid = null, $timeout = 60) {
-	return new \util\S3($this, $aid ?? $this->aid, $timeout);
+	return new \util\vendor\S3($this, $aid ?? $this->aid, $timeout);
     }
 
     public function test() {
@@ -111,7 +111,7 @@ class CredentialS3 extends \models\Credential {
 		return "connected to {$where}: bucket " . trim((string)$this->bucket) . ' ' . ($objects ? 'has objects' : 'is empty');
 	    }
 	    $d = $s->xml('GET', '');
-	    $names = array_map(fn($b) => (string)($b['Name'] ?? ''), \util\S3::listOf($d['Buckets']['Bucket'] ?? null));
+	    $names = array_map(fn($b) => (string)($b['Name'] ?? ''), \util\vendor\S3::listOf($d['Buckets']['Bucket'] ?? null));
 	} catch (\RuntimeException $e) {
 	    throw new \Exception($e->getMessage());
 	}

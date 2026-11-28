@@ -96,7 +96,7 @@ class NodeAppJiraIssues extends NodeAppJira {
     }
 
     //an issue of an answer, simplified (see the header); `fields` all of them
-    public static function issueOf(array $raw, \util\Jira $j) {
+    public static function issueOf(array $raw, \util\vendor\Jira $j) {
 	$f = (array)($raw['fields'] ?? []);
 	return [
 	    'key' => $raw['key'] ?? null,
@@ -117,7 +117,7 @@ class NodeAppJiraIssues extends NodeAppJira {
 	    'duedate' => $f['duedate'] ?? null,
 	    'resolution' => $f['resolution']['name'] ?? null,
 	    'parent' => $f['parent']['key'] ?? null,
-	    'description' => isset($f['description']) ? \util\Jira::plain($f['description']) : null,
+	    'description' => isset($f['description']) ? \util\vendor\Jira::plain($f['description']) : null,
 	    'fields' => $f,
 	];
     }
@@ -219,12 +219,12 @@ class NodeAppJiraIssues extends NodeAppJira {
 		$type = $text('issueType') ?: 'Task';
 		$f = [ 'project' => [ 'key' => strtoupper($text('project')) ], 'issuetype' => preg_match('/^\d+$/', $type) ? [ 'id' => $type ] : [ 'name' => $type ] ] + $f;
 		if (($p = $text('parent')) !== '')
-		    $f['parent'] = [ 'key' => \util\Jira::issueKey($p, 'Parent') ];
+		    $f['parent'] = [ 'key' => \util\vendor\Jira::issueKey($p, 'Parent') ];
 		$made = (array)$J->request('POST', "{$api}/issue", [], [ 'fields' => $f ]);
 		$issue = $this->getIssue((string)($made['key'] ?? $made['id'] ?? ''));
 		return [ $issue, "{$issue['key']} created: {$issue['summary']}" ];
 	}
-	$key = \util\Jira::issueKey($value('issue'));
+	$key = \util\vendor\Jira::issueKey($value('issue'));
 	$path = "{$api}/issue/" . rawurlencode($key);
 	switch($operation) {
 	    case 'get':
@@ -256,15 +256,15 @@ class NodeAppJiraIssues extends NodeAppJira {
 		return $this->transition($key, $path, $text, $value);
 	    case 'comment':
 		$c = (array)$J->request('POST', "{$path}/comment", [], [ 'body' => $J->text($value('comment')) ]);
-		return [ [ 'id' => $c['id'] ?? null, 'key' => $key, 'author' => self::userOf($c['author'] ?? null), 'body' => \util\Jira::plain($c['body'] ?? ''), 'created' => $c['created'] ?? null ],
+		return [ [ 'id' => $c['id'] ?? null, 'key' => $key, 'author' => self::userOf($c['author'] ?? null), 'body' => \util\vendor\Jira::plain($c['body'] ?? ''), 'created' => $c['created'] ?? null ],
 		    "comment added to {$key}" ];
 	    case 'comments':
 		$d = (array)$J->request('GET', "{$path}/comment", [ 'orderBy' => '-created', 'maxResults' => min(100, $this->maxItems()) ]);
-		$list = array_map(fn($c) => [ 'id' => $c['id'] ?? null, 'author' => self::userOf($c['author'] ?? null), 'body' => \util\Jira::plain($c['body'] ?? ''), 'created' => $c['created'] ?? null,
+		$list = array_map(fn($c) => [ 'id' => $c['id'] ?? null, 'author' => self::userOf($c['author'] ?? null), 'body' => \util\vendor\Jira::plain($c['body'] ?? ''), 'created' => $c['created'] ?? null,
 		    'updated' => $c['updated'] ?? null ], (array)($d['comments'] ?? []));
 		return $this->listResult($list, 'comment');
 	    case 'link':
-		$other = \util\Jira::issueKey($value('other'), 'Other issue');
+		$other = \util\vendor\Jira::issueKey($value('other'), 'Other issue');
 		$type = $text('linkType') ?: 'Relates';
 		$J->request('POST', "{$api}/issueLink", [], [ 'type' => [ 'name' => $type ], 'outwardIssue' => [ 'key' => $key ], 'inwardIssue' => [ 'key' => $other ] ]);
 		return [ [ 'key' => $key, 'type' => $type, 'other' => $other ], "{$key} → {$other} ({$type})" ];

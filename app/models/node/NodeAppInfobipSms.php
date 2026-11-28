@@ -79,7 +79,7 @@ class NodeAppInfobipSms extends NodeAppInfobip {
 	$I = $this->infobip;
 	switch($operation) {
 	    case 'send':
-		$to = \util\Infobip::numbers($value('to'));
+		$to = \util\vendor\Infobip::numbers($value('to'));
 		if (!$to)
 		    throw new \RuntimeException('To: no number');
 		$t = \util\Expression::toText($value('text'));
@@ -98,7 +98,7 @@ class NodeAppInfobipSms extends NodeAppInfobip {
 		    'configuration' => $p['configuration'] ?? null ];
 		return [ $r, \util\Format::plural($r['parts'], 'part') . ", {$r['charactersRemaining']} characters left" ];
 	    case 'logs':
-		$to = \util\Infobip::numbers($value('to'));
+		$to = \util\vendor\Infobip::numbers($value('to'));
 		$d = $I->request('GET', '/sms/1/logs', array_filter([ 'bulkId' => $text('bulkId'), 'messageId' => $text('messageId'), 'to' => $to[0] ?? null,
 		    'generalStatus' => isset(self::STATUSES[$s = (string)$this->cfg('status', '')]) ? $s : null, 'limit' => min(self::MAX_LOGS, $this->maxItems()) ]));
 		return $this->listResult(array_map(fn($r) => self::reportOf((array)$r), (array)($d['results'] ?? [])), 'message');

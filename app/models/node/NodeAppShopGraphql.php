@@ -3,7 +3,7 @@
 /*
     CLD: 2026-11-12T10:00:00+02:00: Shopify GraphQL - any query or mutation of the GraphQL Admin API (what the other Shopify steps do not have: refunds, returns, draft orders,
     discounts, metafields, collections, ...): the query and its variables (a JSON object, or an expression giving one). Its result: the answer's `data`, simplified unless switched
-    off (util\Shopify::simplify: connections as lists, money as { amount, currencyCode }). A mutation's userErrors are not checked here: they are in the result
+    off (util\vendor\Shopify::simplify: connections as lists, money as { amount, currencyCode }). A mutation's userErrors are not checked here: they are in the result
 */
 
 namespace models\node;
@@ -35,6 +35,6 @@ class NodeAppShopGraphql extends NodeAppShopify {
 	$vars = $this->objectOf((string)$this->cfg('variables', ''), 'Variables');
 	$d = $this->shop->query($query, $vars);
 	$first = preg_match('/^\s*(query|mutation)?\s*\w*\s*(\([^)]*\))?\s*\{\s*(\w+)/', $query, $m) ? $m[3] : 'query';
-	return [ (bool)$this->cfg('simplify', true) ? \util\Shopify::simplify($d) : $d, (preg_match('/^\s*mutation/', $query) ? 'mutation ' : '') . $first ];
+	return [ (bool)$this->cfg('simplify', true) ? \util\vendor\Shopify::simplify($d) : $d, (preg_match('/^\s*mutation/', $query) ? 'mutation ' : '') . $first ];
     }
 }

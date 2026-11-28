@@ -74,11 +74,11 @@ class NodeAppSfRecords extends NodeAppSalesforce {
 
     protected function objectName() {
 	$o = (string)$this->cfg('object', 'Account');
-	return $o === 'custom' ? \util\Salesforce::name($this->settingText('customObject'), 'API name') : (isset(self::OBJECTS[$o]) ? $o : 'Account');
+	return $o === 'custom' ? \util\vendor\Salesforce::name($this->settingText('customObject'), 'API name') : (isset(self::OBJECTS[$o]) ? $o : 'Account');
     }
 
     protected function fieldList($object, $text, $usual = true) {
-	$f = array_map(fn($x) => \util\Salesforce::name($x, 'Fields', true), self::names($text));
+	$f = array_map(fn($x) => \util\vendor\Salesforce::name($x, 'Fields', true), self::names($text));
 	return $f ?: ($usual ? (self::FIELDS[$object] ?? [ 'Id', 'Name', 'CreatedDate', 'LastModifiedDate' ]) : []);
     }
 
@@ -92,12 +92,12 @@ class NodeAppSfRecords extends NodeAppSalesforce {
 	if (!$v)
 	    throw new \RuntimeException('Fields: empty');
 	foreach(array_keys($v) as $k)
-	    \util\Salesforce::name($k, 'Fields');
+	    \util\vendor\Salesforce::name($k, 'Fields');
 	return $v;
     }
 
     protected function rec($raw) {
-	return \util\Salesforce::record($raw, $this->sf->instance());
+	return \util\vendor\Salesforce::record($raw, $this->sf->instance());
     }
 
     protected function listOfRecords(array $raw, $total, $truncated, $what) {
@@ -145,7 +145,7 @@ class NodeAppSfRecords extends NodeAppSalesforce {
 		return [ [ 'id' => $r['id'] ?? null, 'type' => $o, 'created' => true ], "{$o} {$r['id']} created" ];
 	    case 'upsert':
 		$o = $this->objectName();
-		$f = \util\Salesforce::name($text('externalField'), 'External ID field');
+		$f = \util\vendor\Salesforce::name($text('externalField'), 'External ID field');
 		$v = $text('externalValue');
 		if ($v === '')
 		    throw new \RuntimeException('Its value: empty');
@@ -156,12 +156,12 @@ class NodeAppSfRecords extends NodeAppSalesforce {
 		$id = $r['id'] ?? null;
 		if ($id === null) {
 		    //an older API version answers an update with 204: the record looked up
-		    [ $found ] = $S->query("SELECT Id FROM {$o} WHERE {$f} = " . \util\Salesforce::quote($v), 1);
+		    [ $found ] = $S->query("SELECT Id FROM {$o} WHERE {$f} = " . \util\vendor\Salesforce::quote($v), 1);
 		    $id = $found[0]['Id'] ?? null;
 		}
 		return [ [ 'id' => $id, 'type' => $o, 'created' => $created ], "{$o} {$id} " . ($created ? 'created' : 'updated') . " ({$f} {$v})" ];
 	}
-	$id = \util\Salesforce::recordId($value('record'));
+	$id = \util\vendor\Salesforce::recordId($value('record'));
 	switch($operation) {
 	    case 'get':
 		$o = $this->objectName();

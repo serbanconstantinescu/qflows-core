@@ -105,7 +105,7 @@ class NodeAppGitHubRepository extends NodeAppGitHub {
 	$repo = $this->repository();
 	switch($operation) {
 	    case 'getFile':
-		$path = \util\GitHub::path($value('path'));
+		$path = \util\vendor\GitHub::path($value('path'));
 		$q = array_filter([ 'ref' => self::ref($value('ref')) ]);
 		if ($this->cfg('as', 'text') === 'file') {
 		    $name = basename(rawurldecode($path));
@@ -129,7 +129,7 @@ class NodeAppGitHubRepository extends NodeAppGitHub {
 		    throw new \RuntimeException(rawurldecode($path) . ' is not text (UTF-8): read it as a project file');
 		return [ $content, rawurldecode($path) . ' read (' . strlen($content) . ' bytes)' ];
 	    case 'putFile':
-		$path = \util\GitHub::path($value('path'));
+		$path = \util\vendor\GitHub::path($value('path'));
 		$branch = self::ref($value('branch'));
 		if ($this->cfg('source', 'text') === 'file') {
 		    $file = $this->projectFile($text('sourceFile'));
@@ -154,7 +154,7 @@ class NodeAppGitHubRepository extends NodeAppGitHub {
 		return [ [ 'path' => rawurldecode($path), 'sha' => (string)($d['content']['sha'] ?? ''), 'commit' => (string)($d['commit']['sha'] ?? ''), 'url' => (string)($d['content']['html_url'] ?? ''),
 		    'created' => $sha === null ], rawurldecode($path) . ($sha ? ' updated' : ' created') . ' in ' . substr((string)($d['commit']['sha'] ?? ''), 0, 7) ];
 	    case 'deleteFile':
-		$path = \util\GitHub::path($value('path'));
+		$path = \util\vendor\GitHub::path($value('path'));
 		$branch = self::ref($value('branch'));
 		$cur = $this->gh->request('GET', "/repos/{$repo}/contents/{$path}", array_filter([ 'ref' => $branch ]));
 		if (!is_array($cur) || ($cur['type'] ?? '') !== 'file')
@@ -164,7 +164,7 @@ class NodeAppGitHubRepository extends NodeAppGitHub {
 		    'branch' => $branch ], fn($v) => $v !== null));
 		return [ [ 'path' => rawurldecode($path), 'commit' => (string)($d['commit']['sha'] ?? ''), 'deleted' => true ], rawurldecode($path) . ' deleted' ];
 	    case 'listFolder':
-		$path = \util\GitHub::path($value('path'), 'Path', true);
+		$path = \util\vendor\GitHub::path($value('path'), 'Path', true);
 		$d = $this->gh->request('GET', "/repos/{$repo}/contents" . ($path !== '' ? "/{$path}" : ''), array_filter([ 'ref' => self::ref($value('ref')) ]));
 		if (!is_array($d) || !array_is_list($d))
 		    throw new \RuntimeException(rawurldecode($path) . ' is a file, not a folder');
@@ -184,7 +184,7 @@ class NodeAppGitHubRepository extends NodeAppGitHub {
 	    case 'tags':
 		return $this->listOf("/repos/{$repo}/tags", [], 'tag', fn($t) => [ 'name' => (string)($t['name'] ?? ''), 'sha' => (string)($t['commit']['sha'] ?? '') ]);
 	    case 'commits':
-		$path = \util\GitHub::path($value('path'), 'Path', true);
+		$path = \util\vendor\GitHub::path($value('path'), 'Path', true);
 		$q = array_filter([ 'sha' => self::ref($value('ref')), 'path' => $path !== '' ? rawurldecode($path) : null, 'since' => self::timeOf($value('since'), 'Since') ]);
 		return $this->listOf("/repos/{$repo}/commits", $q, 'commit', fn($c) => [ 'sha' => (string)($c['sha'] ?? ''), 'message' => (string)($c['commit']['message'] ?? ''),
 		    'author' => (string)($c['author']['login'] ?? $c['commit']['author']['name'] ?? ''), 'email' => (string)($c['commit']['author']['email'] ?? ''), 'date' => (string)($c['commit']['author']['date'] ?? ''),

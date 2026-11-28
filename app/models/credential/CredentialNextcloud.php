@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-12T12:00:00+02:00: a Nextcloud user's access, for the Nextcloud steps and file trigger (util\Nextcloud): the server's address (its path too, e.g.
+    CLD: 2026-11-12T12:00:00+02:00: a Nextcloud user's access, for the Nextcloud steps and file trigger (util\vendor\Nextcloud): the server's address (its path too, e.g.
     https://cloud.example.com/nextcloud), the user, an app password (encrypted; Personal settings > Security > Devices & sessions > Create new app password), the certificate
     trusted or not (self-signed). What the steps may do is what the user may: an administrator (or a group's subadmin) for the users and groups. A server on a private address
     needs the account's "Integrations may connect to private network addresses". Test: the server's version, the user and its quota. Provides `nextcloud`
@@ -59,7 +59,7 @@ class CredentialNextcloud extends \models\Credential {
     }
 
     public function client($aid, $timeout = 60) {
-	return new \util\Nextcloud($this, $aid, $timeout);
+	return new \util\vendor\Nextcloud($this, $aid, $timeout);
     }
 
     public function test() {

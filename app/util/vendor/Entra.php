@@ -17,7 +17,10 @@
     Entra::$testing: the check suite's local server (http://127.0.0.1:<port>) for both the sign-in and Graph
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\Http;
+use util\Jwt;
 
 class Entra {
     const CLOUDS = [

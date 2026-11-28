@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-25T18:00:00+02:00: the client of Amazon S3's REST API and of S3-compatible services (MinIO, Wasabi, Backblaze B2, Cloudflare R2, …), for the S3 credential, steps
-    and object trigger. Requests signed with AWS Signature Version 4 (util\AwsSigV4, service s3, x-amz-content-sha256; an upload from a stream: UNSIGNED-PAYLOAD).
+    and object trigger. Requests signed with AWS Signature Version 4 (util\vendor\AwsSigV4, service s3, x-amz-content-sha256; an upload from a stream: UNSIGNED-PAYLOAD).
 	addresses  AWS: https://<bucket>.s3.<region>.amazonaws.com/<key> (a bucket with a dot: path style, its certificate would not match); an endpoint (another service):
 	           <endpoint>/<bucket>/<key> (path style, the default) or <bucket>.<endpoint host>; keys encoded per segment
 	errors     S3's XML <Error><Code/><Message/></Error>, said with a hint; 503 SlowDown and 500 sent again while the timeout allows
@@ -10,7 +10,7 @@
 
     $s = new S3($cred, $aid, $timeout);
     $s->request($method, $bucket, $key, $query, $headers, $o)  [ status, headers, body ] of a 2xx answer ($o: body, upload [ stream, size ], sink); \RuntimeException otherwise
-    $s->xml($method, $bucket, $key, $query, $headers, $body)    the XML answer as an array (util\S3::xmlArray)
+    $s->xml($method, $bucket, $key, $query, $headers, $body)    the XML answer as an array (util\vendor\S3::xmlArray)
     $s->listObjects($bucket, $prefix, $delimiter, $max)         ListObjectsV2 through its continuation: [ objects, folders, truncated ]
     $s->presign($method, $bucket, $key, $expires, $query)       a presigned address
     $s->url($bucket, $key, $query)                              an object's address
@@ -20,7 +20,10 @@
     S3::$testing: the check suite's local server (http://127.0.0.1:<port>), path style, instead of AWS
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\Expression;
+use util\Http;
 
 class S3 {
     const MAX_ANSWER = 20 * 1024 * 1024;

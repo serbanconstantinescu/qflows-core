@@ -64,7 +64,7 @@ class NodeAppEntraAccess extends NodeAppEntra {
     //a SKU's ID of a setting: a GUID, or a part number of the tenant's SKUs
     private function skuId($value) {
 	$v = trim(\util\Expression::toText(is_array($value) ? ($value['skuId'] ?? $value['sku'] ?? '') : $value));
-	if (\util\Entra::isGuid($v))
+	if (\util\vendor\Entra::isGuid($v))
 	    return [ $v, $v ];
 	foreach((array)($this->graph->request('GET', '/subscribedSkus', [ '$select' => 'skuId,skuPartNumber' ])['value'] ?? []) as $s)
 	    if (strcasecmp((string)($s['skuPartNumber'] ?? ''), $v) === 0)
@@ -77,9 +77,9 @@ class NodeAppEntraAccess extends NodeAppEntra {
 	$v = trim(\util\Expression::toText(is_array($value) ? ($value['id'] ?? $value['appId'] ?? '') : $value));
 	if ($v === '')
 	    throw new \RuntimeException('App: empty');
-	$filter = \util\Entra::isGuid($v) ? 'appId eq ' . \util\Entra::quote($v) : 'displayName eq ' . \util\Entra::quote($v);
+	$filter = \util\vendor\Entra::isGuid($v) ? 'appId eq ' . \util\vendor\Entra::quote($v) : 'displayName eq ' . \util\vendor\Entra::quote($v);
 	$found = (array)($this->graph->request('GET', '/servicePrincipals', [ '$filter' => $filter, '$select' => 'id,appId,displayName,appRoles', '$top' => 5 ])['value'] ?? []);
-	if (!$found && \util\Entra::isGuid($v)) {
+	if (!$found && \util\vendor\Entra::isGuid($v)) {
 	    $sp = $this->graph->request('GET', "/servicePrincipals/{$v}", [ '$select' => 'id,appId,displayName,appRoles' ], null, [ 'ok' => [ 404 ] ]);
 	    if (isset($sp['id']))
 		$found = [ $sp ];

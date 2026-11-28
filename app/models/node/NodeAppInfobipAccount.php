@@ -41,7 +41,7 @@ class NodeAppInfobipAccount extends NodeAppInfobip {
 		$r = [ 'balance' => isset($b['balance']) ? (float)$b['balance'] : null, 'currency' => $b['currency'] ?? null ];
 		return [ $r, 'balance ' . number_format((float)$r['balance'], 2, '.', '') . " {$r['currency']}" ];
 	    case 'lookup':
-		$to = \util\Infobip::numbers($value('to'), 'Numbers');
+		$to = \util\vendor\Infobip::numbers($value('to'), 'Numbers');
 		if (!$to)
 		    throw new \RuntimeException('Numbers: none');
 		if (count($to) > self::MAX_LOOKUP)

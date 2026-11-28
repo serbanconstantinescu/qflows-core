@@ -73,12 +73,12 @@ class NodeAppShopProducts extends NodeAppShopify {
 	$v = $value('product');
 	$t = is_array($v) ? '' : trim(\util\Expression::toText($v));
 	if ($t !== '' && preg_match('/^[a-z0-9][a-z0-9-]*$/', $t) && !preg_match('/^\d+$/', $t)) {
-	    $p = $this->findOne('products', 'handle:' . \util\Shopify::quoted($t), 'id handle');
+	    $p = $this->findOne('products', 'handle:' . \util\vendor\Shopify::quoted($t), 'id handle');
 	    if (!$p || $p['handle'] !== $t)
 		throw new \RuntimeException("Product: no product with the handle `{$t}`");
 	    return $p['id'];
 	}
-	return \util\Shopify::gid('Product', $v, 'Product');
+	return \util\vendor\Shopify::gid('Product', $v, 'Product');
     }
 
     //the variant of the setting `variant` (by ID or SKU): { id, sku, product: { id } }
@@ -87,12 +87,12 @@ class NodeAppShopProducts extends NodeAppShopify {
 	    $sku = trim(\util\Expression::toText($value('variant')));
 	    if ($sku === '')
 		throw new \RuntimeException('Variant: empty');
-	    $v = $this->findOne('productVariants', 'sku:' . \util\Shopify::quoted($sku), 'id sku product { id }');
+	    $v = $this->findOne('productVariants', 'sku:' . \util\vendor\Shopify::quoted($sku), 'id sku product { id }');
 	    if (!$v || (string)$v['sku'] !== $sku)
 		throw new \RuntimeException("Variant: no variant with the SKU `{$sku}`");
 	    return $v;
 	}
-	return $this->one('productVariant', \util\Shopify::gid('ProductVariant', $value('variant'), 'Variant'), 'id sku product { id }', 'variant');
+	return $this->one('productVariant', \util\vendor\Shopify::gid('ProductVariant', $value('variant'), 'Variant'), 'id sku product { id }', 'variant');
     }
 
     //the product's settings that are not empty (create / update)
@@ -121,7 +121,7 @@ class NodeAppShopProducts extends NodeAppShopify {
 	    return null;
 	$p = $this->shop->mutate('mutation($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkUpdate(productId: $productId, variants: $variants) {'
 	    . ' productVariants { ' . self::VARIANT . ' } userErrors { field message } } }', [ 'productId' => $productId, 'variants' => [ $v ] ], 'productVariantsBulkUpdate');
-	return \util\Shopify::simplify($p['productVariants'][0] ?? null);
+	return \util\vendor\Shopify::simplify($p['productVariants'][0] ?? null);
     }
 
     protected function runOperation($operation, \Closure $text, \Closure $value) {
@@ -141,7 +141,7 @@ class NodeAppShopProducts extends NodeAppShopify {
 		    throw new \RuntimeException('Title: required to create a product');
 		$p = $S->mutate('mutation($product: ProductCreateInput!) { productCreate(product: $product) { product { ' . self::PRODUCT . ' variants(first: 1) { nodes { id } } } userErrors { field message } } }',
 		    [ 'product' => $input ], 'productCreate');
-		$product = \util\Shopify::simplify($p['product']);
+		$product = \util\vendor\Shopify::simplify($p['product']);
 		$first = $product['variants'][0]['id'] ?? null;
 		if ($first && ($v = $this->setVariant($product['id'], $first, $text, $text('sku'))))
 		    $product['variants'] = [ $v ];
@@ -164,7 +164,7 @@ class NodeAppShopProducts extends NodeAppShopify {
 		    throw new \RuntimeException('nothing to change');
 		$p = $S->mutate('mutation($product: ProductUpdateInput!) { productUpdate(product: $product) { product { ' . self::PRODUCT . ' } userErrors { field message } } }',
 		    [ 'product' => [ 'id' => $id ] + $input ], 'productUpdate');
-		return [ \util\Shopify::simplify($p['product']), ($p['product']['title'] ?? $id) . ' updated: ' . implode(', ', array_keys($input)) ];
+		return [ \util\vendor\Shopify::simplify($p['product']), ($p['product']['title'] ?? $id) . ' updated: ' . implode(', ', array_keys($input)) ];
 	    case 'addTags':
 	    case 'removeTags':
 		return $this->changeTags($id, $value('tags'), $operation === 'addTags', 'product');

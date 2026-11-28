@@ -116,10 +116,10 @@ class NodeAppSlackFiles extends NodeAppSlack {
 	$args = [ 'files' => [ [ 'id' => (string)($up['file_id'] ?? ''), 'title' => $name ] ], 'channel_id' => $channel ];
 	$thread = $text('thread');
 	if ($thread !== '')
-	    $args['thread_ts'] = \util\Slack::ts($thread, 'In thread');
+	    $args['thread_ts'] = \util\vendor\Slack::ts($thread, 'In thread');
 	$comment = trim(\util\Expression::toText($value('comment')));
 	if ($comment !== '')
-	    $args['initial_comment'] = \util\Slack::mrkdwn($comment);
+	    $args['initial_comment'] = \util\vendor\Slack::mrkdwn($comment);
 	$d = $this->slack->call('files.completeUploadExternal', $args);
 	$f = self::fileOf((array)($d['files'][0] ?? []) + [ 'id' => $up['file_id'] ?? '', 'name' => $name, 'size' => $size ]);
 	return [ $f, "`{$name}` shared in {$channel} ({$size} bytes)" ];

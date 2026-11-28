@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-12T23:45:00+02:00: a Zendesk Support account, for the Zendesk steps and ticket trigger (util\Zendesk): its subdomain, and an agent's email with an API token
+    CLD: 2026-11-12T23:45:00+02:00: a Zendesk Support account, for the Zendesk steps and ticket trigger (util\vendor\Zendesk): its subdomain, and an agent's email with an API token
     (Admin Center > Apps and integrations > APIs > Zendesk API) or an OAuth access token; tokens encrypted. What the steps may do is what that agent may (an admin for the users,
     organizations and groups). Test: the account and the agent (users/me). Provides `zendesk`
 */
@@ -72,7 +72,7 @@ class CredentialZendesk extends \models\Credential {
     }
 
     public function client($timeout = 60) {
-	return new \util\Zendesk($this, $timeout);
+	return new \util\vendor\Zendesk($this, $timeout);
     }
 
     public function test() {
@@ -83,6 +83,6 @@ class CredentialZendesk extends \models\Credential {
 	}
 	if (($me['id'] ?? null) === null || ($me['role'] ?? '') === 'end-user')
 	    throw new \Exception('signed in as ' . (($me['id'] ?? null) === null ? 'an anonymous user: the email or token is wrong' : 'an end user, not an agent'));
-	return 'connected to ' . \util\Zendesk::subdomain($this->subdomain) . '.zendesk.com as ' . ($me['name'] ?? '?') . (!empty($me['email']) ? " <{$me['email']}>" : '') . ", {$me['role']}";
+	return 'connected to ' . \util\vendor\Zendesk::subdomain($this->subdomain) . '.zendesk.com as ' . ($me['name'] ?? '?') . (!empty($me['email']) ? " <{$me['email']}>" : '') . ", {$me['role']}";
     }
 }

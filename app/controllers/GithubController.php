@@ -31,7 +31,7 @@ class GithubController extends \sys\APIController {
 	    $this->refuse(413, 'Request body too large');
 	if (($cfg['receive'] ?? 'webhook') !== 'webhook')
 	    $this->refuse(409, 'The step does not receive a webhook (Receive: Check a repository on a schedule)');
-	if (!\util\GitHub::verify($raw, (string)($_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? ''), (string)($cfg['secret'] ?? '')))
+	if (!\util\vendor\GitHub::verify($raw, (string)($_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? ''), (string)($cfg['secret'] ?? '')))
 	    $this->refuse(401, 'Unauthorized (the signature does not match the step\'s secret)');
 	$body = $raw;
 	if (str_starts_with(strtolower((string)($_SERVER['CONTENT_TYPE'] ?? '')), 'application/x-www-form-urlencoded')) {

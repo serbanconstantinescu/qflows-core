@@ -84,12 +84,12 @@ class NodeAppShopOrders extends NodeAppShopify {
 	$v = $value('order');
 	$t = is_array($v) ? '' : trim(\util\Expression::toText($v));
 	if (preg_match('/^#\S+$/', $t)) {
-	    $o = $this->findOne('orders', 'name:' . \util\Shopify::quoted($t), 'id name');
+	    $o = $this->findOne('orders', 'name:' . \util\vendor\Shopify::quoted($t), 'id name');
 	    if (!$o || strcasecmp((string)$o['name'], $t) !== 0)
 		throw new \RuntimeException("Order: no order {$t}");
 	    return $o['id'];
 	}
-	return \util\Shopify::gid('Order', $v, 'Order');
+	return \util\vendor\Shopify::gid('Order', $v, 'Order');
     }
 
     protected function runOperation($operation, \Closure $text, \Closure $value) {
@@ -118,7 +118,7 @@ class NodeAppShopOrders extends NodeAppShopify {
 		if (count($input) < 2)
 		    throw new \RuntimeException('nothing to change: a note, an email, tags or Other fields');
 		$p = $S->mutate('mutation($input: OrderInput!) { orderUpdate(input: $input) { order { ' . self::ORDER . ' } userErrors { field message } } }', [ 'input' => $input ], 'orderUpdate');
-		return [ \util\Shopify::simplify($p['order']), ($p['order']['name'] ?? $id) . ' updated: ' . implode(', ', array_keys(array_diff_key($input, [ 'id' => 1 ]))) ];
+		return [ \util\vendor\Shopify::simplify($p['order']), ($p['order']['name'] ?? $id) . ' updated: ' . implode(', ', array_keys(array_diff_key($input, [ 'id' => 1 ]))) ];
 	    case 'addTags':
 	    case 'removeTags':
 		return $this->changeTags($id, $value('tags'), $operation === 'addTags', 'order');

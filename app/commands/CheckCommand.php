@@ -6333,11 +6333,11 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-12T10:00:00+02:00: Shopify against a fake Admin API (commands/tests/ShopifyTestServer.php; util\Shopify::$testUrl: http, no address guard): values (the store's
+    //CLD: 2026-11-12T10:00:00+02:00: Shopify against a fake Admin API (commands/tests/ShopifyTestServer.php; util\vendor\Shopify::$testUrl: http, no address guard): values (the store's
     //address, GIDs, connections simplified, the webhook signature), the credential (an access token; the client credentials grant, its token reused), a THROTTLED answer waited for,
     //the steps' queries and mutations, the inventory changes by API version, the event trigger (subscriptions on publish / unpublish; a signed webhook starts a run, others do not)
     private function suiteShopify() {
-	$S = \util\Shopify::class;
+	$S = \util\vendor\Shopify::class;
 	$T = \models\node\NodeTriggerShopify::class;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
@@ -6625,11 +6625,11 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-12T12:00:00+02:00: Nextcloud against a fake server (commands/tests/NextcloudTestServer.php: WebDAV on a real folder, OCS; util\Nextcloud::$testing: http, no address
+    //CLD: 2026-11-12T12:00:00+02:00: Nextcloud against a fake server (commands/tests/NextcloudTestServer.php: WebDAV on a real folder, OCS; util\vendor\Nextcloud::$testing: http, no address
     //guard): paths, the credential (Test, a wrong app password), the Files operations (subfolders, patterns, search, download into Files, upload conflicts, folders with parents,
     //move / copy, delete), shares, users and groups, Talk, the OCS API step, the file trigger (the first check notes, then new / changed files start runs)
     private function suiteNextcloud() {
-	$N = \util\Nextcloud::class;
+	$N = \util\vendor\Nextcloud::class;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
 	$e = [ self::class, 'edge' ];
@@ -6841,11 +6841,11 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-12T14:00:00+02:00: Jira against a fake site (commands/tests/JiraTestServer.php; util\Jira::$testing: http, no address guard): keys, ADF both ways, the credentials
+    //CLD: 2026-11-12T14:00:00+02:00: Jira against a fake site (commands/tests/JiraTestServer.php; util\vendor\Jira::$testing: http, no address guard): keys, ADF both ways, the credentials
     //(Cloud: email + API token, Data Center: a bearer token), a 429 waited for, the Issues operations (JQL search paged, create with Jira's field errors, update, labels, assign by
     //email, transitions by name or status, comments, links, attachments, delete), Projects, the API step, the issue trigger (relative JQL window, floor, seen, created / updated)
     private function suiteJira() {
-	$J = \util\Jira::class;
+	$J = \util\vendor\Jira::class;
 	$I = \models\node\NodeAppJiraIssues::class;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
@@ -7058,11 +7058,11 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-12T16:00:00+02:00: HubSpot against a fake API (commands/tests/HubSpotTestServer.php; util\HubSpot::$testUrl: http, no address guard): filter lines, the credential,
+    //CLD: 2026-11-12T16:00:00+02:00: HubSpot against a fake API (commands/tests/HubSpotTestServer.php; util\vendor\HubSpot::$testUrl: http, no address guard): filter lines, the credential,
     //a 429 waited for, the Records operations on contacts / deals / a custom object (search paged with filters, text and sort; get by ID or email, none: null; create, HubSpot's
     //409; update; create or update by email; associate, associations; a note; delete), CRM, the API step, the record trigger (floor, created / updated, seen)
     private function suiteHubSpot() {
-	$HS = \util\HubSpot::class;
+	$HS = \util\vendor\HubSpot::class;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
 	$e = [ self::class, 'edge' ];
@@ -7249,12 +7249,12 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-12T18:00:00+02:00: Salesforce against a fake org (commands/tests/SalesforceTestServer.php; util\Salesforce::$testing: http, no address guard): values (IDs, SOQL
+    //CLD: 2026-11-12T18:00:00+02:00: Salesforce against a fake org (commands/tests/SalesforceTestServer.php; util\vendor\Salesforce::$testing: http, no address guard): values (IDs, SOQL
     //literals, SOSL escapes, records without attributes), the credential (client credentials; an expired session asked again once), the Records operations (SOQL paged, find from
     //fields / where / order, search, get - none: null -, create with Salesforce's errors, update, upsert by an external ID, delete, an activity on a lead and an account), Org, the
     //API step, the record trigger (UTC literals, floor, created / updated, seen)
     private function suiteSalesforce() {
-	$SF = \util\Salesforce::class;
+	$SF = \util\vendor\Salesforce::class;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
 	$e = [ self::class, 'edge' ];
@@ -7446,12 +7446,12 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-12T23:45:00+02:00: Zendesk against a fake account (commands/tests/ZendeskTestServer.php; util\Zendesk::$testing: its address): values, the credential (an agent's
+    //CLD: 2026-11-12T23:45:00+02:00: Zendesk against a fake account (commands/tests/ZendeskTestServer.php; util\vendor\Zendesk::$testing: its address): values, the credential (an agent's
     //email and API token, an OAuth token, a wrong token said), a 429 waited for, Tickets (create with a new requester, an assignee by email, a group by name, tags, custom fields;
     //Zendesk's validation errors; update, an internal note, status, assign, tags, comments, search, an attachment, merge, delete), Users and organizations, Setup, the API step,
     //the ticket trigger (a UTC window in the search, floor, seen, created / updated)
     private function suiteZendesk() {
-	$Z = \util\Zendesk::class;
+	$Z = \util\vendor\Zendesk::class;
 	$T = \models\node\NodeAppZendeskTickets::class;
 	$TZ = \models\node\NodeTriggerZendesk::class;
 	$om = \V::app()->om;
@@ -7673,13 +7673,13 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-26T01:00:00+02:00: Entra ID against a fake Microsoft Graph (commands/tests/EntraTestServer.php; util\Entra::$testing: its address for the sign-in and Graph): values,
+    //CLD: 2026-11-26T01:00:00+02:00: Entra ID against a fake Microsoft Graph (commands/tests/EntraTestServer.php; util\vendor\Entra::$testing: its address for the sign-in and Graph): values,
     //the credential (a client secret, a certificate's signed assertion, a wrong secret, the form), a 429 waited for, Users (search with ConsistencyLevel, the manager, create with a
     //password made, a duplicate said, update, disable, reset the password, sign out, groups, offboard: groups left but not a dynamic one, licenses removed), Groups (by name,
     //Microsoft 365 ones, create with members, add (already there: fine), remove), Access (licenses by SKU, an app role by name, sign-in methods reset, a temporary access pass),
     //the API step, the AI tools, the change trigger (delta: users created / deleted, members added / removed; subscriptions made and renewed; the address's validation and clientState)
     private function suiteEntra() {
-	$E = \util\Entra::class;
+	$E = \util\vendor\Entra::class;
 	$TE = \models\node\NodeTriggerEntra::class;
 	$U = \models\node\NodeAppEntraUsers::class;
 	$om = \V::app()->om;
@@ -7929,7 +7929,7 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-26T02:00:00+02:00: Okta against a fake org (commands/tests/OktaTestServer.php; util\Okta::$testing: its address): the credential (an API token, an OAuth service app's
+    //CLD: 2026-11-26T02:00:00+02:00: Okta against a fake org (commands/tests/OktaTestServer.php; util\vendor\Okta::$testing: its address): the credential (an API token, an OAuth service app's
     //private key JWT, a wrong token, the form), a 429 waited for, pages through two Link headers, Users (search, an expression, create staged, a duplicate login said, update,
     //suspend, a reset link given back, expire, sign out, groups, delete: deactivated first, offboard: Okta groups left, app and built-in ones kept, apps removed, deactivated),
     //Groups (by name, create, add, members, remove, an app group not deleted), Access (apps, assign by label, remove, factors reset), the API step, the AI tools, the event
@@ -7956,7 +7956,7 @@ class CheckCommand extends \sys\BaseController {
 	if (!$server)
 	    return;
 	[ $port, $proc ] = $server;
-	\util\Okta::$testing = "http://127.0.0.1:{$port}";
+	\util\vendor\Okta::$testing = "http://127.0.0.1:{$port}";
 	$requests = function() use ($dir) {
 	    $list = array_map(fn($l) => json_decode($l, true), array_filter(explode("\n", (string)@file_get_contents("{$dir}/requests.jsonl"))));
 	    @unlink("{$dir}/requests.jsonl");
@@ -8121,7 +8121,7 @@ class CheckCommand extends \sys\BaseController {
 		    array_map(fn($x) => $x->getVariable('event')['target']['login'] ?? null, $runs) ]);
 	    }
 	} finally {
-	    \util\Okta::$testing = null;
+	    \util\vendor\Okta::$testing = null;
 	    foreach($started as $x) {
 		foreach($om->find('Job', [ 'job_spec' => '\\util\\Scheduler::start', 'job_data.exe' => (string)$x->_id ]) as $job)
 		    $job->delete();
@@ -8144,14 +8144,14 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-26T00:00:00+02:00: GitLab against a fake API (commands/tests/GitLabTestServer.php; util\GitLab::$testing: its address): values (projects, iids, GitLab's errors,
+    //CLD: 2026-11-26T00:00:00+02:00: GitLab against a fake API (commands/tests/GitLabTestServer.php; util\vendor\GitLab::$testing: its address): values (projects, iids, GitLab's errors,
     //the webhook's secret token), the credential (a token and its scopes, a wrong one, the form), a 429 waited for, Issues (create with assignees and a milestone looked up,
     //list, update, comment, comments without system notes, labels, close), Merge Requests (list, get, changes, create as a draft into the default branch, approve, reviewers,
     //merge; conflicts said), Repository (read text and into a project file, write a new and an existing file, the tree, a branch, a release and an uploaded asset), Pipelines
     //(run with variables followed to the end, list failed, jobs, a log without its colors, retry, cancel), the API step, the AI tools, the event trigger (webhook values and
     //filters, each delivery once; polling: issues, merge requests merged, pipelines finished; the address's refusals)
     private function suiteGitLab() {
-	$G = \util\GitLab::class;
+	$G = \util\vendor\GitLab::class;
 	$TG = \models\node\NodeTriggerGitLab::class;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
@@ -8408,14 +8408,14 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-25T21:00:00+02:00: GitHub against a fake API (commands/tests/GitHubTestServer.php; util\GitHub::$testing: its address): values (repositories, numbers, paths, the
+    //CLD: 2026-11-25T21:00:00+02:00: GitHub against a fake API (commands/tests/GitHubTestServer.php; util\vendor\GitHub::$testing: its address): values (repositories, numbers, paths, the
     //webhook signature, GitHub's errors), the credential (a token and its scopes, a GitHub App: JWT, installation, token; a wrong token; a private key's form), the rate limit
     //waited for, Issues (create with labels and a milestone by title, list without pull requests, search, update, comment, labels, close), Pull Requests (list, get, files,
     //checks, create, review, reviewers, merge; not mergeable), Repository (read text / as a project file, write and update a file, a folder, branches, a release with generated
     //notes, an asset), Actions (dispatch followed to the end, runs, jobs, a log through its redirect, re-run, cancel), the API step, the AI tools, the event trigger (webhook
     //values and filters, each delivery once; polling: issues opened, runs failed; the address's refusals)
     private function suiteGitHub() {
-	$G = \util\GitHub::class;
+	$G = \util\vendor\GitHub::class;
 	$TG = \models\node\NodeTriggerGitHub::class;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
@@ -8692,13 +8692,13 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-25T18:00:00+02:00: S3 against a fake service (commands/tests/S3TestServer.php, path style, every signature checked again; util\S3::$testing: its address):
+    //CLD: 2026-11-25T18:00:00+02:00: S3 against a fake service (commands/tests/S3TestServer.php, path style, every signature checked again; util\vendor\S3::$testing: its address):
     //values (keys, buckets, XML, errors, AWS's own SigV4 examples, an SNS signature), the credential (a default bucket, the buckets, a wrong secret, an endpoint's form), Objects
     //(list with folders and At most, upload a text with metadata and a class, a project file, When the key exists: Fail, download into a project file, read text / JSON, info,
     //exists, copy, move, delete many with an error, 503 sent again), Links (download with a name, upload; S3 takes them; 7 days at most), Buckets, the API step, the AI tools,
     //the object trigger (polling: new, changed, names, Run in the designer; notifications: S3's records, the bucket, the names, each SNS message once; the address's refusals)
     private function suiteS3() {
-	$S = \util\S3::class;
+	$S = \util\vendor\S3::class;
 	$TS = \models\node\NodeTriggerS3::class;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
@@ -8717,10 +8717,10 @@ class CheckCommand extends \sys\BaseController {
 	openssl_x509_export($crt, $pem);
 	$snsSign = function(array $m) use ($pk) {
 	    $m += [ 'Timestamp' => gmdate('Y-m-d\TH:i:s.000\Z'), 'SignatureVersion' => '2', 'SigningCertURL' => 'https://sns.eu-central-1.amazonaws.com/SimpleNotificationService-x.pem' ];
-	    openssl_sign(\util\Sns::signedString($m), $sig, $pk, OPENSSL_ALGO_SHA256);
+	    openssl_sign(\util\vendor\Sns::signedString($m), $sig, $pk, OPENSSL_ALGO_SHA256);
 	    return $m + [ 'Signature' => base64_encode($sig) ];
 	};
-	\util\Sns::$testing = [ 'cert' => $pem ];
+	\util\vendor\Sns::$testing = [ 'cert' => $pem ];
 	$signedMsg = $snsSign([ 'Type' => 'Notification', 'MessageId' => 'm1', 'TopicArn' => 'arn:aws:sns:eu-central-1:123456789012:uploads', 'Message' => '{}' ]);
 	$this->check('s3: values: keys and buckets (s3:// addresses, an item), not a bucket name, XML (repeated elements a list), S3\'s error said, AWS\'s SigV4 examples (a header, a presigned link), '
 	    . 'an SNS signature (right, changed)', [
@@ -8728,16 +8728,16 @@ class CheckCommand extends \sys\BaseController {
 	    'NoSuchKey: no such object', [ true, true ], [ '', 'the signature does not match' ] ], [
 	    [ $S::key('s3://b/x/y.pdf'), $S::bucket('s3://my-bucket/x'), $S::key([ 'key' => 'a.txt' ]), $thrown(fn() => $S::bucket('My_Bucket')) ], $S::xmlArray('<a><b>1</b><b>2</b><c><d>x</d></c></a>'),
 	    $S::errorOf('<Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>', 404),
-	    [ str_contains(\util\AwsSigV4::headers('GET', 'https://examplebucket.s3.amazonaws.com/test.txt', [ 'Range' => 'bytes=0-9' ], '', $example + [ 'payloadHeader' => true ])['Authorization'],
+	    [ str_contains(\util\vendor\AwsSigV4::headers('GET', 'https://examplebucket.s3.amazonaws.com/test.txt', [ 'Range' => 'bytes=0-9' ], '', $example + [ 'payloadHeader' => true ])['Authorization'],
 		'f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41'),
-	      str_ends_with(\util\AwsSigV4::presign('GET', 'https://examplebucket.s3.amazonaws.com/test.txt', $example, 86400), 'aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404') ],
-	    [ \util\Sns::verify($signedMsg), \util\Sns::verify([ 'Message' => '{"x":1}' ] + $signedMsg) ] ]);
+	      str_ends_with(\util\vendor\AwsSigV4::presign('GET', 'https://examplebucket.s3.amazonaws.com/test.txt', $example, 86400), 'aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404') ],
+	    [ \util\vendor\Sns::verify($signedMsg), \util\vendor\Sns::verify([ 'Message' => '{"x":1}' ] + $signedMsg) ] ]);
 
 	$dir = sys_get_temp_dir() . '/qflows-check-s3-' . uniqid();
 	@mkdir($dir, 0700, true);
 	$server = $this->startServer('s3', 'S3TestServer.php', $dir, [ 'S3_STATE' => $dir ]);
 	if (!$server) {
-	    \util\Sns::$testing = null;
+	    \util\vendor\Sns::$testing = null;
 	    return;
 	}
 	[ $port, $proc ] = $server;
@@ -8936,7 +8936,7 @@ class CheckCommand extends \sys\BaseController {
 	    }
 	} finally {
 	    $S::$testing = null;
-	    \util\Sns::$testing = null;
+	    \util\vendor\Sns::$testing = null;
 	    foreach($started as $x) {
 		foreach($om->find('Job', [ 'job_spec' => '\\util\\Scheduler::start', 'job_data.exe' => (string)$x->_id ]) as $job)
 		    $job->delete();
@@ -8961,13 +8961,13 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-25T14:00:00+02:00: Slack against a fake workspace (commands/tests/SlackTestServer.php; util\Slack::$testing: its address): values (Markdown as mrkdwn, the event
+    //CLD: 2026-11-25T14:00:00+02:00: Slack against a fake workspace (commands/tests/SlackTestServer.php; util\vendor\Slack::$testing: its address): values (Markdown as mrkdwn, the event
     //signature, a ts of a link, a message's text, Slack's errors), the credential (Test: auth.test; a wrong token; a bot token's form), a 429 waited for, Messages (to #name, to a
     //person by email, in a thread and in the channel, blocks, update, react, history, a thread, a link, schedule; not in the channel: the error output), Channels, Users, Files
     //(upload a text, download into a project file, list, delete), the API step, the AI tools, the message trigger (polling: a direct message, a mention, the thread's next message;
     //not the app's own, another bot's, an edit; Reply to chat in the direct message / the thread; events: /slack/<token> signed, the challenge, each message once)
     private function suiteSlack() {
-	$S = \util\Slack::class;
+	$S = \util\vendor\Slack::class;
 	$TS = \models\node\NodeTriggerSlack::class;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
@@ -9264,12 +9264,12 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-13T00:30:00+02:00: Infobip against a fake account (commands/tests/InfobipTestServer.php; util\Infobip::$testing: its address): values (numbers, times, Infobip's
+    //CLD: 2026-11-13T00:30:00+02:00: Infobip against a fake account (commands/tests/InfobipTestServer.php; util\vendor\Infobip::$testing: its address): values (numbers, times, Infobip's
     //errors both ways, a post's results), the credential (an API key, its default senders), a 429 waited for, SMS (send with the credential's sender, a time, validity, callback
     //data and a delivery address; preview; logs; reports and inbox read once), WhatsApp (text per recipient, a template's placeholders, a file; Infobip's refusal of a sender),
     //Email (multipart, an attachment), 2FA (send, a wrong PIN, verify, resend), Account, the API step, the message trigger (/infobip/<token>: kinds chosen, others ignored)
     private function suiteInfobip() {
-	$IB = \util\Infobip::class;
+	$IB = \util\vendor\Infobip::class;
 	$TI = \models\node\NodeTriggerInfobip::class;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
@@ -9501,13 +9501,13 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-12T23:30:00+02:00: Yousign against a fake API (commands/tests/YousignTestServer.php; util\Yousign::$testing: its address): values (signers' lines and objects,
+    //CLD: 2026-11-12T23:30:00+02:00: Yousign against a fake API (commands/tests/YousignTestServer.php; util\vendor\Yousign::$testing: its address): values (signers' lines and objects,
     //the fields' positions, Yousign's filters, the webhook signature), the credential (a key; Test; a wrong key said), a 429 waited for, Send (documents and an attachment uploaded,
     //signers with their field on the last page, activated, the signature links of delivery None; a draft; a refused signer deletes the draft), a template's labels, get, list
     //(filters, pages), cancel, remind (the signers not done), download (signed: a ZIP's PDFs saved one by one), the audit trail, Account, API, the AI family's writes, the event
     //trigger (Connect: the webhook made with the step's secret, updated, deleted; /yousign/<token>: the signature checked, events not chosen ignored, sandbox / production)
     private function suiteYousign() {
-	$Y = \util\Yousign::class;
+	$Y = \util\vendor\Yousign::class;
 	$R = \models\node\NodeAppYousignRequests::class;
 	$TY = \models\node\NodeTriggerYousign::class;
 	$om = \V::app()->om;
@@ -9849,11 +9849,11 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-15T16:00:00+02:00: Brevo against a fake API (commands/tests/BrevoTestServer.php; util\Brevo::$testing): the credential (the form, Test, a wrong key), Brevo Email (a
+    //CLD: 2026-11-15T16:00:00+02:00: Brevo against a fake API (commands/tests/BrevoTestServer.php; util\vendor\Brevo::$testing): the credential (the form, Test, a wrong key), Brevo Email (a
     //message with names, a project file attached, tags; a Brevo template's params; a designed message - rendered, its image refused: Brevo has no inline images -; the designer's
     //checks; Brevo's refusal on the error output; sent emails after a 429; events; a period; templates), Brevo Contacts (create or update, update, lists, add to a list), Brevo API
     private function suiteBrevo() {
-	$fx = $this->emailServiceFixture('brevo', 'BrevoTestServer.php', 'BREVO_STATE', \util\Brevo::class, 'CredentialBrevo', '/v3');
+	$fx = $this->emailServiceFixture('brevo', 'BrevoTestServer.php', 'BREVO_STATE', \util\vendor\Brevo::class, 'CredentialBrevo', '/v3');
 	if (!$fx)
 	    return;
 	[ $dir, $requests, $make, $step, $done, $pdf, $png, $designed ] = $fx;
@@ -9917,12 +9917,12 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-15T16:00:00+02:00: Mailjet against a fake account (commands/tests/MailjetTestServer.php; util\Mailjet::$testing): the credential (the form, Test, a wrong secret),
+    //CLD: 2026-11-15T16:00:00+02:00: Mailjet against a fake account (commands/tests/MailjetTestServer.php; util\vendor\Mailjet::$testing): the credential (the form, Test, a wrong secret),
     //Mailjet Email (a message with a project file attached, tags as the campaign; a designed message: its image inline, the cid in the HTML; a template with its variables,
     //sandbox; Mailjet's refusal on the error output; messages after a 429, one, its events), Mailjet Contacts (create, properties, subscribe with properties, a list's contacts,
     //delete by address), Mailjet API
     private function suiteMailjet() {
-	$fx = $this->emailServiceFixture('mailjet', 'MailjetTestServer.php', 'MAILJET_STATE', \util\Mailjet::class, 'CredentialMailjet');
+	$fx = $this->emailServiceFixture('mailjet', 'MailjetTestServer.php', 'MAILJET_STATE', \util\vendor\Mailjet::class, 'CredentialMailjet');
 	if (!$fx)
 	    return;
 	[ $dir, $requests, $make, $step, $done, $pdf, $png, $designed ] = $fx;
@@ -9980,12 +9980,12 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //CLD: 2026-11-15T16:00:00+02:00: Amazon SES against a fake API v2 (commands/tests/SesTestServer.php: every request's Signature V4 checked again; util\AmazonSes::$testing): the
+    //CLD: 2026-11-15T16:00:00+02:00: Amazon SES against a fake API v2 (commands/tests/SesTestServer.php: every request's Signature V4 checked again; util\vendor\AmazonSes::$testing): the
     //credential (the form, Test, a wrong secret), Amazon SES Email (Simple content with names and tags, the configuration set; a project file attached: a raw MIME message;
     //a designed message: raw, its image inline; a template; SES's refusal of a sender on the error output; templates in pages), Amazon SES Account (the quota, an address
     //identity by its encoded path, a domain's DKIM records, the suppression list), Amazon SES API
     private function suiteAmazonses() {
-	$fx = $this->emailServiceFixture('amazonses', 'SesTestServer.php', 'SES_STATE', \util\AmazonSes::class, 'CredentialAmazonSes');
+	$fx = $this->emailServiceFixture('amazonses', 'SesTestServer.php', 'SES_STATE', \util\vendor\AmazonSes::class, 'CredentialAmazonSes');
 	if (!$fx)
 	    return;
 	[ $dir, $requests, $make, $step, $done, $pdf, $png, $designed ] = $fx;

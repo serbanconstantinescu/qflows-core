@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-15T16:00:00+02:00: Brevo Contacts - the contacts and lists of a Brevo account (a Brevo credential, util\Brevo). Operations (setting `operation`):
+    CLD: 2026-11-15T16:00:00+02:00: Brevo Contacts - the contacts and lists of a Brevo account (a Brevo credential, util\vendor\Brevo). Operations (setting `operation`):
 	get       a contact by email address or ID (GET /contacts/{identifier}): its attributes, lists, blocklisting
 	upsert    create a contact, or update it when the address is known (POST /contacts, updateEnabled): attributes (a JSON object, e.g. {"FIRSTNAME": "Ana"}), lists to add it to
 	update    a contact by address or ID (PUT /contacts/{identifier}): attributes, lists to add it to / remove it from, blocklisted for email or not

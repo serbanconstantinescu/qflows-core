@@ -79,7 +79,7 @@ class NodeTriggerHubSpot extends \models\wf\WfNode {
 	    $valid = false;
 	}
 	try {
-	    if (count(\util\HubSpot::filters((string)$this->cfg('filters', ''))) > 5)
+	    if (count(\util\vendor\HubSpot::filters((string)$this->cfg('filters', ''))) > 5)
 		throw new \RuntimeException('Filters: at most 5 (the trigger adds the date)');
 	    self::typeOf((array)$this->config);
 	} catch (\RuntimeException $e) {
@@ -170,7 +170,7 @@ class NodeTriggerHubSpot extends \models\wf\WfNode {
 	    $seen[(string)$s[0]] = (int)$s[1];
 	}
 	$h = self::client($wf, $cfg, self::TIMEOUT);
-	$filters = \util\HubSpot::filters((string)($cfg['filters'] ?? ''));
+	$filters = \util\vendor\HubSpot::filters((string)($cfg['filters'] ?? ''));
 	$filters[] = [ 'propertyName' => $prop, 'operator' => 'GTE', 'value' => (string)max($floor + 1, $since - self::LAG) ];
 	$props = array_values(array_unique(array_merge(NodeAppHsRecords::PROPERTIES[$type] ?? [], [ 'createdate', $prop ])));
 	[ $raw ] = $h->search($type, $filters, $props, [ [ 'propertyName' => $prop, 'direction' => 'ASCENDING' ] ], self::MAX_RUNS + count($seen) + 50);
@@ -180,7 +180,7 @@ class NodeTriggerHubSpot extends \models\wf\WfNode {
 	    $id = (string)($r['id'] ?? '') . '|' . $ms;
 	    if ($ms === null || $ms <= $floor || isset($seen[$id]))
 		continue;
-	    $rec = \util\HubSpot::record((array)$r, $h->recordUrl($type, $r['id'] ?? ''));
+	    $rec = \util\vendor\HubSpot::record((array)$r, $h->recordUrl($type, $r['id'] ?? ''));
 	    $new[] = $rec + [ 'event' => $event === 'updated' && self::ms($r['properties']['createdate'] ?? null) !== $ms ? 'updated' : 'created' ];
 	    $seen[$id] = $ms;
 	    $since = max($since, $ms);
@@ -208,14 +208,14 @@ class NodeTriggerHubSpot extends \models\wf\WfNode {
 	    $event = ($cfg['event'] ?? 'created') === 'updated' ? 'updated' : 'created';
 	    $prop = self::timeProperty($type, $event);
 	    $h = self::client($wf, $cfg, 30);
-	    [ $raw ] = $h->search($type, \util\HubSpot::filters((string)($cfg['filters'] ?? '')), array_values(array_unique(array_merge(NodeAppHsRecords::PROPERTIES[$type] ?? [], [ $prop ]))),
+	    [ $raw ] = $h->search($type, \util\vendor\HubSpot::filters((string)($cfg['filters'] ?? '')), array_values(array_unique(array_merge(NodeAppHsRecords::PROPERTIES[$type] ?? [], [ $prop ]))),
 		[ [ 'propertyName' => $prop, 'direction' => 'DESCENDING' ] ], 1);
 	} catch (\Throwable $e) {
 	    return [ 'executions' => [], 'message' => 'HubSpot record: ' . $e->getMessage() ];
 	}
 	if (!$raw)
 	    return [ 'executions' => [], 'message' => 'HubSpot record: no record matches' ];
-	$rec = \util\HubSpot::record((array)$raw[0], $h->recordUrl($type, $raw[0]['id'] ?? '')) + [ 'event' => $event ];
+	$rec = \util\vendor\HubSpot::record((array)$raw[0], $h->recordUrl($type, $raw[0]['id'] ?? '')) + [ 'event' => $event ];
 	$name = \util\Validator::isIdentifier((string)($cfg['variable'] ?? '')) ? (string)$cfg['variable'] : 'record';
 	$value = ($cfg['runs'] ?? 'each') === 'batch' ? [ 'records' => [ $rec ], 'count' => 1 ] : $rec;
 	$exe = \models\wf\WfExecution::startFor($wf, 'hubspot', [ 'started_at' => new \MongoDB\BSON\UTCDateTime(), 'vars' => [ $name => $value ] ], (string)$node['wfid']);

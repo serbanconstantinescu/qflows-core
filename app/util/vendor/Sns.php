@@ -12,7 +12,9 @@
     Sns::$testing: the check suite's certificate (PEM) and the address its confirmations go to (any host)
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\Http;
 
 class Sns {
     const AWS_HOST = '/^sns\.[a-z0-9-]+\.amazonaws\.com(\.cn)?$/';

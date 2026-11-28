@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-25T21:00:00+02:00: a GitHub account, for the GitHub steps and event trigger (util\GitHub): github.com or GitHub Enterprise Server (its API address), signed in
+    CLD: 2026-11-25T21:00:00+02:00: a GitHub account, for the GitHub steps and event trigger (util\vendor\GitHub): github.com or GitHub Enterprise Server (its API address), signed in
     with a personal access token (fine-grained or classic) or as a GitHub App (its ID, private key, and an installation: given, else the default repository's, else the
     app's only one); secrets encrypted. A default repository (owner/repo) for the steps that name none. Test: who the token is (user), or the app and its installation. Provides `github`
 */
@@ -109,7 +109,7 @@ class CredentialGitHub extends \models\Credential {
     }
 
     public function client($aid = null, $timeout = 60) {
-	return new \util\GitHub($this, $aid ?? $this->aid, $timeout);
+	return new \util\vendor\GitHub($this, $aid ?? $this->aid, $timeout);
     }
 
     public function test() {

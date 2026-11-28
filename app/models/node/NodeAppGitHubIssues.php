@@ -125,7 +125,7 @@ class NodeAppGitHubIssues extends NodeAppGitHub {
 	    $i = self::issueOf($this->gh->request('POST', "/repos/{$repo}/issues", [], $body));
 	    return [ $i, "#{$i['number']} created: {$i['title']}" ];
 	}
-	$n = \util\GitHub::number($value('number'), 'Issue');
+	$n = \util\vendor\GitHub::number($value('number'), 'Issue');
 	switch($operation) {
 	    case 'get':
 		$i = self::issueOf($this->gh->request('GET', "/repos/{$repo}/issues/{$n}"));

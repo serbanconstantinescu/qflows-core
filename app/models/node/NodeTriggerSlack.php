@@ -180,7 +180,7 @@ class NodeTriggerSlack extends \models\wf\WfNode {
 	} catch (\RuntimeException $e) {
 	    //the name stays the id: the message is not lost for it
 	}
-	$text = trim(\util\Slack::plain(trim(str_replace("<@{$me}>", '', (string)($m['text'] ?? '')))));
+	$text = trim(\util\vendor\Slack::plain(trim(str_replace("<@{$me}>", '', (string)($m['text'] ?? '')))));
 	$files = array_values(array_map(fn($f) => [ 'id' => (string)($f['id'] ?? ''), 'name' => (string)($f['name'] ?? '') ], array_filter((array)($m['files'] ?? []), 'is_array')));
 	if ($text === '' && !$files)
 	    return null;
@@ -259,8 +259,8 @@ class NodeTriggerSlack extends \models\wf\WfNode {
 	$ids = [];
 	$names = [];
 	foreach(array_slice(self::channelNames($cfg), 0, self::MAX_CHANNELS) as $c) {
-	    $c = \util\Slack::channelId($c);
-	    if (\util\Slack::isChannelId($c))
+	    $c = \util\vendor\Slack::channelId($c);
+	    if (\util\vendor\Slack::isChannelId($c))
 		$ids[] = $c;
 	    else
 		$names[] = strtolower(ltrim($c, '#'));

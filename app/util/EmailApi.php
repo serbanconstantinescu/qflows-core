@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-15T16:00:00+02:00: the base of the email services' clients (util\Brevo, util\Mailjet, util\AmazonSes), on util\Http: JSON in and out, the time left of the step's
+    CLD: 2026-11-15T16:00:00+02:00: the base of the email services' clients (util\vendor\Brevo, util\vendor\Mailjet, util\vendor\AmazonSes), on util\Http: JSON in and out, the time left of the step's
     timeout, a 429 (and a 503 of SES) waited for (Retry-After, else 2 s) and sent again while the timeout allows, the service's message of an error answer.
 
     $c->request($method, $path, $query, $body)   the answer (decoded JSON; [] when empty); $path below the service's base URL, its segments already encoded

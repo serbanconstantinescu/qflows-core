@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-26T01:00:00+02:00: the base of the Entra ID steps (Users, Groups, Access, API; not registered itself), through an Entra ID credential of the project
-    (CredentialEntra, provides `entra`; util\Entra, Microsoft Graph). As NodeAppSlack:
+    (CredentialEntra, provides `entra`; util\vendor\Entra, Microsoft Graph). As NodeAppSlack:
 	- the shape: one input, `success` (+ `error` when On error is "Continue on the `error` output")
 	- the settings every Entra ID step has: credential, operation (static::OPERATIONS), the operation's own settings (operationFields(): each shown for its operations),
 	    At most (the lists), timeout, result variable, on error
@@ -213,7 +213,7 @@ abstract class NodeAppEntra extends \models\wf\WfNode {
 	if (is_array($value))
 	    $value = $value['id'] ?? $value['userPrincipalName'] ?? $value['upn'] ?? '';
 	$v = trim(\util\Expression::toText($value));
-	if (\util\Entra::isGuid($v))
+	if (\util\vendor\Entra::isGuid($v))
 	    return $v;
 	if (!preg_match('/^[^\s@\/\\#?]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/', $v))
 	    throw new \RuntimeException("{$label}: a user principal name (ana@acme.com) or an object ID: `" . mb_substr($v, 0, 80) . '`');
@@ -233,7 +233,7 @@ abstract class NodeAppEntra extends \models\wf\WfNode {
     //a user's object ID (a UPN looked up)
     protected function userId($value, $label = 'User') {
 	$ref = self::userRef($value, $label);
-	return \util\Entra::isGuid($ref) ? $ref : (string)($this->graph->request('GET', "/users/{$ref}", [ '$select' => 'id' ])['id'] ?? '');
+	return \util\vendor\Entra::isGuid($ref) ? $ref : (string)($this->graph->request('GET', "/users/{$ref}", [ '$select' => 'id' ])['id'] ?? '');
     }
 
     //a group's object ID of a setting: its ID, an item ({ id }), or its display name (exactly one group)
@@ -241,11 +241,11 @@ abstract class NodeAppEntra extends \models\wf\WfNode {
 	if (is_array($value))
 	    $value = $value['id'] ?? $value['displayName'] ?? '';
 	$v = trim(\util\Expression::toText($value));
-	if (\util\Entra::isGuid($v))
+	if (\util\vendor\Entra::isGuid($v))
 	    return $v;
 	if ($v === '')
 	    throw new \RuntimeException("{$label}: empty");
-	$found = (array)($this->graph->request('GET', '/groups', [ '$filter' => 'displayName eq ' . \util\Entra::quote($v), '$select' => 'id,displayName', '$top' => 5 ])['value'] ?? []);
+	$found = (array)($this->graph->request('GET', '/groups', [ '$filter' => 'displayName eq ' . \util\vendor\Entra::quote($v), '$select' => 'id,displayName', '$top' => 5 ])['value'] ?? []);
 	if (count($found) !== 1)
 	    throw new \RuntimeException("{$label}: " . ($found ? count($found) . " groups are named `{$v}`: give its ID" : "no group `{$v}`"));
 	return (string)$found[0]['id'];

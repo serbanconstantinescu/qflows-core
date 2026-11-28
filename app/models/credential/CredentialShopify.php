@@ -1,11 +1,11 @@
 <?php
 
 /*
-    CLD: 2026-11-12T10:00:00+02:00: a Shopify store's Admin API access, for the Shopify steps and webhook trigger (util\Shopify): the store (<shop>.myshopify.com), how the app signs in
+    CLD: 2026-11-12T10:00:00+02:00: a Shopify store's Admin API access, for the Shopify steps and webhook trigger (util\vendor\Shopify): the store (<shop>.myshopify.com), how the app signs in
 	- Admin API access token: a custom app made in the store's admin (Settings > Apps > Develop apps), its shpat_… token; its API secret key, optional, signs the webhooks
 	- Client ID and secret: an app made in the Dev Dashboard and installed on the store (client credentials grant: a token for about 24 hours, asked for when needed); the
 	  secret also signs the webhooks
-    and the API version (default util\Shopify::DEFAULT_VERSION). Secrets encrypted. Test: the store's name, plan and the scopes the token has. Provides `shopify`
+    and the API version (default util\vendor\Shopify::DEFAULT_VERSION). Secrets encrypted. Test: the store's name, plan and the scopes the token has. Provides `shopify`
 */
 
 namespace models\credential;
@@ -38,10 +38,10 @@ class CredentialShopify extends \models\Credential {
 		'type' => 'text',
 		'label' => 'API version',
 		'required' => true,
-		'default' => \util\Shopify::DEFAULT_VERSION,
+		'default' => \util\vendor\Shopify::DEFAULT_VERSION,
 		'transform' => 'trim',
 		'help' => 'Shopify\'s quarterly version (YYYY-01, -04, -07, -10); each is supported for at least 12 months',
-		'validate' => [ [ 'regex', 'pattern' => '^\d{4}-(01|04|07|10)$', 'skipEmpty' => true, 'message' => 'e.g. ' . \util\Shopify::DEFAULT_VERSION ] ],
+		'validate' => [ [ 'regex', 'pattern' => '^\d{4}-(01|04|07|10)$', 'skipEmpty' => true, 'message' => 'e.g. ' . \util\vendor\Shopify::DEFAULT_VERSION ] ],
 		'ui' => [ 'width' => 6 ],
 	    ],
 	    [
@@ -87,7 +87,7 @@ class CredentialShopify extends \models\Credential {
 	$valid = parent::validates($options);
 	if (trim((string)$this->shop) !== '') {
 	    try {
-		$this->shop = \util\Shopify::shopDomain($this->shop);
+		$this->shop = \util\vendor\Shopify::shopDomain($this->shop);
 	    } catch (\RuntimeException $e) {
 		$this->errors('shop', '<shop>.myshopify.com');
 		$valid = false;
@@ -108,7 +108,7 @@ class CredentialShopify extends \models\Credential {
     }
 
     public function client($aid, $timeout = 60) {
-	return new \util\Shopify($this, $aid, $timeout);
+	return new \util\vendor\Shopify($this, $aid, $timeout);
     }
 
     public function test() {

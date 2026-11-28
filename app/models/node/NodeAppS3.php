@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-25T18:00:00+02:00: the base of the S3 steps (Objects, Links, Buckets, API; not registered itself), through an S3 storage credential of the project
-    (CredentialS3, provides `s3`; util\S3). As NodeAppSlack:
+    (CredentialS3, provides `s3`; util\vendor\S3). As NodeAppSlack:
 	- the shape: one input, `success` (+ `error` when On error is "Continue on the `error` output")
 	- the settings every S3 step has: credential, operation (static::OPERATIONS), the operation's own settings (operationFields(): each shown for its operations),
 	    At most (the lists), timeout, result variable, on error
@@ -200,14 +200,14 @@ abstract class NodeAppS3 extends \models\wf\WfNode {
     protected function bucketOf($key = 'bucket', $label = 'Bucket') {
 	$v = $this->settingOf($key);
 	if (is_array($v) && isset($v['bucket']))
-	    return \util\S3::bucket($v['bucket'], $label);
+	    return \util\vendor\S3::bucket($v['bucket'], $label);
 	$t = trim(\util\Expression::toText($v));
 	if ($t === '') {
 	    $t = trim((string)$this->cred->bucket);
 	    if ($t === '')
 		throw new \RuntimeException("{$label}: empty, and the credential has no default bucket");
 	}
-	return \util\S3::bucket($t, $label);
+	return \util\vendor\S3::bucket($t, $label);
     }
 
     //an object's address as s3://bucket/key

@@ -181,17 +181,17 @@ class NodeTriggerShopify extends \models\wf\WfNode {
 	    $have = [];
 	    foreach(NodeAppShopStore::webhooks($s) as $w)
 		if ((string)$w['callbackUrl'] === $url)
-		    $have[\util\Shopify::topicEnum($w['topic'])] = $w;
+		    $have[\util\vendor\Shopify::topicEnum($w['topic'])] = $w;
 	    $made = 0;
 	    foreach($topics as $t) {
-		if (isset($have[\util\Shopify::topicEnum($t)]))
+		if (isset($have[\util\vendor\Shopify::topicEnum($t)]))
 		    continue;
 		NodeAppShopStore::subscribe($s, $t, $url);
 		$made++;
 	    }
 	    //topics no longer chosen
 	    foreach($have as $enum => $w)
-		if (!in_array($enum, array_map([ \util\Shopify::class, 'topicEnum' ], $topics), true))
+		if (!in_array($enum, array_map([ \util\vendor\Shopify::class, 'topicEnum' ], $topics), true))
 		    $s->mutate('mutation($id: ID!) { webhookSubscriptionDelete(id: $id) { deletedWebhookSubscriptionId userErrors { field message } } }', [ 'id' => $w['id'] ], 'webhookSubscriptionDelete');
 	} catch (\RuntimeException $e) {
 	    return 'Shopify event: the webhooks were not subscribed: ' . $e->getMessage();

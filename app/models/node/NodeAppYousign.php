@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-12T23:30:00+02:00: the base of the Yousign steps (Signature Requests, Account, API; not registered itself), through a Yousign credential of the project
-    (CredentialYousign, provides `yousign`; util\Yousign). As NodeAppInfobip:
+    (CredentialYousign, provides `yousign`; util\vendor\Yousign). As NodeAppInfobip:
 	- the shape: one input, `success` (+ `error` when On error is "Continue on the `error` output"); in the picker's group E-signature
 	- the settings every Yousign step has: credential, operation (static::OPERATIONS), the operation's own settings (operationFields(): each shown for its operations),
 	    At most (the lists), timeout, result variable, on error
@@ -232,7 +232,7 @@ abstract class NodeAppYousign extends \models\wf\WfNode {
 	return $v;
     }
 
-    //a list read page after page (util\Yousign::all): [ { items, count, truncated }, summary ]
+    //a list read page after page (util\vendor\Yousign::all): [ { items, count, truncated }, summary ]
     protected function pagedResult($path, array $query, $what, ?\Closure $map = null) {
 	[ $items, $more ] = $this->yousign->all($path, $query, $this->maxItems());
 	if ($map)

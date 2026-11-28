@@ -110,7 +110,7 @@ class NodeTriggerNextcloud extends \models\wf\WfNode {
 	    $valid = false;
 	}
 	try {
-	    \util\Nextcloud::path($this->cfg('folder', ''), 'Folder');
+	    \util\vendor\Nextcloud::path($this->cfg('folder', ''), 'Folder');
 	} catch (\RuntimeException $e) {
 	    $this->errors('config', 'Nextcloud file: ' . $e->getMessage());
 	    $valid = false;
@@ -140,7 +140,7 @@ class NodeTriggerNextcloud extends \models\wf\WfNode {
 
     //the files of the folder now: [ md5(path) => item ], more than MAX_FILES or not
     protected static function files($wf, array $cfg) {
-	[ $items, $more ] = NodeAppNxFiles::walk(self::client($wf, $cfg, self::TIMEOUT), \util\Nextcloud::path($cfg['folder'] ?? '', 'Folder'), (int)($cfg['depth'] ?? 0), 'files',
+	[ $items, $more ] = NodeAppNxFiles::walk(self::client($wf, $cfg, self::TIMEOUT), \util\vendor\Nextcloud::path($cfg['folder'] ?? '', 'Folder'), (int)($cfg['depth'] ?? 0), 'files',
 	    (string)($cfg['pattern'] ?? ''), self::MAX_FILES);
 	$byKey = [];
 	foreach($items as $it)

@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-12T16:00:00+02:00: a HubSpot account's API access, for the HubSpot steps and record trigger (util\HubSpot): a private app's access token (encrypted; Settings >
+    CLD: 2026-11-12T16:00:00+02:00: a HubSpot account's API access, for the HubSpot steps and record trigger (util\vendor\HubSpot): a private app's access token (encrypted; Settings >
     Integrations > Private apps: its scopes are what the steps may do). Test: the account (portal ID, time zone, currency, data hosting). Provides `hubspot`
 */
 
@@ -28,7 +28,7 @@ class CredentialHubSpot extends \models\Credential {
     }
 
     public function client($aid, $timeout = 60) {
-	return new \util\HubSpot($this, $aid, $timeout);
+	return new \util\vendor\HubSpot($this, $aid, $timeout);
     }
 
     public function test() {

@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-26T00:00:00+02:00: a GitLab account, for the GitLab steps and event trigger (util\GitLab): gitlab.com or a self-managed GitLab (its address), an access token
+    CLD: 2026-11-26T00:00:00+02:00: a GitLab account, for the GitLab steps and event trigger (util\vendor\GitLab): gitlab.com or a self-managed GitLab (its address), an access token
     (personal, project or group; encrypted) and a default project (group/project). Test: who the token is (a project's or group's token: its bot user) and its scopes. Provides `gitlab`
 */
 
@@ -57,7 +57,7 @@ class CredentialGitLab extends \models\Credential {
     }
 
     public function client($aid = null, $timeout = 60) {
-	return new \util\GitLab($this, $aid ?? $this->aid, $timeout);
+	return new \util\vendor\GitLab($this, $aid ?? $this->aid, $timeout);
     }
 
     public function test() {

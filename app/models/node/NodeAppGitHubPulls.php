@@ -104,7 +104,7 @@ class NodeAppGitHubPulls extends NodeAppGitHub {
 		'body' => \util\Expression::toText($value('body')), 'draft' => (bool)$this->cfg('draft', false) ]));
 	    return [ $p, "#{$p['number']} created: {$head} into {$base}" ];
 	}
-	$n = \util\GitHub::number($value('number'), 'Pull request');
+	$n = \util\vendor\GitHub::number($value('number'), 'Pull request');
 	switch($operation) {
 	    case 'get':
 		$p = self::pullOf($this->gh->request('GET', "/repos/{$repo}/pulls/{$n}"));

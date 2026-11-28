@@ -8,7 +8,7 @@
 	      notes the objects there; later ones start runs for new objects (and, with "New or changed", those whose ETag changed); at most MAX_RUNS per check (the others: the
 	      next check), MAX_OBJECTS read (more: not watched, logged)
 	sns   Amazon S3's event notifications through an SNS topic subscribed to the step's address /s3/<token> (controllers\S3Controller): at once. Each post's signature is
-	      checked (util\Sns), its topic must be the step's Topic ARN; the subscription is confirmed by itself; each SNS message is taken once
+	      checked (util\vendor\Sns), its topic must be the step's Topic ARN; the subscription is confirmed by itself; each SNS message is taken once
     The variable: the object ({ bucket, key, name, folder, size, modified, etag, storageClass, url, change: new | changed | removed, event (sns: S3's event name) }), or
     { objects, count } per check / post
 */
@@ -185,7 +185,7 @@ class NodeTriggerS3 extends \models\wf\WfNode {
 	    $valid = false;
 	} elseif ($bucket !== '') {
 	    try {
-		\util\S3::bucket($bucket);
+		\util\vendor\S3::bucket($bucket);
 	    } catch (\RuntimeException $e) {
 		$this->errors('config', 'S3 object: ' . $e->getMessage());
 		$valid = false;
@@ -222,7 +222,7 @@ class NodeTriggerS3 extends \models\wf\WfNode {
     //the bucket watched: the step's, else the credential's
     public static function bucketOf(array $cfg, $cred) {
 	$b = trim((string)($cfg['bucket'] ?? ''));
-	return \util\S3::bucket($b !== '' ? $b : (string)$cred->bucket);
+	return \util\vendor\S3::bucket($b !== '' ? $b : (string)$cred->bucket);
     }
 
     //whether object key $key is one the step watches (its prefix, its names)

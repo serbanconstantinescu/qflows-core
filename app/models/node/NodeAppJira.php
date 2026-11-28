@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-12T14:00:00+02:00: the base of the Jira steps (Issues, Projects, API; not registered itself), through a Jira credential of the project
-    (CredentialJira, provides `jira`; util\Jira: Jira Cloud or Data Center). As NodeAppNextcloud:
+    (CredentialJira, provides `jira`; util\vendor\Jira: Jira Cloud or Data Center). As NodeAppNextcloud:
 	- the shape: one input, `success` (+ `error` when On error is "Continue on the `error` output")
 	- the settings every Jira step has: credential, operation (static::OPERATIONS), the operation's own settings (operationFields(): each shown for its operations),
 	    At most (the lists), timeout, result variable, on error

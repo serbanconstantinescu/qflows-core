@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-12T16:00:00+02:00: the base of the HubSpot steps (Records, CRM, API; not registered itself), through a HubSpot credential of the project
-    (CredentialHubSpot, provides `hubspot`; util\HubSpot: a private app's token). As NodeAppJira:
+    (CredentialHubSpot, provides `hubspot`; util\vendor\HubSpot: a private app's token). As NodeAppJira:
 	- the shape: one input, `success` (+ `error` when On error is "Continue on the `error` output")
 	- the settings every HubSpot step has: credential, operation (static::OPERATIONS), the operation's own settings (operationFields(): each shown for its operations),
 	    At most (the lists), timeout, result variable, on error

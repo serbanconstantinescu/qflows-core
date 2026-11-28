@@ -3,7 +3,7 @@
 /*
     CLD: 2026-11-25T18:00:00+02:00: a fake S3 (path style) for the check suite (CheckCommand::suiteS3), run by PHP's built-in server:
     S3_STATE=<a folder> php -S 127.0.0.1:<port> S3TestServer.php
-	every request's AWS Signature Version 4 checked again (util\AwsSigV4, the key AKIDCHECK / secret-check, region eu-central-1; a presigned address: its X-Amz-Signature), else 403
+	every request's AWS Signature Version 4 checked again (util\vendor\AwsSigV4, the key AKIDCHECK / secret-check, region eu-central-1; a presigned address: its X-Amz-Signature), else 403
 	SignatureDoesNotMatch; another key: 403 InvalidAccessKeyId. Buckets and objects in <state>/db.json (bodies base64), seeded: bucket `docs` with a.txt, inbox/one.pdf,
 	inbox/two.pdf, inbox/sub/three.txt; bucket `empty`. ListBuckets, Create / Delete (BucketNotEmpty) / Head bucket, ListObjectsV2 (prefix, delimiter, max-keys,
 	continuation-token), Put (If-None-Match: *, x-amz-meta-*, x-amz-storage-class; the body's sha256 or UNSIGNED-PAYLOAD), Get, Head, Delete, DeleteObjects (Content-MD5),
@@ -57,7 +57,7 @@ if (isset($query['X-Amz-Signature'])) {
 	$error('AccessDenied', 403, 'Request has expired');
     //the address without the X-Amz-* parameters, presigned again at that time
     $keep = implode('&', array_filter(explode('&', $rawQuery), fn($p) => !str_starts_with($p, 'X-Amz-')));
-    $again = \util\AwsSigV4::presign($method, 'http://' . $_SERVER['HTTP_HOST'] . $uriPath . ($keep !== '' ? "?{$keep}" : ''), $key + [ 'time' => $t->getTimestamp() ], (int)$query['X-Amz-Expires']);
+    $again = \util\vendor\AwsSigV4::presign($method, 'http://' . $_SERVER['HTTP_HOST'] . $uriPath . ($keep !== '' ? "?{$keep}" : ''), $key + [ 'time' => $t->getTimestamp() ], (int)$query['X-Amz-Expires']);
     if (!str_ends_with($again, 'X-Amz-Signature=' . $query['X-Amz-Signature']))
 	$error('SignatureDoesNotMatch', 403);
 } else {
@@ -77,7 +77,7 @@ if (isset($query['X-Amz-Signature'])) {
 	$error('XAmzContentSHA256Mismatch', 400);
     $t = DateTime::createFromFormat('Ymd\THis\Z', (string)$hdr('x-amz-date'), new DateTimeZone('UTC'));
     unset($signed['x-amz-content-sha256']);
-    $again = \util\AwsSigV4::headers($method, $url, $signed, $raw, $key + [ 'time' => $t ? $t->getTimestamp() : 0, 'payloadHeader' => true, 'payloadHash' => $sha ]);
+    $again = \util\vendor\AwsSigV4::headers($method, $url, $signed, $raw, $key + [ 'time' => $t ? $t->getTimestamp() : 0, 'payloadHeader' => true, 'payloadHash' => $sha ]);
     if (!str_ends_with($again['Authorization'], 'Signature=' . $m[5]))
 	$error('SignatureDoesNotMatch', 403);
 }

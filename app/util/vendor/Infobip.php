@@ -13,7 +13,11 @@
     Infobip::$testing: the check suite's local server (http://127.0.0.1:<port>) instead of the credential's base URL
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\Expression;
+use util\Http;
+use util\JSON;
 
 class Infobip {
     const MAX_ANSWER = 10 * 1024 * 1024;

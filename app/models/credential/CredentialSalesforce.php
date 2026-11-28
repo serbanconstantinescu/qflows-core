@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-12T18:00:00+02:00: a Salesforce org's API access, for the Salesforce steps and record trigger (util\Salesforce): its My Domain address (a sandbox's too), an
+    CLD: 2026-11-12T18:00:00+02:00: a Salesforce org's API access, for the Salesforce steps and record trigger (util\vendor\Salesforce): its My Domain address (a sandbox's too), an
     External Client App's (or Connected App's) consumer key and secret with the client credentials flow enabled - the steps act as its run-as user -, the API version.
     Secret encrypted. Test: the org, sandbox or not, and the run-as user. Provides `salesforce`
 */
@@ -33,9 +33,9 @@ class CredentialSalesforce extends \models\Credential {
 		'type' => 'text',
 		'label' => 'API version',
 		'required' => true,
-		'default' => \util\Salesforce::DEFAULT_VERSION,
+		'default' => \util\vendor\Salesforce::DEFAULT_VERSION,
 		'transform' => 'trim',
-		'validate' => [ [ 'regex', 'pattern' => '^v?\d{2,3}\.0$', 'skipEmpty' => true, 'message' => 'e.g. ' . \util\Salesforce::DEFAULT_VERSION ] ],
+		'validate' => [ [ 'regex', 'pattern' => '^v?\d{2,3}\.0$', 'skipEmpty' => true, 'message' => 'e.g. ' . \util\vendor\Salesforce::DEFAULT_VERSION ] ],
 		'ui' => [ 'width' => 4 ],
 	    ],
 	    [
@@ -60,7 +60,7 @@ class CredentialSalesforce extends \models\Credential {
     }
 
     public function client($aid, $timeout = 60) {
-	return new \util\Salesforce($this, $aid, $timeout);
+	return new \util\vendor\Salesforce($this, $aid, $timeout);
     }
 
     public function test() {

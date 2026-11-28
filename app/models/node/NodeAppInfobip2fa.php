@@ -58,7 +58,7 @@ class NodeAppInfobip2fa extends NodeAppInfobip {
 	$I = $this->infobip;
 	switch($operation) {
 	    case 'send':
-		$to = \util\Infobip::number($value('to'));
+		$to = \util\vendor\Infobip::number($value('to'));
 		$app = $text('applicationId');
 		$msg = $text('messageId');
 		if ($app === '' || $msg === '')

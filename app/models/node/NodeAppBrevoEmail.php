@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-15T16:00:00+02:00: Brevo Email - transactional email sent through Brevo (formerly Sendinblue; a Brevo credential, util\Brevo). Operations (setting `operation`):
+    CLD: 2026-11-15T16:00:00+02:00: Brevo Email - transactional email sent through Brevo (formerly Sendinblue; a Brevo credential, util\vendor\Brevo). Operations (setting `operation`):
 	send       a message (POST /smtp/email): the message of NodeAppEmailService (text / HTML, designed - its images are refused: Brevo's API has no inline images -, or a Brevo
 	           template by its ID with its params); attachments base64, tags
 	sent       the transactional emails sent (GET /smtp/emails): by recipient, template or message ID (Brevo asks for one of them), a period

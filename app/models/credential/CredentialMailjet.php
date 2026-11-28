@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-15T16:00:00+02:00: a Mailjet account, for the Mailjet steps (Email, Contacts, API; util\Mailjet): its region (Global or US), the API key and the secret key (Account
+    CLD: 2026-11-15T16:00:00+02:00: a Mailjet account, for the Mailjet steps (Email, Contacts, API; util\vendor\Mailjet): its region (Global or US), the API key and the secret key (Account
     settings > API key management; the secret encrypted), and the sender the steps use when they name none (an address of a sender or domain validated in Mailjet). Test: the
     account's user. Provides `mailjet`
 */
@@ -58,7 +58,7 @@ class CredentialMailjet extends \models\Credential {
     }
 
     public function client($timeout = 60) {
-	return new \util\Mailjet($this, $timeout);
+	return new \util\vendor\Mailjet($this, $timeout);
     }
 
     public function test() {

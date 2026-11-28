@@ -47,8 +47,8 @@ class NodeAppS3Links extends NodeAppS3 {
     protected function runOperation($operation, \Closure $text, \Closure $value) {
 	$v = $this->settingOf('key');
 	$t = trim(\util\Expression::toText(is_array($v) ? ($v['key'] ?? '') : $v));
-	$bucket = is_array($v) && isset($v['bucket']) ? \util\S3::bucket($v['bucket']) : (preg_match('~^s3://([^/]+)/~i', $t, $m) ? \util\S3::bucket($m[1]) : $this->bucketOf());
-	$key = \util\S3::key($t);
+	$bucket = is_array($v) && isset($v['bucket']) ? \util\vendor\S3::bucket($v['bucket']) : (preg_match('~^s3://([^/]+)/~i', $t, $m) ? \util\vendor\S3::bucket($m[1]) : $this->bucketOf());
+	$key = \util\vendor\S3::key($t);
 	$unit = isset(self::SECONDS[(string)$this->cfg('unit', 'hours')]) ? (string)$this->cfg('unit', 'hours') : 'hours';
 	$seconds = (int)$value('valid') * self::SECONDS[$unit];
 	if ($seconds < 1 || $seconds > self::MAX_SECONDS)

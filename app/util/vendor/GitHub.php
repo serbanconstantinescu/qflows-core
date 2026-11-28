@@ -19,7 +19,10 @@
     GitHub::$testing: the check suite's local server (http://127.0.0.1:<port>) instead of the API address (uploads: <it>/uploads)
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\Expression;
+use util\Http;
 
 class GitHub {
     const API = 'https://api.github.com';

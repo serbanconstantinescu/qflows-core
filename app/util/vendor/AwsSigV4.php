@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-15T16:00:00+02:00: AWS Signature Version 4 (the Authorization header of a request to an AWS service): for the Amazon SES credential and steps (util\AmazonSes),
+    CLD: 2026-11-15T16:00:00+02:00: AWS Signature Version 4 (the Authorization header of a request to an AWS service): for the Amazon SES credential and steps (util\vendor\AmazonSes),
     usable by any AWS service's client. Not S3: its paths are encoded once, the other services' twice in the canonical request (as AWS's documentation says).
 
     AwsSigV4::headers($method, $url, $headers, $body, $key) => the headers to send: $headers + host, x-amz-date, x-amz-content-sha256 ($key['payloadHeader']),
@@ -13,7 +13,7 @@
 	valid $expires seconds (CLD: 2026-11-25T18:00:00+02:00: the S3 steps' links)
 */
 
-namespace util;
+namespace util\vendor;
 
 class AwsSigV4 {
     const ALGORITHM = 'AWS4-HMAC-SHA256';

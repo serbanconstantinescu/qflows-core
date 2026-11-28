@@ -14,7 +14,9 @@
     Yousign::$testing: the check suite's local server (http://127.0.0.1:<port>) instead of Yousign's
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\Http;
 
 class Yousign {
     const PRODUCTION = 'https://api.yousign.app/v3';

@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-12T23:30:00+02:00: a Yousign organization's API access, for the Yousign steps and event trigger (util\Yousign): an API key (Yousign's app: Developers > API keys;
+    CLD: 2026-11-12T23:30:00+02:00: a Yousign organization's API access, for the Yousign steps and event trigger (util\vendor\Yousign): an API key (Yousign's app: Developers > API keys;
     encrypted; a workspace key acts in its workspace only), the sandbox or production (each its own key), the workspace new signature requests go to (empty: the key's
     default). Test: a signature request listed. Provides `yousign`
 */
@@ -48,7 +48,7 @@ class CredentialYousign extends \models\Credential {
     }
 
     public function client($timeout = 60) {
-	return new \util\Yousign($this, $timeout);
+	return new \util\vendor\Yousign($this, $timeout);
     }
 
     public function test() {

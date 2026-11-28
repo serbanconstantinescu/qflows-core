@@ -38,7 +38,7 @@ class SlackController extends \sys\APIController {
 	    $this->refuse(409, 'The trigger\'s Slack credential is no longer available');
 	if (trim((string)$cred->signingSecret) === '')
 	    $this->refuse(401, 'Unauthorized (the credential has no signing secret)');
-	if (!\util\Slack::verify($raw, (string)($_SERVER['HTTP_X_SLACK_REQUEST_TIMESTAMP'] ?? ''), (string)($_SERVER['HTTP_X_SLACK_SIGNATURE'] ?? ''), trim((string)$cred->signingSecret)))
+	if (!\util\vendor\Slack::verify($raw, (string)($_SERVER['HTTP_X_SLACK_REQUEST_TIMESTAMP'] ?? ''), (string)($_SERVER['HTTP_X_SLACK_SIGNATURE'] ?? ''), trim((string)$cred->signingSecret)))
 	    $this->refuse(401, 'Unauthorized (the signature does not match the signing secret, or the request is older than 5 minutes)');
 	$data = json_decode($raw, true);
 	if (!is_array($data))

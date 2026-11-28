@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-26T01:00:00+02:00: a Microsoft Entra ID tenant, for the Entra ID steps and change trigger (util\Entra, Microsoft Graph, app-only): the tenant's ID, an app
+    CLD: 2026-11-26T01:00:00+02:00: a Microsoft Entra ID tenant, for the Entra ID steps and change trigger (util\vendor\Entra, Microsoft Graph, app-only): the tenant's ID, an app
     registration's client ID and its client secret or certificate (the certificate's PEM and its private key, encrypted), the national cloud. What the steps may do is what the
     app's Graph application permissions (consented by an administrator) and its directory roles allow. Test: the token, then the organization's name (Organization.Read.All).
     Provides `entra`
@@ -54,7 +54,7 @@ class CredentialEntra extends \models\Credential {
     }
 
     public function client($aid = null, $timeout = 60) {
-	return new \util\Entra($this, $aid ?? $this->aid, $timeout);
+	return new \util\vendor\Entra($this, $aid ?? $this->aid, $timeout);
     }
 
     public function test() {

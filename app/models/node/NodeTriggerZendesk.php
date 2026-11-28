@@ -166,7 +166,7 @@ class NodeTriggerZendesk extends \models\wf\WfNode {
 	    $seen[(string)$s[0]] = (int)$s[1];
 	}
 	$z = self::client($wf, $cfg, self::TIMEOUT);
-	[ $raw ] = $z->search(self::query($cfg['query'] ?? '', $field, max($floor, $since - self::LAG)), min(\util\Zendesk::MAX_SEARCH, self::MAX_RUNS + count($seen) + 100),
+	[ $raw ] = $z->search(self::query($cfg['query'] ?? '', $field, max($floor, $since - self::LAG)), min(\util\vendor\Zendesk::MAX_SEARCH, self::MAX_RUNS + count($seen) + 100),
 	    [ 'sort_by' => "{$field}_at", 'sort_order' => 'asc' ]);
 	$new = [];
 	foreach($raw as $t) {

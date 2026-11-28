@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-12T14:00:00+02:00: a Jira site, for the Jira steps and issue trigger (util\Jira): Jira Cloud (https://<site>.atlassian.net, the user's email and an API token) or
+    CLD: 2026-11-12T14:00:00+02:00: a Jira site, for the Jira steps and issue trigger (util\vendor\Jira): Jira Cloud (https://<site>.atlassian.net, the user's email and an API token) or
     Jira Data Center / Server (its address, a personal access token; the certificate trusted or not). Tokens encrypted. What the steps may do is what the user may in Jira.
     Test: the user and the site (serverInfo). Provides `jira`
 */
@@ -85,7 +85,7 @@ class CredentialJira extends \models\Credential {
     }
 
     public function client($aid, $timeout = 60) {
-	return new \util\Jira($this, $aid, $timeout);
+	return new \util\vendor\Jira($this, $aid, $timeout);
     }
 
     public function test() {

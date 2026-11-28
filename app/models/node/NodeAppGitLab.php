@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-26T00:00:00+02:00: the base of the GitLab steps (Issues, Merge Requests, Repository, Pipelines, API; not registered itself), through a GitLab credential of the
-    project (CredentialGitLab, provides `gitlab`; util\GitLab). As NodeAppGitHub:
+    project (CredentialGitLab, provides `gitlab`; util\vendor\GitLab). As NodeAppGitHub:
 	- the shape: one input, `success` (+ `error` when On error is "Continue on the `error` output")
 	- the settings every GitLab step has: credential, project (empty: the credential's default), operation (static::OPERATIONS), the operation's own settings
 	    (operationFields(): each shown for its operations), At most (the lists), timeout, result variable, on error

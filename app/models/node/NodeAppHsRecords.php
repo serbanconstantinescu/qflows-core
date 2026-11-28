@@ -117,7 +117,7 @@ class NodeAppHsRecords extends NodeAppHubSpot {
     }
 
     protected function rec($type, array $raw) {
-	return \util\HubSpot::record($raw, isset($raw['id']) ? $this->hs->recordUrl($type, $raw['id']) : null);
+	return \util\vendor\HubSpot::record($raw, isset($raw['id']) ? $this->hs->recordUrl($type, $raw['id']) : null);
     }
 
     //the record of $id ($idProperty: a unique property's value), or null when there is none
@@ -144,7 +144,7 @@ class NodeAppHsRecords extends NodeAppHubSpot {
 			throw new \RuntimeException('Sorted by: a property, then asc or desc');
 		    $sorts[] = [ 'propertyName' => $m[1], 'direction' => strtolower($m[2] ?? 'asc') === 'desc' ? 'DESCENDING' : 'ASCENDING' ];
 		}
-		[ $raw, $total, $truncated ] = $H->search($type, \util\HubSpot::filters($text('filters')), $this->readList($type), $sorts, $this->maxItems(), $text('text'));
+		[ $raw, $total, $truncated ] = $H->search($type, \util\vendor\HubSpot::filters($text('filters')), $this->readList($type), $sorts, $this->maxItems(), $text('text'));
 		$items = array_map(fn($r) => $this->rec($type, (array)$r), $raw);
 		return [ [ 'items' => $items, 'count' => count($items), 'total' => $total, 'truncated' => $truncated ], \util\Format::plural(count($items), 'record') . ($truncated ? " of {$total}" : '') . " ({$type})" ];
 	    case 'get':

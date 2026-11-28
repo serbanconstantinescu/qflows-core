@@ -21,7 +21,10 @@
     Shopify::$testUrl: the check suite's local server (http://127.0.0.1:…, in place of https://<shop>): no https, no address guard
 */
 
-namespace util;
+namespace util\vendor;
+
+use util\Expression;
+use util\Http;
 
 class Shopify {
     //the API version used unless the credential names another (Shopify supports each for at least 12 months)

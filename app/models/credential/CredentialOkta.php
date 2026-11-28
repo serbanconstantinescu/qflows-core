@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-26T02:00:00+02:00: an Okta org, for the Okta steps and event trigger (util\Okta): its address, and an API token (Security > API > Tokens: it acts with the role of
+    CLD: 2026-11-26T02:00:00+02:00: an Okta org, for the Okta steps and event trigger (util\vendor\Okta): its address, and an API token (Security > API > Tokens: it acts with the role of
     the admin who made it) or an OAuth 2.0 service app (client ID, a private key whose public key is the app's, its key ID, the scopes granted; the app given an admin role);
     secrets encrypted. Test: the org's name (an API token: also who made it). Provides `okta`
 */
@@ -51,7 +51,7 @@ class CredentialOkta extends \models\Credential {
     }
 
     public function client($aid = null, $timeout = 60) {
-	return new \util\Okta($this, $aid ?? $this->aid, $timeout);
+	return new \util\vendor\Okta($this, $aid ?? $this->aid, $timeout);
     }
 
     public function test() {

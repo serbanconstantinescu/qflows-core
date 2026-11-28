@@ -22,7 +22,7 @@ class OktaController extends \sys\APIController {
 	$cfg = (array)$node['config'];
 	if (($cfg['receive'] ?? 'poll') !== 'hook')
 	    $this->refuse(409, 'The step does not receive an event hook (Receive: Read the System Log on a schedule)');
-	if (!\util\Okta::verify((string)($_SERVER['HTTP_AUTHORIZATION'] ?? ''), (string)($cfg['secret'] ?? '')))
+	if (!\util\vendor\Okta::verify((string)($_SERVER['HTTP_AUTHORIZATION'] ?? ''), (string)($cfg['secret'] ?? '')))
 	    $this->refuse(401, 'Unauthorized (the Authorization header is not the step\'s secret)');
 	$method = strtoupper($_SERVER['REQUEST_METHOD'] ?? '');
 	if ($method === 'GET') {

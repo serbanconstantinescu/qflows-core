@@ -1,7 +1,7 @@
 <?php
 
 /*
-    CLD: 2026-11-15T16:00:00+02:00: Mailjet Email - email sent through Mailjet (a Mailjet credential, util\Mailjet). Operations (setting `operation`):
+    CLD: 2026-11-15T16:00:00+02:00: Mailjet Email - email sent through Mailjet (a Mailjet credential, util\vendor\Mailjet). Operations (setting `operation`):
 	send       a message (POST /v3.1/send): the message of NodeAppEmailService (text / HTML, designed - its images inline: InlinedAttachments -, or a Mailjet template by its ID
 	           with its variables, TemplateLanguage on); attachments base64; the tags as its campaign (CustomCampaign); sandbox: checked, not sent
 	messages   the messages sent (GET /v3/REST/message): by recipient, a period, their status; with their subjects
