@@ -4,6 +4,7 @@
  *   app.live.start({ ticket, renew })        layouts/main.php, on a full page load: the page's ticket (util\Daemon::pushToken: account, project, user) and
  *                                            where a new one is asked (SiteController::live_ticket) when it expires or the daemon was away
  *   app.live.on(el, 'a::b c::d', fn)         fn(data, type) for these events while `el` is on the page (pjax replaced it: dropped); el = null: always
+ *   app.live.connected()                     whether the stream is open (a page polls while it is not)
  *
  * An event only says what changed ({ type, data }: ids, no records): the handlers load what they show themselves. The same event and data within
  * DEBOUNCE ms come once. `live::resync` comes after the stream was away (the daemon restarted, the network): the events meanwhile are lost,
@@ -144,6 +145,11 @@ app.live = (function() {
 	//the page's claims (aid, project, user, exp)
 	claims: function() {
 	    return claims;
+	},
+
+	//whether the stream is open now (else the pages poll as before)
+	connected: function() {
+	    return !!source && source.readyState === EventSource.OPEN;
 	},
     };
 

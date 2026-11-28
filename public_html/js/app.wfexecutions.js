@@ -23,11 +23,15 @@ if (!window.app)
 //The variables as a tree: each object / list opens and closes as the trace's rounds (closed at first; what is open stays over the refreshes: traceKeys)
 //CLD: 2026-11-22T00:00:00Z: the server sends a view of them (WorkflowController::variablesView): a closed object / list is its size only, an open one its first 100 entries
 //(Show more: 100 more, varMore), a long text its start (Show all); the paths open and the counts shown go with each load (varsQuery), so a large run stays light to refresh
+//CLD: 2026-11-28T10:00:00Z: loaded again when an execution of this workflow changes (app.live: execution::changed, options.wf; at most once a LIVE_MIN ms, the last change
+//not lost) and after the live events were away (live::resync); the 2 s timer only while they are not connected, else every SAFETY ms
 window.app.WfExecutions = (function() {
     //the one of the current designer page
     let current = null;
 
     const active = (state) => state === 'new' || state === 'run';
+    const LIVE_MIN = 1000;
+    const SAFETY = 30000;
     const NS = '.wfexecutions';
 
     //the published version an execution ran, or the draft
@@ -90,6 +94,15 @@ window.app.WfExecutions = (function() {
 	    this.varMore = new Map();
 	    //the elements its listeners are on (removed by destroy)
 	    this.bound = [];
+	    //the live events: the last load (the safety timer), the throttle
+	    this.loadedAt = 0;
+	    this.liveTimer = null;
+	    this.livePending = false;
+	    if (this.el)
+		app.live.on(this.el, 'execution::changed live::resync', (data, type) => {
+		    if (current === this && (type !== 'execution::changed' || data.wf === this.o.wf))
+			this.liveLoad();
+		});
 
 	    this.on($('.btn-run-wf'), 'click', (e) => {
 		e.preventDefault();
@@ -219,6 +232,8 @@ window.app.WfExecutions = (function() {
 	destroy() {
 	    clearInterval(this.timer);
 	    this.timer = null;
+	    clearTimeout(this.liveTimer);
+	    this.liveTimer = null;
 	    this.bound.splice(0).forEach(($el) => $el.off(NS));
 	    //the chip goes with it
 	    if (this.chipEl)
@@ -319,6 +334,9 @@ window.app.WfExecutions = (function() {
 		this.timer = null;
 		return;
 	    }
+	    //the live events load it (liveLoad)
+	    if (app.live.connected() && Date.now() - this.loadedAt < SAFETY)
+		return;
 	    if (open && (this.list.some((e) => active(e.state)) || (this.detail && active(this.detail.state))))
 		this.refresh();
 	    //refresh() loads it when it is the one selected
@@ -331,7 +349,30 @@ window.app.WfExecutions = (function() {
 		this.timer = setInterval(() => this.tick(), 2000);
 	}
 
+	//an execution changed (app.live): what the panel and the canvas show, loaded again; at most once a LIVE_MIN ms, a change meanwhile loaded after it
+	liveLoad() {
+	    if (this.liveTimer) {
+		this.livePending = true;
+		return;
+	    }
+	    if (this.el && document.body.contains(this.el)) {
+		const open = this.isOpen();
+		if (open)
+		    this.refresh();
+		if (this.shown && !(open && this.shown === this.selected))
+		    this.loadDetail(this.shown);
+	    }
+	    this.liveTimer = setTimeout(() => {
+		this.liveTimer = null;
+		if (this.livePending) {
+		    this.livePending = false;
+		    this.liveLoad();
+		}
+	    }, LIVE_MIN);
+	}
+
 	refresh() {
+	    this.loadedAt = Date.now();
 	    $.getJSON(this.o.urls.list).done((resp) => {
 		this.list = resp.executions || [];
 		this.renderList();
@@ -353,6 +394,7 @@ window.app.WfExecutions = (function() {
 
 	//the details of the one selected (the panel) and / or of the one on the canvas (its marks, the chip)
 	loadDetail(id) {
+	    this.loadedAt = Date.now();
 	    $.getJSON(this.o.urls.detail, Object.assign({ execution: id }, this.varsQuery(id))).done((resp) => {
 		const e = resp.execution;
 		if (this.selected === id) {

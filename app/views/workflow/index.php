@@ -103,6 +103,8 @@ $stepIssuesUrl = \V::app()->createUrl('/workflow/step_issues', array_filter([ 'i
     const exec = new app.WfExecutions(document.querySelector('.exec-panel'), {
 	urls: { run: '{$runUrl}', list: '{$executionsUrl}', detail: '{$executionUrl}', del: '{$executionDeleteUrl}', delAll: '{$executionsDeleteUrl}', kill: '{$executionKillUrl}', trace: '{$executionTraceUrl}', again: '{$executionAgainUrl}', saveCase: '{$testsUrls['case_from_execution']}' },
 	canRun: {$canRun},
+	//CLD: 2026-11-28T10:00:00Z: its executions' live events (app.live: execution::changed)
+	wf: '{$wfIdJs}',
 	//the triggers Run can start
 	runTriggers: {$runTriggers},
 	//started once the changes are saved (autosave)
