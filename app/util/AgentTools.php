@@ -15,7 +15,7 @@
 	Wrong arguments (unknown, missing, of another type, not one of the choices) are tool errors, as is a step that fails; the credentials stay on the server (resolved when a
 	tool runs; never in a schema, an argument or a result).
     approvals - per tool: not offered (never used), run without approval, or ask for approval (`<family>ApprovalMode`: writes - the write operations,
-	the default -, all, none, chosen - those of `<family>Approval`; `workflowsApproval`: the workflows that need it, default none). A tool that asks gets an optional argument `reason` (the model's one line for the approver;
+	the default -, all, none, chosen - those of `<family>Approval`; the project's tools the same way: `projectApprovalMode`, `projectApproval`; `workflowsApproval`: the workflows that need it, default none). A tool that asks gets an optional argument `reason` (the model's one line for the approver;
 	`approval_reason` when the tool has a `reason` of its own) and `approval` (what, on what, its main arguments: the task's title) and `check` (its arguments checked without
 	running: a wrong call is not sent for approval). Who approves: `approvalUsers`, `approvalRoles` (as a Human task), `approvalTimeout` / `approvalTimeoutUnit` (none: no time limit).
 	The AI step asks and resumes (models\node\NodeAppAi: askApproval, decided)
@@ -82,8 +82,7 @@ class AgentTools {
     //the value of `<family>Credential` of a family without credential (`credential` => false): the family is used
     const NO_CREDENTIAL = 'use';
 
-    //the AI step's settings of the families and of the workflows
-    const SECTION = 'Integrations';
+    //the AI step's settings of the workflows
     const WORKFLOWS = 'workflows';
     //the settings of a step that are never arguments (the AI step's credential, the step's own handling)
     const NOT_ARGUMENTS = [ 'credential', 'operation', 'params', 'timeout', 'variable', 'onError' ];
@@ -95,8 +94,11 @@ class AgentTools {
     //the AI step's settings of the approvals (section Approvals), the argument the model gives its reason in
     const APPROVALS = 'Approvals';
     const WORKFLOWS_APPROVAL = 'workflowsApproval';
-    //the project's tools, MCP servers' and tool servers' tools: those that change something ask (default), or none do
+    //the MCP servers' and tool servers' tools: those that change something ask (default), or none do
     const TOOLS_APPROVAL = 'toolsApprovalMode';
+    //the project's tools that ask: as a family's (APPROVAL_MODES; chosen: those of PROJECT_APPROVAL)
+    const PROJECT_APPROVAL_MODE = 'projectApprovalMode';
+    const PROJECT_APPROVAL = 'projectApproval';
     const TOOLS_APPROVAL_MODES = [ 'writes' => 'Those that change something', 'none' => 'None: run without' ];
     const REASON = 'reason';
     const REASON_DESCRIPTION = 'Why you do this, in one line: shown to the person who approves it';
@@ -242,8 +244,9 @@ class AgentTools {
     // ------------------------------------------------------------------------------------
     //the AI step's settings
 
-    //the AI step's settings of the families (in the section Integrations; in the designer - $aid given - only the families with a credential in the project): a credential, the
-    //operations (the read ones by default)
+    //the AI step's settings of the families (in the designer - $aid given - only the families with a credential in the project): a credential, the operations (the read
+    //ones by default), which of them ask for approval. The designer's Tools picker shows them (`ui.tools`: the family, the field's role; app.smartform ToolsField)
+    //CLD: 2026-11-28T12:00:00+02:00: in the Tools picker, not a section Integrations of their own
     public static function familyFields($aid, $project) {
 	$fields = [];
 	foreach(self::families() as $key => $fam) {
@@ -255,6 +258,7 @@ class AgentTools {
 	    $creds = $public ? [ self::NO_CREDENTIAL => 'Used (no credential)' ] : ($aid ? self::credentialChoices($key, $aid, $project) : []);
 	    if ($aid && !$creds)
 		continue;
+	    $picker = [ 'source' => $key, 'label' => $fam['label'], 'group' => 'Integrations' ];
 	    $fields[] = [
 		'key' => "{$key}Credential",
 		'type' => 'select',
@@ -262,47 +266,43 @@ class AgentTools {
 		'choices' => $creds,
 		'default' => '',
 		'help' => $public ? 'A public service: the model may use it' : 'The credential the model uses',
-		'ui' => [ 'section' => self::SECTION, 'width' => 4, 'newRow' => true, 'placeholder' => 'Not used' ],
+		'ui' => [ 'placeholder' => 'Not used', 'tools' => $picker + [ 'role' => 'credential', 'public' => $public ] ],
 	    ];
-	    //4 wide: the approvals next to it
 	    $fields[] = [
 		'key' => "{$key}Tools",
 		'type' => 'select',
 		'multiple' => true,
-		'label' => 'Operations',
-		'choices' => array_map(fn($o) => $o['short'] . ($o['writes'] ? ' (changes)' : ''), $ops),
+		'label' => "{$fam['label']}: operations",
+		'choices' => array_map(fn($o) => $o['short'], $ops),
 		'default' => self::readTools($key),
-		'help' => 'Those that read are ticked; those that change something are not',
-		'ui' => [ 'section' => self::SECTION, 'width' => 4, 'placeholder' => 'None', 'showIf' => [ 'key' => "{$key}Credential", 'operator' => 'notEmpty' ] ],
+		'help' => 'Its operations the model may use; at first those that only read',
+		'ui' => [ 'tools' => $picker + [ 'role' => 'use', 'writes' => array_keys(array_filter($ops, fn($o) => $o['writes'])) ] ],
 	    ];
 	    //the operations that wait for a person's approval (the others run without; those not offered are never used): the write ones, all,
-	    //none, or those chosen
+	    //none, or those chosen (the picker's Ask column sets both)
 	    $fields[] = [
 		'key' => "{$key}ApprovalMode",
 		'type' => 'select',
-		'label' => 'Ask for approval',
+		'label' => "{$fam['label']}: ask for approval",
 		'required' => true,
 		'choices' => self::APPROVAL_MODES,
 		'default' => 'writes',
-		'help' => 'Of those offered; the others run without',
-		'ui' => [ 'section' => self::SECTION, 'width' => 4, 'showIf' => [ 'key' => "{$key}Credential", 'operator' => 'notEmpty' ] ],
+		'ui' => [ 'tools' => $picker + [ 'role' => 'mode' ] ],
 	    ];
 	    $fields[] = [
 		'key' => "{$key}Approval",
 		'type' => 'select',
 		'multiple' => true,
-		'label' => 'Ask for approval: these',
+		'label' => "{$fam['label']}: ask for approval: these",
 		'choices' => array_map(fn($o) => $o['short'], $ops),
 		'default' => [],
-		'ui' => [ 'section' => self::SECTION, 'width' => 8, 'placeholder' => 'None', 'newRow' => true,
-		    //both: a credential, Those chosen (a condition holds one key: an expression)
-		    'showIf' => "!!data.{$key}Credential && data.{$key}ApprovalMode === 'chosen'" ],
+		'ui' => [ 'tools' => $picker + [ 'role' => 'chosen' ] ],
 	    ];
 	}
 	return $fields;
     }
 
-    //the Workflows setting: the workflows of the project that start with Called by a workflow (designer)
+    //the Workflows setting: the workflows of the project that start with Called by a workflow (designer; in the Tools picker)
     public static function workflowsField() {
 	return [
 	    'key' => self::WORKFLOWS,
@@ -312,23 +312,44 @@ class AgentTools {
 	    'label' => 'Workflows',
 	    'default' => [],
 	    'help' => 'Workflows that start with Called by a workflow, run as tools',
-	    'ui' => [ 'placeholder' => 'None', 'width' => 6 ],
+	    'ui' => [ 'tools' => [ 'source' => 'workflows', 'label' => 'Workflows', 'group' => 'This project', 'role' => 'use' ] ],
 	];
     }
 
-    //the AI step's settings of the approvals (section Approvals): the workflows that ask, who approves (as a Human task), the time limit
+    //the AI step's settings of the approvals: the project's tools that ask, the MCP and tool servers' rule, the workflows that ask (in the Tools picker); who approves
+    //(as a Human task) and the time limit (section Approvals)
+    //CLD: 2026-11-28T12:00:00+02:00: the project's tools ask per tool (projectApprovalMode / projectApproval, as a family's); Ask for approval of the MCP and tool servers only
     public static function approvalFields() {
+	$project = [ 'source' => 'project', 'label' => 'Project tools', 'group' => 'This project' ];
 	return [
-	    //Use these tools, MCP servers, Tool servers: they have no choice per operation (util\AgentGuard::govern)
+	    [
+		'key' => self::PROJECT_APPROVAL_MODE,
+		'type' => 'select',
+		'label' => 'Project tools: ask for approval',
+		'required' => true,
+		'choices' => self::APPROVAL_MODES,
+		'default' => 'writes',
+		'ui' => [ 'tools' => $project + [ 'role' => 'mode' ] ],
+	    ],
+	    [
+		'key' => self::PROJECT_APPROVAL,
+		'type' => 'select',
+		'multiple' => true,
+		'choices' => array_map(fn($t) => $t['title'] ?? $t['name'], \util\MCPTools::all()),
+		'label' => 'Project tools: ask for approval: these',
+		'default' => [],
+		'ui' => [ 'tools' => $project + [ 'role' => 'chosen' ] ],
+	    ],
+	    //MCP servers, Tool servers: they have no choice per tool (util\AgentGuard::govern)
 	    [
 		'key' => self::TOOLS_APPROVAL,
 		'type' => 'select',
-		'label' => 'Project and MCP tools: ask for approval',
+		'label' => 'MCP and tool servers: ask for approval',
 		'required' => true,
 		'choices' => self::TOOLS_APPROVAL_MODES,
 		'default' => 'writes',
-		'help' => 'Those not marked read-only change something',
-		'ui' => [ 'section' => self::APPROVALS, 'width' => 12 ],
+		'help' => 'Their tools not marked read-only change something',
+		'ui' => [ 'tools' => [ 'source' => 'servers', 'role' => 'serversMode' ] ],
 	    ],
 	    [
 		'key' => self::WORKFLOWS_APPROVAL,
@@ -337,8 +358,7 @@ class AgentTools {
 		'choices' => array_map(fn($w) => $w['name'], \models\node\NodeAppWorkflow::callable()),
 		'label' => 'Workflows that ask for approval',
 		'default' => [],
-		'help' => 'Of Workflows; the others run without',
-		'ui' => [ 'section' => self::APPROVALS, 'placeholder' => 'None', 'width' => 12 ],
+		'ui' => [ 'tools' => [ 'source' => 'workflows', 'role' => 'ask' ] ],
 	    ],
 	    [
 		'key' => 'approvalUsers',
@@ -347,7 +367,7 @@ class AgentTools {
 		'choices' => \models\node\NodeAppTask::memberChoices(),
 		'label' => 'Approvers: users',
 		'default' => [],
-		'ui' => [ 'section' => self::APPROVALS, 'placeholder' => 'None', 'width' => 4, 'newRow' => true ],
+		'ui' => [ 'section' => self::APPROVALS, 'placeholder' => 'None', 'width' => 4 ],
 	    ],
 	    [
 		'key' => 'approvalRoles',

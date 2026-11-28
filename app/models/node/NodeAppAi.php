@@ -19,9 +19,10 @@
 		administrator enabled for the account (hook ai:mcp-servers, localServers()); one session each per run, closed after it
 	    the tool servers are core (util\ToolServers: mcp.json, e.g. the web browser of scripts/playwright-mcp.sh), those enabled for the
 	//account by its owners or the super-admins
-	//qflows's own steps and workflows (util\AgentTools): in the section Integrations, a credential per integration family (`<family>Credential`: GravityZone,
+	//qflows's own steps and workflows (util\AgentTools): a credential per integration family (`<family>Credential`: GravityZone,
 	//FortiGate, ..., a database, Gmail, ...) and the operations the model may use (`<family>Tools`; default: those that only read); Workflows (`workflows`): the project's workflows
 	//that start with Called by a workflow, run as tools
+	//CLD: 2026-11-28T12:00:00+02:00: the designer shows all of them in one Tools picker (app.smartform ToolsField), with each tool's approval
 	//approvals: a tool that asks for approval (util\AgentTools: per operation / workflow) is not run when the model calls it; the calls of that round that
 	//ask are sent in one task (WfTask kind ai-approval: the approvers, a time limit, Approve / Reject for each, a comment), the conversation and the round saved (saveBlob:
 	//GridFS, nothing in memory: a restart of the daemon loses nothing; node `agentWait`: { task, file }) and the step sleeps. When the task is decided (or its time limit
@@ -252,8 +253,13 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	foreach(static::choices('mcp') as $c)
 	    $mcp[$c['value']] = $c['label'];
 	$tools = [];
-	foreach(static::projectTools() as $t)
+	//those not marked read-only change something
+	$writes = [];
+	foreach(static::projectTools() as $t) {
 	    $tools[$t['name']] = $t['title'] . ' (' . $t['name'] . ')';
+	    if (($t['annotations']['readOnlyHint'] ?? false) !== true)
+		$writes[] = $t['name'];
+	}
 	//the installation's tool servers of the account (designer)
 	$servers = [];
 	foreach(static::localServers(\V::app()->config('app.mode') == 'web' ? (\V::app()->config('rt.account')->_id ?? null) : null) as $id => $srv)
@@ -355,6 +361,8 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 		//a condition array (app.smartform evaluates it)
 		'ui' => [ 'rows' => 4, 'showIf' => [ 'key' => 'output', 'operator' => 'eq', 'value' => 'json' ] ],
 	    ],
+	    //CLD: 2026-11-28T12:00:00+02:00: what the model may use - the project's tools, knowledge bases, workflows, integrations, MCP and tool servers - in one Tools picker of the
+	    //designer (`ui.tools`: the source and the field's role; app.smartform ToolsField), the approvals of each there too (util\AgentTools::approvalFields)
 	    [
 		'key' => 'tools',
 		//a `select` field with `multiple` and its choices
@@ -363,33 +371,8 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 		'choices' => $tools,
 		'label' => 'Use these tools',
 		'default' => array_values(array_intersect(self::DEFAULT_TOOLS, array_keys($tools))), //those there are
-		//the tools in a row (tools 6 wide, MCP servers and tool servers 3)
 		'help' => 'What the model may do in this project',
-		'ui' => [ 'placeholder' => 'None', 'width' => 6, 'newRow' => true ],
-	    ],
-	    [
-		'key' => 'mcp',
-		//a `select` field with `multiple` and its choices
-		'type' => 'select',
-		'multiple' => true,
-		'choices' => $mcp,
-		'label' => 'MCP servers',
-		'default' => [],
-		//3 wide
-		'help' => 'The project\'s MCP credentials',
-		'ui' => [ 'placeholder' => 'None', 'width' => 3 ],
-	    ],
-	    //the installation's tool servers (localServers)
-	    [
-		'key' => 'servers',
-		'type' => 'select',
-		'multiple' => true,
-		'choices' => $servers,
-		'label' => 'Tool servers',
-		'default' => [],
-		//3 wide
-		'help' => 'E.g. a web browser',
-		'ui' => [ 'placeholder' => $servers ? 'None' : 'None enabled', 'width' => 3 ],
+		'ui' => [ 'tools' => [ 'source' => 'project', 'label' => 'Project tools', 'group' => 'This project', 'role' => 'use', 'writes' => $writes ] ],
 	    ],
 	    //knowledge bases of the project the model may search (the search_knowledge_base tool: models\kb\KnowledgeBase::search)
 	    [
@@ -399,11 +382,32 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 		'choices' => \models\kb\KnowledgeBase::namesFor(static::designerAccount(), static::designerAccount() ? \V::app()->user->crtProject : null),
 		'label' => 'Knowledge bases',
 		'default' => [],
-		'help' => 'The model searches them when it needs to',
-		'ui' => [ 'placeholder' => 'None', 'width' => 6, 'newRow' => true ],
+		'help' => 'The model searches them when it needs to (one tool: search_knowledge_base)',
+		'ui' => [ 'tools' => [ 'source' => 'knowledge', 'label' => 'Knowledge bases', 'group' => 'This project', 'role' => 'use' ] ],
 	    ],
 	    //the workflows of the project the model may run (util\AgentTools: wf_<name> tools)
 	    \util\AgentTools::workflowsField(),
+	    [
+		'key' => 'mcp',
+		'type' => 'select',
+		'multiple' => true,
+		'choices' => $mcp,
+		'label' => 'MCP servers',
+		'default' => [],
+		'help' => 'The project\'s MCP server credentials: all their tools',
+		'ui' => [ 'tools' => [ 'source' => 'mcp', 'label' => 'MCP servers', 'group' => 'Servers', 'role' => 'use' ] ],
+	    ],
+	    //the installation's tool servers (localServers)
+	    [
+		'key' => 'servers',
+		'type' => 'select',
+		'multiple' => true,
+		'choices' => $servers,
+		'label' => 'Tool servers',
+		'default' => [],
+		'help' => 'Installed with qflows and enabled for the account, e.g. a web browser',
+		'ui' => [ 'tools' => [ 'source' => 'servers', 'label' => 'Tool servers', 'group' => 'Servers', 'role' => 'use' ] ],
+	    ],
 	    [
 		'key' => 'knowledgeResults',
 		'type' => 'number',
@@ -457,8 +461,8 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 		'choices' => self::ON_ERROR,
 		'help' => 'Unreachable, declined, cut off, bad JSON',
 	    ],
-	//the sections Integrations (in the designer, the families with a credential in the project: util\AgentTools), Approvals, Guardrails
-	//(the limits and defences), the conversation and the long-term memory
+	//the families (in the designer, those with a credential in the project: util\AgentTools), the approvals, the sections Approvals, Guardrails (the limits and defences),
+	//Conversation and Memory
 	], \util\AgentMemory::fields(static::designerAccount(), static::designerAccount() ? \V::app()->user->crtProject : null), \util\AgentTools::familyFields(static::designerAccount(), static::designerAccount() ? \V::app()->user->crtProject : null), \util\AgentTools::approvalFields(), \util\AgentGuard::fields(static::isCloud()));
     }
 
@@ -902,11 +906,16 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	//run: fn(args) => [ text, isError, images: [ [ mimeType, data ] ] ]
 	$tools = [];
 	$wanted = array_map('strval', (array)$this->cfg('tools', []));
+	//CLD: 2026-11-28T12:00:00+02:00: `ask`: the tool asks for approval (Project tools: ask for approval, as a family's: those that change something, all, none, those chosen)
+	$mode = (string)$this->cfg(\util\AgentTools::PROJECT_APPROVAL_MODE, 'writes');
+	$chosen = array_map('strval', (array)$this->cfg(\util\AgentTools::PROJECT_APPROVAL, []));
 	foreach(static::projectTools() as $t) {
 	    if (!in_array($t['name'], $wanted, true))
 		continue;
 	    //writes: not marked read-only
-	    $tools[$t['name']] = [ 'name' => $t['name'], 'kind' => 'project', 'title' => $t['title'] ?? $t['name'], 'writes' => ($t['annotations']['readOnlyHint'] ?? false) !== true,
+	    $writes = ($t['annotations']['readOnlyHint'] ?? false) !== true;
+	    $tools[$t['name']] = [ 'name' => $t['name'], 'kind' => 'project', 'title' => $t['title'] ?? $t['name'], 'writes' => $writes,
+		'ask' => match($mode) { 'all' => true, 'none' => false, 'chosen' => in_array($t['name'], $chosen, true), default => $writes },
 		'description' => $t['description'], 'schema' => json_decode(\util\JSON::encode($t['inputSchema'])),
 		'run' => function(array $args) use ($t, $project) {
 		    try {

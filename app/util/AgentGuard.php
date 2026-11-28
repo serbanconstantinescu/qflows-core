@@ -299,8 +299,9 @@ class AgentGuard {
 		continue;
 	    }
 	    $this->access[$name] = $t['writes'] ? 'write' : 'read';
-	    //the project's and MCP tools that change something ask by default (setting Project and MCP tools: ask for approval); `ask`: the tool's own setting (Remember asks for approval)
-	    $must = $t['writes'] && (!empty($t['ask']) || $this->policy->needsApproval() || (in_array($t['kind'] ?? '', [ 'project', 'mcp' ], true) && (string)$this->step->cfg(AgentTools::TOOLS_APPROVAL, 'writes') !== 'none'));
+	    //CLD: 2026-11-28T12:00:00+02:00: `ask`: the tool's own setting (the project's tools: Project tools: ask for approval; Remember asks for approval), a read one too; the MCP
+	    //and tool servers' tools that change something ask by default (MCP and tool servers: ask for approval); the policy: every one that changes something
+	    $must = !empty($t['ask']) || ($t['writes'] && ($this->policy->needsApproval() || (($t['kind'] ?? '') === 'mcp' && (string)$this->step->cfg(AgentTools::TOOLS_APPROVAL, 'writes') !== 'none')));
 	    if (empty($t['approval']) && ($must || ($t['writes'] && $lockdown))) {
 		$t = self::askable($t);
 		if ($must)

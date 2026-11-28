@@ -170,14 +170,23 @@ class AgentPolicy extends \sys\BaseModel {
 		    $errors[] = "{$fam['label']}: Ask for approval must cover the operations that change something: they always need approval, {$why}";
 	    }
 	}
+	//CLD: 2026-11-28T12:00:00+02:00: the project's tools that change something ask (as a family's), the MCP and tool servers' setting
+	$projectWrites = [];
 	foreach((array)$step->cfg('tools', []) as $name) {
 	    $t = \util\MCPTools::all()[(string)$name] ?? null;
-	    if ($t && ($t['annotations']['readOnlyHint'] ?? false) !== true && !$policy->writeAllowed((string)$name, 'project'))
-		$errors[] = "Use these tools: agents may not use `{$name}` (it changes something), {$why}";
+	    if ($t && ($t['annotations']['readOnlyHint'] ?? false) !== true) {
+		$projectWrites[] = (string)$name;
+		if (!$policy->writeAllowed((string)$name, 'project'))
+		    $errors[] = "Use these tools: agents may not use `{$name}` (it changes something), {$why}";
+	    }
 	}
-	//the setting of the project's and MCP tools
-	if ($policy->needsApproval() && (string)$step->cfg(\util\AgentTools::TOOLS_APPROVAL, 'writes') === 'none')
-	    $errors[] = "Project and MCP tools: ask for approval: those that change something always need approval, {$why}";
+	if ($policy->needsApproval() && $projectWrites) {
+	    $mode = (string)$step->cfg(\util\AgentTools::PROJECT_APPROVAL_MODE, 'writes');
+	    if ($mode === 'none' || ($mode === 'chosen' && array_diff($projectWrites, array_map('strval', (array)$step->cfg(\util\AgentTools::PROJECT_APPROVAL, [])))))
+		$errors[] = "Project tools: ask for approval must cover those that change something: they always need approval, {$why}";
+	}
+	if ($policy->needsApproval() && ($step->cfg('mcp', []) || $step->cfg('servers', [])) && (string)$step->cfg(\util\AgentTools::TOOLS_APPROVAL, 'writes') === 'none')
+	    $errors[] = "MCP and tool servers: ask for approval: those that change something always need approval, {$why}";
 	$workflows = array_map('strval', (array)$step->cfg(\util\AgentTools::WORKFLOWS, []));
 	if ($workflows) {
 	    if (!$policy->writeAllowed('', 'workflow'))

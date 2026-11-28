@@ -84,6 +84,7 @@ if (!window.app)
  * Type "emaildesigner": its value is an email of blocks ({ preheader, blocks }, models\EmailBlocks) edited with app.EmailDesigner (Send Email step)
  * CLD: 2026-11-22T12:00:00+02:00: type "pdfdesigner": its value is a PDF document ({ page, header, body, footer, sample }, models\PdfDesign) edited with app.PdfDesigner
  * (PDF document step)
+ * CLD: 2026-11-28T12:00:00+02:00: type "tools": the AI steps' Tools picker over the fields of `owns` (ToolsField); no key of its own, the data holds theirs
  */
 
 window.app.smartform = (function() {
@@ -1968,6 +1969,431 @@ window.app.smartform = (function() {
 	}
     }
 
+    //CLD: 2026-11-28T12:00:00+02:00: the AI steps' Tools picker: one field over the settings marked `tools` (`owns`: their schemas, each with
+    //`tools`: { source, label, group, role, writes, public }; app.Workflow.showEditor gathers them). The sources on the left (This project: the project's tools, knowledge
+    //bases, workflows; Integrations: a credential each; Servers: MCP servers, tool servers), the chosen one's tools on the right: Use and Ask (for approval) per tool.
+    //Roles: use (a multiple select: the tools used), credential (a family's: '' not used), mode + chosen (Ask as a family's: writes, all, none, chosen - those of chosen; the
+    //picker writes the shortest that says it), ask (a list of those used that ask: workflows), serversMode (MCP and tool servers: writes / none).
+    //The form's data holds the owned keys as they are (SmartForm: ownsKey, ownedValues, setOwned); the field has no key of its own
+    class ToolsField extends FieldBase {
+	constructor(schema, api) {
+	    super(schema, api);
+	    this.owned = {};
+	    this.values = {};
+	    this.sources = {};
+	    this.order = [];
+	    this.current = null;
+	    this.filter = '';
+	    (schema.owns || []).forEach((f) => {
+		const t = f.tools || {};
+		this.owned[f.key] = f;
+		this.values[f.key] = this._copy(f.default !== undefined ? f.default : (f.multiple ? [] : ''));
+		if (t.role === 'serversMode') {
+		    this.serversMode = f;
+		    return;
+		}
+		if (!this.sources[t.source]) {
+		    this.sources[t.source] = { id: t.source, label: t.label || t.source, group: t.group || '', fields: {}, writes: [], isPublic: false };
+		    this.order.push(t.source);
+		}
+		const s = this.sources[t.source];
+		if (t.label)
+		    s.label = t.label;
+		if (t.group)
+		    s.group = t.group;
+		s.fields[t.role] = f;
+		if (t.role === 'use') {
+		    s.writes = Array.isArray(t.writes) ? t.writes.map(String) : [];
+		    s.help = f.helpText || '';
+		}
+		if (t.role === 'credential')
+		    s.isPublic = !!t.public;
+	    });
+	    //a source without a use field (e.g. only an approval setting) is not shown
+	    this.order = this.order.filter((id) => this.sources[id].fields.use);
+	    const groups = [ 'This project', 'Integrations', 'Servers' ];
+	    const rank = (s) => { const i = groups.indexOf(s.group); return i < 0 ? groups.length : i; };
+	    this.order.sort((a, b) => rank(this.sources[a]) - rank(this.sources[b]));
+	    this.current = this.order[0] || null;
+	}
+
+	_copy(v) {
+	    return v === undefined ? undefined : JSON.parse(JSON.stringify(v));
+	}
+
+	getEmptyValue() {
+	    return undefined;
+	}
+
+	getValue() {
+	    return undefined;
+	}
+
+	ownsKey(key) {
+	    return Object.prototype.hasOwnProperty.call(this.owned, key);
+	}
+
+	ownedValues() {
+	    return this._copy(this.values);
+	}
+
+	setOwned(key, value) {
+	    const f = this.owned[key];
+	    this.values[key] = value === undefined || value === null ? (f.multiple ? [] : '') : this._copy(value);
+	    if (this.el)
+		this._refresh();
+	}
+
+	//the value of a key, as a list (multiple) or text
+	_list(key) {
+	    const v = this.values[key];
+	    return Array.isArray(v) ? v.map(String) : [];
+	}
+
+	_set(key, value) {
+	    this.values[key] = value;
+	    this.api.onChange(key, this._copy(value));
+	}
+
+	// ---- a source's state
+
+	//the tools of source $s: [ { value, label, writes } ]
+	_items(s) {
+	    return normalizeChoices(s.fields.use.choices).map((c) => ({ value: c.value, label: c.label, writes: s.id === 'workflows' || s.writes.includes(c.value) }));
+	}
+
+	//an integration with no credential chosen: its tools are not offered
+	_off(s) {
+	    return !!s.fields.credential && !this.values[s.fields.credential.key];
+	}
+
+	_used(s) {
+	    return this._list(s.fields.use.key);
+	}
+
+	_hasAsk(s) {
+	    return !!(s.fields.mode || s.fields.ask);
+	}
+
+	//the tools of $s that ask for approval (of those used)
+	_asking(s) {
+	    const used = this._used(s);
+	    if (s.fields.ask)
+		return this._list(s.fields.ask.key).filter((v) => used.includes(v));
+	    if (!s.fields.mode)
+		return [];
+	    const mode = String(this.values[s.fields.mode.key] || 'writes');
+	    const chosen = s.fields.chosen ? this._list(s.fields.chosen.key) : [];
+	    return used.filter((v) => mode === 'all' || (mode === 'chosen' && chosen.includes(v)) || (mode === 'writes' && s.writes.includes(v)));
+	}
+
+	//the tools of $s that ask: written as the shortest setting that says it (writes, all, none, else chosen)
+	_writeAsking(s, asking) {
+	    const used = this._used(s);
+	    const ask = asking.filter((v) => used.includes(v));
+	    if (s.fields.ask) {
+		this._set(s.fields.ask.key, ask);
+		return;
+	    }
+	    const same = (a, b) => a.length === b.length && a.every((v) => b.includes(v));
+	    const writes = used.filter((v) => s.writes.includes(v));
+	    let mode = 'chosen';
+	    if (same(ask, writes))
+		mode = 'writes';
+	    else if (ask.length === used.length)
+		mode = 'all';
+	    else if (!ask.length)
+		mode = 'none';
+	    this._set(s.fields.mode.key, mode);
+	    if (s.fields.chosen)
+		this._set(s.fields.chosen.key, mode === 'chosen' ? ask : []);
+	}
+
+	//the tools of $s used: $used; a tool newly used that changes something asks
+	_writeUsed(s, used) {
+	    const before = this._used(s);
+	    const asking = this._asking(s);
+	    this._set(s.fields.use.key, used);
+	    if (!this._hasAsk(s))
+		return;
+	    const items = this._items(s);
+	    const added = used.filter((v) => !before.includes(v) && (items.find((i) => i.value === v) || {}).writes);
+	    this._writeAsking(s, asking.concat(added));
+	}
+
+	// ---- rendering
+
+	render() {
+	    const wrapper = document.createElement('div');
+	    wrapper.className = 'field-wrapper mb-3';
+	    wrapper.dataset.type = 'tools';
+	    this.el = wrapper;
+	    const label = document.createElement('div');
+	    label.className = 'form-label';
+	    label.textContent = this.label();
+	    this.labelEl = label;
+	    wrapper.appendChild(label);
+
+	    const box = document.createElement('div');
+	    box.className = 'border rounded d-flex overflow-hidden';
+	    box.style.height = '17rem';
+	    this.listEl = document.createElement('div');
+	    this.listEl.className = 'list-group list-group-flush border-end overflow-auto flex-shrink-0 small';
+	    this.listEl.style.width = '15rem';
+	    this.paneEl = document.createElement('div');
+	    this.paneEl.className = 'd-flex flex-column flex-grow-1';
+	    this.paneEl.style.minWidth = '0';
+	    box.append(this.listEl, this.paneEl);
+	    wrapper.appendChild(box);
+	    if (this.schema.helpText) {
+		const help = document.createElement('div');
+		help.className = 'form-text';
+		help.textContent = this.schema.helpText;
+		wrapper.appendChild(help);
+	    }
+	    this._renderList();
+	    this._renderPane();
+	    return wrapper;
+	}
+
+	_refresh() {
+	    this._renderList();
+	    this._renderPane();
+	}
+
+	_applyEditableState() {
+	    if (this.el)
+		this._refresh();
+	}
+
+	_reflectValue() {
+	}
+
+	validate() {
+	    return true;
+	}
+
+	//the sources, by group: their name and how many of their tools are used ('–' none; an integration: its credential's name)
+	_renderList() {
+	    this.listEl.innerHTML = '';
+	    let group = null;
+	    this.order.forEach((id) => {
+		const s = this.sources[id];
+		if (s.group !== group) {
+		    group = s.group;
+		    const h = document.createElement('div');
+		    h.className = 'px-3 pt-2 pb-1 text-body-secondary text-uppercase fw-semibold';
+		    h.style.fontSize = '.7rem';
+		    h.textContent = group;
+		    this.listEl.appendChild(h);
+		}
+		const n = this._off(s) ? 0 : this._used(s).length;
+		const b = document.createElement('button');
+		b.type = 'button';
+		b.className = 'list-group-item list-group-item-action d-flex align-items-center gap-2 py-1 px-3' + (id === this.current ? ' active' : '');
+		const name = document.createElement('span');
+		name.className = 'text-truncate flex-grow-1';
+		name.textContent = s.label;
+		const cred = s.fields.credential && !s.isPublic ? normalizeChoices(s.fields.credential.choices).find((c) => c.value === String(this.values[s.fields.credential.key] || '')) : null;
+		if (cred) {
+		    const c = document.createElement('span');
+		    c.className = id === this.current ? '' : 'text-body-secondary';
+		    c.textContent = ' · ' + cred.label;
+		    name.appendChild(c);
+		}
+		const count = document.createElement('span');
+		count.className = 'badge rounded-pill ' + (n ? 'text-bg-primary' : 'text-bg-light border text-body-secondary');
+		count.textContent = n ? String(n) : '–';
+		b.append(name, count);
+		b.addEventListener('click', () => {
+		    this.current = id;
+		    this.filter = '';
+		    this._refresh();
+		});
+		this.listEl.appendChild(b);
+	    });
+	}
+
+	//the chosen source: its name and help, its credential (an integration), All / Read only / None, a filter, then its tools
+	_renderPane() {
+	    this.paneEl.innerHTML = '';
+	    const s = this.sources[this.current];
+	    if (!s)
+		return;
+	    const editable = this.isEditable();
+	    const head = document.createElement('div');
+	    head.className = 'd-flex flex-wrap align-items-center gap-2 px-3 py-2 border-bottom';
+	    const title = document.createElement('div');
+	    title.className = 'me-auto';
+	    title.innerHTML = '<div class="fw-semibold"></div><div class="small text-body-secondary"></div>';
+	    title.children[0].textContent = s.label;
+	    title.children[1].textContent = s.help || '';
+	    head.appendChild(title);
+
+	    //an integration: its credential (a public service: used or not)
+	    if (s.fields.credential) {
+		const cf = s.fields.credential;
+		if (s.isPublic) {
+		    const sw = document.createElement('div');
+		    sw.className = 'form-check form-switch mb-0';
+		    sw.innerHTML = '<input class="form-check-input" type="checkbox" role="switch"><label class="form-check-label small">Used</label>';
+		    const input = sw.querySelector('input');
+		    input.id = app.utils.uid('tools');
+		    sw.querySelector('label').htmlFor = input.id;
+		    input.checked = !!this.values[cf.key];
+		    input.disabled = !editable;
+		    input.addEventListener('change', () => {
+			this._set(cf.key, input.checked ? normalizeChoices(cf.choices)[0].value : '');
+			this._refresh();
+		    });
+		    head.appendChild(sw);
+		} else {
+		    const sel = document.createElement('select');
+		    sel.className = 'form-select form-select-sm w-auto';
+		    sel.setAttribute('aria-label', 'Credential');
+		    [ { value: '', label: 'Not used' } ].concat(normalizeChoices(cf.choices)).forEach((c) => {
+			const o = document.createElement('option');
+			o.value = c.value;
+			o.textContent = c.label;
+			sel.appendChild(o);
+		    });
+		    sel.value = String(this.values[cf.key] || '');
+		    sel.disabled = !editable;
+		    sel.addEventListener('change', () => {
+			this._set(cf.key, sel.value);
+			this._refresh();
+		    });
+		    head.appendChild(sel);
+		}
+	    }
+	    //MCP and tool servers: one approval setting for both
+	    if ((s.id === 'mcp' || s.id === 'servers') && this.serversMode) {
+		const f = this.serversMode;
+		const wrap = document.createElement('label');
+		wrap.className = 'd-flex align-items-center gap-2 small mb-0';
+		wrap.title = f.helpText || '';
+		wrap.innerHTML = '<span class="text-nowrap">Ask for approval</span>';
+		const sel = document.createElement('select');
+		sel.className = 'form-select form-select-sm w-auto';
+		normalizeChoices(f.choices).forEach((c) => {
+		    const o = document.createElement('option');
+		    o.value = c.value;
+		    o.textContent = c.label;
+		    sel.appendChild(o);
+		});
+		sel.value = String(this.values[f.key] || 'writes');
+		sel.disabled = !editable;
+		sel.addEventListener('change', () => this._set(f.key, sel.value));
+		wrap.appendChild(sel);
+		head.appendChild(wrap);
+	    }
+	    const items = this._items(s);
+	    const off = this._off(s);
+	    if (!off && items.length) {
+		const btns = document.createElement('div');
+		btns.className = 'btn-group btn-group-sm';
+		const quick = [ [ 'All', () => items.map((i) => i.value) ], [ 'None', () => [] ] ];
+		if (s.writes.length && s.id !== 'workflows')
+		    quick.splice(0, 0, [ 'Read only', () => items.filter((i) => !i.writes).map((i) => i.value) ]);
+		quick.forEach(([ text, pick ]) => {
+		    const b = document.createElement('button');
+		    b.type = 'button';
+		    b.className = 'btn btn-outline-info';
+		    b.textContent = text;
+		    b.disabled = !editable;
+		    b.addEventListener('click', () => {
+			this._writeUsed(s, pick());
+			this._renderList();
+			this._renderRows(s);
+		    });
+		    btns.appendChild(b);
+		});
+		head.appendChild(btns);
+	    }
+	    if (!off && items.length > 8) {
+		const q = document.createElement('input');
+		q.type = 'search';
+		q.className = 'form-control form-control-sm w-auto';
+		q.placeholder = 'Filter';
+		q.value = this.filter;
+		q.addEventListener('input', () => {
+		    this.filter = q.value;
+		    this._renderRows(s);
+		});
+		head.appendChild(q);
+	    }
+	    this.paneEl.appendChild(head);
+	    this.rowsEl = document.createElement('div');
+	    this.rowsEl.className = 'flex-grow-1 overflow-auto';
+	    this.paneEl.appendChild(this.rowsEl);
+	    this._renderRows(s);
+	}
+
+	_renderRows(s) {
+	    const scroll = this.rowsEl.scrollTop;
+	    this.rowsEl.innerHTML = '';
+	    const empty = (text) => {
+		const p = document.createElement('div');
+		p.className = 'p-3 small text-body-secondary';
+		p.textContent = text;
+		this.rowsEl.appendChild(p);
+	    };
+	    if (this._off(s))
+		return empty(s.isPublic ? 'Switch it on to offer its operations.' : 'Choose a credential to offer its operations.');
+	    const items = this._items(s);
+	    if (!items.length)
+		return empty({ knowledge: 'No knowledge bases in this project.', workflows: 'No workflow of this project starts with Called by a workflow.',
+		    mcp: 'No MCP server credentials in this project.', servers: 'No tool servers enabled for this account.' }[s.id] || 'None.');
+	    const editable = this.isEditable();
+	    const hasAsk = this._hasAsk(s);
+	    const used = this._used(s);
+	    const asking = this._asking(s);
+	    const q = this.filter.trim().toLowerCase();
+	    const table = document.createElement('table');
+	    table.className = 'table table-sm table-hover align-middle small mb-0';
+	    table.innerHTML = '<thead class="sticky-top"><tr><th class="ps-3" style="width:3.5rem">Use</th>' + (hasAsk ? '<th style="width:3.5rem" title="Ask a person for approval before it runs">Ask</th>' : '')
+		+ '<th>' + (s.fields.credential ? 'Operation' : (s.id === 'workflows' ? 'Workflow' : (s.id === 'project' ? 'Tool' : 'Name'))) + '</th><th style="width:6rem"></th></tr></thead><tbody></tbody>';
+	    const body = table.querySelector('tbody');
+	    items.filter((i) => !q || i.label.toLowerCase().includes(q) || i.value.toLowerCase().includes(q)).forEach((i) => {
+		const tr = document.createElement('tr');
+		const isUsed = used.includes(i.value);
+		const box = (checked, disabled, title, onChange) => {
+		    const td = document.createElement('td');
+		    const input = document.createElement('input');
+		    input.type = 'checkbox';
+		    input.className = 'form-check-input m-0';
+		    input.checked = checked;
+		    input.disabled = disabled;
+		    input.setAttribute('aria-label', title + ': ' + i.label);
+		    input.addEventListener('change', () => onChange(input.checked));
+		    td.appendChild(input);
+		    return td;
+		};
+		const useTd = box(isUsed, !editable, 'Use', (on) => {
+		    this._writeUsed(s, on ? used.concat([ i.value ]) : used.filter((v) => v !== i.value));
+		    this._renderList();
+		    this._renderRows(s);
+		});
+		useTd.className = 'ps-3';
+		tr.appendChild(useTd);
+		if (hasAsk)
+		    tr.appendChild(box(isUsed && asking.includes(i.value), !editable || !isUsed, 'Ask for approval', (on) => {
+			this._writeAsking(s, on ? asking.concat([ i.value ]) : asking.filter((v) => v !== i.value));
+			this._renderRows(s);
+		    }));
+		const name = document.createElement('td');
+		name.textContent = i.label;
+		const kind = document.createElement('td');
+		if (s.fields.credential || s.id === 'project')
+		    kind.innerHTML = i.writes ? '<span class="badge bg-warning-subtle border border-warning-subtle text-warning-emphasis">changes</span>' : '<span class="badge text-bg-light border text-body-secondary">reads</span>';
+		tr.append(name, kind);
+		body.appendChild(tr);
+	    });
+	    this.rowsEl.appendChild(table);
+	    this.rowsEl.scrollTop = scroll;
+	}
+    }
+
     /*!
      * FormRenderer - the orchestrator. Ties together FieldBase subclasses and
      * the "columns" layout helper to render a JSON schema into a live Bootstrap 5
@@ -2113,7 +2539,10 @@ window.app.smartform = (function() {
 
 	_collectInitialData(fieldList) {
     	    fieldList.forEach((f) => {
-    		if (f.key) this.data[f.key] = f.getValue();
+		//a field over other keys (ToolsField): their values
+		if (f.ownedValues)
+		    Object.assign(this.data, f.ownedValues());
+    		else if (f.key) this.data[f.key] = f.getValue();
     	    });
 	}
 
@@ -2158,6 +2587,12 @@ window.app.smartform = (function() {
     	    Object.keys(values || {}).forEach((key) => {
     		const field = this.fields.find((f) => f.key === key);
     		if (field) field.setValue(values[key], true);
+		//a key of a field over several (ToolsField)
+		else {
+		    const owner = this.fields.find((f) => f.ownsKey && f.ownsKey(key));
+		    if (owner)
+			owner.setOwned(key, values[key]);
+		}
     		    this.data[key] = values[key];
     	    });
     	    this.recomputeVisibility();
@@ -2194,6 +2629,8 @@ window.app.smartform = (function() {
 	//the email designer (Send Email step)
 	'emaildesigner': DesignerField,
 	'pdfdesigner': DesignerField,
+	//the AI steps' Tools picker (ToolsField)
+	'tools': ToolsField,
     };
 
     function createField(schema, api) {

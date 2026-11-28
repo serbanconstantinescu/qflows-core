@@ -1724,6 +1724,15 @@ window.app.Workflow = (function() {
 	    //  then the step's own settings, in their order and widths (`newRow`: a field starts a line)
 	    //  last row: the step's limits (`limit`: max size, max results, ...; 3 wide each, in their order), then Timeout (`timeout`, a number, 3)
 	    const own = configSchema.map((f) => Object.assign({}, f));
+	    //CLD: 2026-11-28T12:00:00+02:00: the settings of what an AI step may use (`tools`: util\AgentTools, NodeAppAi) are one Tools picker (app.smartform ToolsField),
+	    //where the first of them was
+	    const toolFields = own.filter((f) => f.tools);
+	    if (toolFields.length) {
+		const at = own.indexOf(toolFields[0]);
+		own.splice(at, 0, { type: 'tools', label: 'Tools', owns: toolFields, newRow: true,
+		    helpText: 'What the model may use; Ask: a person approves each call first (Approvals… says who)' });
+		toolFields.forEach((f) => own.splice(own.indexOf(f), 1));
+	    }
 	    const take = (test) => {
 		const i = own.findIndex(test);
 		return i < 0 ? null : own.splice(i, 1)[0];

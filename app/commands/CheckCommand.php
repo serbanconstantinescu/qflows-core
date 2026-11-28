@@ -4070,7 +4070,7 @@ class CheckCommand extends \sys\BaseController {
 	    $this->check('agent guard: policy over a saved step: writes need approval: Ask for approval None does not hold, the call waits', [ 'sleep', 'open', false ], [ $exe?->state, $task?->state, $blocked('192.0.2.6') ]);
 	    $exe?->kill('check');
 	    //the project's tools and MCP servers: not marked read-only: writes
-	    $exe = $startSaved('lemonade', [ [ [ 'insert_rows', [ 'table' => 'x', 'rows' => [] ] ] ] ], [ 'tools' => [ 'insert_rows', 'list_tables' ], 'fortigateCredential' => '', 'toolsApprovalMode' => 'none' ], fn() => $policy([ 'writes_need_approval' => true ]));
+	    $exe = $startSaved('lemonade', [ [ [ 'insert_rows', [ 'table' => 'x', 'rows' => [] ] ] ] ], [ 'tools' => [ 'insert_rows', 'list_tables' ], 'fortigateCredential' => '', 'projectApprovalMode' => 'none' ], fn() => $policy([ 'writes_need_approval' => true ]));
 	    $task = $taskOf($exe);
 	    $policy([]);
 	    $this->check('agent guard: policy: a project tool that changes something waits, even with its setting at None', [ 'sleep', [ 'insert_rows' ] ], [ $exe?->state, array_column((array)$task?->calls, 'tool') ]);
@@ -4101,7 +4101,7 @@ class CheckCommand extends \sys\BaseController {
 	    $exe = $start('lemonade', [ [ [ 'chk_click', [] ] ] ], [ 'servers' => [ 'chk' ], 'fortigateCredential' => '', 'toolsApprovalMode' => 'none' ]);
 	    $policy([]);
 	    $this->check('agent guard: policy: tools of a tool server: marked read-only: reads; not marked: writes, none / those chosen apply', [ [ [ 'look' ], 'error' ], [ 'click' ] ], [ $none, $mcp->calls ]);
-	    //by default the project's and MCP tools that change something ask; read-only ones run; None: as before
+	    //by default the project's and the servers' tools that change something ask; read-only ones run; None: as before
 	    $mcp->calls = [];
 	    $exe = $start('lemonade', [ [ [ 'chk_look', [] ], [ 'chk_click', [ 'reason' => 'needed' ] ] ] ], [ 'servers' => [ 'chk' ], 'fortigateCredential' => '' ]);
 	    $task = $taskOf($exe);
@@ -4114,11 +4114,12 @@ class CheckCommand extends \sys\BaseController {
 	    $exe?->kill('check');
 	    $mcp->calls = [];
 	    $exe = $start('lemonade', [ [ [ 'chk_click', [] ] ] ], [ 'servers' => [ 'chk' ], 'fortigateCredential' => '', 'toolsApprovalMode' => 'none' ]);
-	    $this->check('agent guard: Project and MCP tools: None: it runs without approval', [ 'end', [ 'click' ], 0 ], [ $exe?->state, $mcp->calls, $om->count('WfTask', [ 'execution' => $exe?->_id ]) ]);
+	    $this->check('agent guard: MCP and tool servers: None: it runs without approval', [ 'end', [ 'click' ], 0 ], [ $exe?->state, $mcp->calls, $om->count('WfTask', [ 'execution' => $exe?->_id ]) ]);
 	    $policy([ 'writes_need_approval' => true ]);
-	    $noneRefused = $errorsOf('lemonade', [ 'fortigateTools' => [ 'fgt_addresses_list' ], 'toolsApprovalMode' => 'none' ]);
+	    $noneRefused = $errorsOf('lemonade', [ 'fortigateTools' => [ 'fgt_addresses_list' ], 'servers' => [ 'chk' ], 'toolsApprovalMode' => 'none' ]);
+	    $projectNoneRefused = $errorsOf('lemonade', [ 'fortigateTools' => [ 'fgt_addresses_list' ], 'tools' => [ 'insert_rows' ], 'projectApprovalMode' => 'none' ]);
 	    $policy([]);
-	    $this->check('agent guard: the policy\'s approval: None on the project and MCP tools is refused, says why', true, str_contains($noneRefused, 'those that change something always need approval'));
+	    $this->check('agent guard: the policy\'s approval: None on the MCP and tool servers, None on the project tools: refused, says why', [ true, true ], [ str_contains($noneRefused, 'those that change something always need approval'), str_contains($projectNoneRefused, 'they always need approval') ]);
 
 	    // ---- the monthly budget
 	    $usage = fn() => \models\agent\AgentUsage::spent($account->_id);
@@ -5001,7 +5002,7 @@ class CheckCommand extends \sys\BaseController {
 
 	    //a step that reads and a step that writes; a request to the fake server (does not run in a test) before it
 	    $step = fn(array $script, array $more = []) => $more + [ 'credential' => (string)$claude->_id, 'model' => 'claude-check', 'prompt' => "Handle it\nSCRIPT: " . json_encode($script), 'tools' => [ 'query_table', 'insert_rows' ], 'mcp' => [],
-		'toolsApprovalMode' => 'none', 'maxRounds' => 6, 'onError' => 'output', 'timeout' => 20 ];
+		'projectApprovalMode' => 'none', 'maxRounds' => 6, 'onError' => 'output', 'timeout' => 20 ];
 	    $readWrite = [ [ [ 'query_table', [ 'table' => $table ] ], [ 'insert_rows', [ 'table' => $table, 'rows' => [ [ 'title' => 'written' ] ] ] ] ] ];
 	    $flow = fn(array $script, array $more = []) => [ $n('m', 'trigger::manual'), $n('h', 'app::http', [ 'method' => 'GET', 'url' => "{$ai}/kb/page", 'variable' => 'page' ]), $n('s', 'app::claude', $step($script, $more)),
 		$n('after', 'app::set', [ 'variable' => 'seen', 'value' => '{{ page.status }}' ]), $e('e1', 'm', 'h'), $e('e2', 'h', 's'), $e('e3', 's', 'after', 0), $e('e4', 's', 'after', 1) ];
@@ -5071,7 +5072,7 @@ class CheckCommand extends \sys\BaseController {
 	    $this->check('agent eval: real read tools: a write with a recording gets it, and still does not run', [ true, $count ], [ str_contains((string)$real['cases'][0]['answer'], 'inserted') && str_contains((string)$real['cases'][0]['answer'], '99'), count($rows()) ]);
 
 	    // ---- nothing asks, nothing waits
-	    $asking = $this->workflow('eval approvals', [ $n('m', 'trigger::manual'), $n('w', 'app::wait', [ 'amount' => 5, 'unit' => 'hours' ]), $n('s', 'app::claude', $step($readWrite, [ 'toolsApprovalMode' => 'writes' ])), $e('e1', 'm', 'w'), $e('e2', 'w', 's') ]);
+	    $asking = $this->workflow('eval approvals', [ $n('m', 'trigger::manual'), $n('w', 'app::wait', [ 'amount' => 5, 'unit' => 'hours' ]), $n('s', 'app::claude', $step($readWrite, [ 'projectApprovalMode' => 'writes' ])), $e('e1', 'm', 'w'), $e('e2', 'w', 's') ]);
 	    $asking->save();
 	    $this->created[] = $asking->_id;
 	    $handCase = function($wf, array $fields) use ($om, $account, $project) {
