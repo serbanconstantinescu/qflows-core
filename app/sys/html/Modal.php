@@ -19,6 +19,8 @@ class Modal extends \sys\BaseObject {
 	parent::__construct($config);
     }
 
+    //CLD: 2026-11-28T18:00:00+02:00: the title an h5 and the footer without its own padding, as the dialogs built in JS (app.workflow.js, app.js); the theme
+    //pads header, body and footer .5rem (_bootstrap-variables.scss: $modal-inner-padding)
     public function render() {
 	$tpl = '
 	<div id="{:id}" class="modal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
@@ -26,13 +28,13 @@ class Modal extends \sys\BaseObject {
 		<div class="modal-content">
 		    {:before-content}
 		    <div class="modal-header">
-			<div class="modal-title fs-5">{:title}</div>
+			<h5 class="modal-title">{:title}</h5>
 			<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 		    </div>
 		    <div class="modal-body">
 			{:body}
 		    </div>
-		    <div class="modal-footer p-2">
+		    <div class="modal-footer">
 			{:footer}
 		    </div>
 		    {:after-content}

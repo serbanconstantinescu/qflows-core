@@ -1822,7 +1822,7 @@ window.app.Workflow = (function() {
 		    n.style.cssText += 'display:flex; flex-direction:column; flex:1 1 auto; min-height:0';
 		    n.style.setProperty('margin-bottom', '0', 'important');
 		});
-		designerField.el.querySelectorAll(':scope > .invalid-feedback, :scope > .form-text').forEach((n) => n.classList.add('px-3'));
+		designerField.el.querySelectorAll(':scope > .invalid-feedback, :scope > .form-text').forEach((n) => n.classList.add('px-2'));
 		designerField.designer.o.fill = true;
 		//the PDF designer's preview (WorkflowController::pdf_preview)
 		designerField.designer.o.previewUrl = this.options.pdfPreviewUrl || null;
