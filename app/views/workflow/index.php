@@ -24,6 +24,9 @@ $runUrl = \V::app()->createUrl('/workflow/start', [ 'id' => $wf->_id ]);
 $runTriggers = \util\JSON::encode(array_keys(array_filter(\models\wf\WfNode::getAll(), fn($d) => $d['type'] === 'trigger' && !empty($d['canRun']))));
 $executionsUrl = \V::app()->createUrl('/workflow/executions', [ 'id' => $wf->_id ]);
 $saveUrl = \V::app()->createUrl('/workflow/save', [ 'id' => $wf->_id ]);
+//CLD: 2026-11-28T10:00:00Z: the draft's revision this page starts from (autosave sends it: WorkflowController::save), its last save asked when another one saved it (draft_state)
+$draftRev = (int)$wf->draft_rev;
+$draftStateUrl = \V::app()->createUrl('/workflow/draft_state', [ 'id' => $wf->_id ]);
 $wfIdJs = (string)$wf->_id;
 $executionUrl = \V::app()->createUrl('/workflow/execution', [ 'id' => $wf->_id ]);
 $executionDeleteUrl = \V::app()->createUrl('/workflow/execution_delete', [ 'id' => $wf->_id ]);
@@ -177,9 +180,16 @@ $stepIssuesUrl = \V::app()->createUrl('/workflow/step_issues', array_filter([ 'i
     //autosave: each new state of the canvas (app.workflow.js onCommit: every change, undo / redo too) is saved (WorkflowController::save), one request at a
     //time, the latest state waiting; the server's configs come back on the canvas (applySaved), its problems in the badges; a failed save is tried again (RETRY ms, or a
     //click on the status). whenSaved(fn): fn once nothing is waiting (Run, Publish, Duplicate use the saved draft)
+    //CLD: 2026-11-28T10:00:00Z: each save sends the draft's revision it started from (rev); refused because another one saved since (409 conflict): autosave pauses, the banner
+    //asks Reload theirs / Keep mine (force). Another one's save told by the live events (workflow::saved: remote()): the banner offers Reload; checked after a save of
+    //this page's that was on its way (it may be this one's own)
     const autosave = {
 	url: '{$saveUrl}',
 	RETRY: 10000,
+	rev: {$draftRev},
+	remoteRev: {$draftRev},
+	conflict: null,
+	force: false,
 	sending: null,
 	queued: null,
 	error: null,
@@ -205,7 +215,7 @@ $stepIssuesUrl = \V::app()->createUrl('/workflow/step_issues', array_filter([ 'i
 	send() {
 	    clearTimeout(this.retryTimer);
 	    this.retryTimer = null;
-	    if (this.sending !== null || this.queued === null) {
+	    if (this.sending !== null || this.queued === null || this.conflict !== null) {
 		this.status();
 		return;
 	    }
@@ -214,10 +224,14 @@ $stepIssuesUrl = \V::app()->createUrl('/workflow/step_issues', array_filter([ 'i
 	    //a save was sent: its answer has the step errors (stepCheck's are not used then)
 	    this.sent++;
 	    this.status();
-	    $.ajax({ url: this.url, method: 'POST', dataType: 'json', data: { nodes: JSON.stringify(this.nodesOf(snapshot)) }, headers: { 'X-Csrf-Token': csrf() } })
+	    $.ajax({ url: this.url, method: 'POST', dataType: 'json', data: { nodes: JSON.stringify(this.nodesOf(snapshot)), rev: this.rev, force: this.force ? 1 : 0 }, headers: { 'X-Csrf-Token': csrf() } })
 		.done((resp) => {
 		    this.sending = null;
 		    this.error = null;
+		    this.force = false;
+		    if (typeof resp.rev === 'number')
+			this.rev = resp.rev;
+		    this.checkRemote();
 		    //the server's configs on the canvas (when nothing changed since), then its errors in the steps' settings
 		    const applied = designer.applySaved(snapshot, resp.nodes || []);
 		    designer.setStepIssues(resp.stepIssues || []);
@@ -228,6 +242,16 @@ $stepIssuesUrl = \V::app()->createUrl('/workflow/step_issues', array_filter([ 'i
 		})
 		.fail((xhr) => {
 		    this.sending = null;
+		    //another one saved since: nothing more is saved until the person chooses (the banner)
+		    if (xhr.status === 409 && xhr.responseJSON && xhr.responseJSON.conflict) {
+			this.conflict = xhr.responseJSON;
+			this.remoteRev = Math.max(this.remoteRev, this.conflict.rev || 0);
+			if (this.queued === null)
+			    this.queued = snapshot;
+			this.status();
+			draftBanner.show(this.conflict, true);
+			return;
+		    }
 		    const first = this.error === null;
 		    this.error = (xhr.responseJSON && xhr.responseJSON.error) || 'The changes could not be saved (' + (xhr.status || 'no connection') + ')';
 		    if (first)
@@ -238,6 +262,35 @@ $stepIssuesUrl = \V::app()->createUrl('/workflow/step_issues', array_filter([ 'i
 		    this.status();
 		    this.retryTimer = setTimeout(() => this.send(), this.RETRY);
 		});
+	},
+
+	//another one saved revision rev (the live events); while a save of this page is on its way, checked after it
+	remote(rev) {
+	    this.remoteRev = Math.max(this.remoteRev, rev);
+	    if (this.sending === null)
+		this.checkRemote();
+	},
+	checkRemote() {
+	    if (this.remoteRev <= this.rev || this.conflict !== null)
+		return;
+	    $.getJSON('{$draftStateUrl}').done((state) => {
+		if (state.rev > this.rev && this.conflict === null)
+		    draftBanner.show(state, false);
+	    });
+	},
+	//Keep mine: saved over theirs
+	keepMine() {
+	    this.conflict = null;
+	    this.force = true;
+	    draftBanner.hide();
+	    this.send();
+	},
+	//Reload (theirs): the page loaded again, what was not saved dropped
+	reload() {
+	    this.queued = null;
+	    this.conflict = null;
+	    this.waiting = [];
+	    app.pjax.fetch(window.location.pathname + window.location.search, { push: false });
 	},
 
 	whenSaved(fn) {
@@ -263,7 +316,9 @@ $stepIssuesUrl = \V::app()->createUrl('/workflow/step_issues', array_filter([ 'i
 		return;
 	    //the texts in .btn-label (only the icon on phones; the title says it)
 	    let html = '<i class=\"bi bi-cloud-check me-1\"></i><span class=\"btn-label\">Saved</span>', cls = 'text-muted', tip = 'All changes are saved';
-	    if (this.error !== null && this.sending === null) {
+	    if (this.conflict !== null) {
+		[ html, cls, tip ] = [ '<i class=\"bi bi-exclamation-triangle me-1\"></i><span class=\"btn-label\">Not saved</span>', 'text-warning', 'Someone else saved this workflow: choose Reload or Keep mine' ];
+	    } else if (this.error !== null && this.sending === null) {
 		[ html, cls, tip ] = [ '<i class=\"bi bi-cloud-slash me-1\"></i><span class=\"btn-label\">Not saved</span>', 'text-danger', this.error + ' (click to try again now)' ];
 	    } else if (this.sending !== null || this.queued !== null) {
 		[ html, cls, tip ] = [ '<span class=\"spinner-border spinner-border-sm me-1\" style=\"width: .7rem; height: .7rem\"></span><span class=\"btn-label\">Saving&hellip;</span>', 'text-muted', 'Saving the changes' ];
@@ -273,6 +328,59 @@ $stepIssuesUrl = \V::app()->createUrl('/workflow/step_issues', array_filter([ 'i
 	    el.title = tip;
 	},
     };
+    //CLD: 2026-11-28T10:00:00Z: the banner at the top of the canvas when another one saved the draft: Reload; when this page's save was refused for it (conflict): Reload theirs /
+    //Keep mine. Closed (x) it comes back at the next save of theirs
+    const draftBanner = {
+	el: null,
+	show(state, conflict) {
+	    const wrap = document.getElementById('canvas-wrap');
+	    if (!wrap)
+		return;
+	    this.hide();
+	    const who = state.by ? app.utils.escapeHtml(state.by) : 'Someone';
+	    const when = state.at ? ' ' + app.formatter.timeAgoHtml(state.at, false) : '';
+	    const el = this.el = app.utils.el('div', 'wf-draft-banner alert ' + (conflict ? 'alert-warning' : 'alert-info') + ' position-absolute start-50 translate-middle-x d-flex align-items-center gap-2 py-1 px-2 small shadow-sm mb-0', { role: 'alert' });
+	    el.style.top = '3.25rem';
+	    el.style.zIndex = 25;
+	    el.style.maxWidth = 'calc(100% - 2rem)';
+	    el.innerHTML = conflict
+		? '<i class=\'bi bi-exclamation-triangle\'></i><span>' + who + ' saved this workflow' + when + ', after you opened it: your last change is not saved.</span>'
+		    + '<button type=\'button\' class=\'btn btn-sm btn-outline-secondary py-0 text-nowrap wf-draft-reload\' title=\'Your change is lost\'>Reload theirs</button>'
+		    + '<button type=\'button\' class=\'btn btn-sm btn-warning py-0 text-nowrap wf-draft-keep\' title=\'Their change is overwritten\'>Keep mine</button>'
+		: '<i class=\'bi bi-people\'></i><span>' + who + ' changed this workflow' + when + '.</span>'
+		    + '<button type=\'button\' class=\'btn btn-sm btn-primary py-0 text-nowrap wf-draft-reload\'>Reload</button>'
+		    + '<button type=\'button\' class=\'btn-close ms-1 wf-draft-close\' aria-label=\'Close\'></button>';
+	    //not a pan of the canvas
+	    el.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+	    el.addEventListener('click', (ev) => {
+		if (ev.target.closest('.wf-draft-reload'))
+		    autosave.reload();
+		else if (ev.target.closest('.wf-draft-keep'))
+		    autosave.keepMine();
+		else if (ev.target.closest('.wf-draft-close'))
+		    this.hide();
+	    });
+	    wrap.append(el);
+	},
+	hide() {
+	    if (this.el)
+		this.el.remove();
+	    this.el = null;
+	},
+    };
+    //another one's save of this workflow (app.live); after the live events were away: its revision asked
+    const liveWrap = document.getElementById('canvas-wrap');
+    if (liveWrap) {
+	app.live.on(liveWrap, 'workflow::saved live::resync', (data, type) => {
+	    if (type === 'workflow::saved') {
+		if (data.wf === '{$wfIdJs}')
+		    autosave.remote(data.rev);
+	    } else {
+		$.getJSON('{$draftStateUrl}').done((state) => autosave.remote(state.rev || 0));
+	    }
+	});
+    }
+
     $('.wf-save-status').on('click', (e) => {
 	e.preventDefault();
 	if (autosave.error !== null)

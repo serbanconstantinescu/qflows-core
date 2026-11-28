@@ -78,6 +78,18 @@ class WorkflowController extends \sys\BaseController {
 		    $messages[] = (string)$message;
 	    $resp->sendJSON([ 'error' => implode("\n", $messages ?: [ 'Error saving workflow' ]) ], true, 400);
 	}
+	//CLD: 2026-11-28T10:00:00Z: rev: the draft's revision the designer started from; another saved since (another person, another tab, MCP): refused (409 { conflict,
+	//rev, by, at }), the designer asks Reload theirs / Keep mine (force: saved anyway). The next revision is taken atomically (two saves at once: one is refused)
+	$rev = isset($req->data['rev']) && is_numeric($req->data['rev']) ? (int)$req->data['rev'] : null;
+	if ($rev !== null && empty($req->data['force']) && array_key_exists('nodes', $wf->updated())) {
+	    $current = (int)$wf->draft_rev;
+	    $taken = $rev === $current && \V::app()->om->updateOne('Workflow', [ '_id' => $wf->_id, 'aid' => $wf->aid, 'draft_rev' => $current ?: [ '$in' => [ null, 0 ] ] ], [ '$set' => [ 'draft_rev' => $current + 1 ] ]) > 0;
+	    if (!$taken) {
+		$now = \V::app()->om->findOne('Workflow', [ '_id' => $wf->_id, 'aid' => $wf->aid ]);
+		$resp->sendJSON([ 'conflict' => true, 'error' => 'Someone else saved this workflow after you opened it' ] + ($now ?? $wf)->draftState(), true, 409);
+	    }
+	    $wf->draft_rev = $current + 1;
+	}
 	if (!$wf->save())
 	    $resp->sendJSON([ 'error' => 'The workflow could not be saved' ], true, 500);
 
@@ -88,7 +100,13 @@ class WorkflowController extends \sys\BaseController {
 	    'stepIssues' => $wf->stepIssues,
 	    'issues' => array_merge($wf->stepIssues, $wf->validateFlow()),
 	    'draftChanged' => $active !== null && !$wf->draftMatches($active),
+	    'rev' => (int)$wf->draft_rev,
 	]);
+    }
+
+    //CLD: 2026-11-28T10:00:00Z: the draft's last save (Workflow::draftState): the designer's banner when another one saved it (app.live: workflow::saved). Workflow::read
+    public function draft_state($req, $resp) {
+	$resp->sendJSON($this->findWorkflow('Workflow::read')->draftState());
     }
 
     //the errors in the steps' settings (Workflow::validateSteps) of the draft, or of ?version=<id>; asked by the designer once it is shown (computing them in the page

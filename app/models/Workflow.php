@@ -37,6 +37,9 @@ class Workflow extends \sys\BaseModel {
     //set on a copy made by forVersion(): the version whose steps it holds (runs record it); such a copy is never saved
     public $runVersion = null;
 
+    //CLD: 2026-11-28T10:00:00Z: this save changes the draft's steps (beforeSave): the project's open pages are told after it (afterSave: workflow::saved)
+    public $draftSaved = false;
+
     //the step errors found by validatesDraft() (a draft is saved with them)
     public $stepIssues = [];
 
@@ -147,6 +150,37 @@ class Workflow extends \sys\BaseModel {
 		'required' => false,
 		'perm:read' => 'everybody',
 		'perm:update' => 'permission',
+	    ],
+
+	    //CLD: 2026-11-28T10:00:00Z: the draft's revision (+1 at each save that changes its steps: beforeSave; the designer's save sends the one it started from and is refused
+	    //when another came meanwhile: WorkflowController::save), who saved it (a user id; empty: the daemon, a command) and when
+	    [
+		'key' => 'draft_rev',
+		'type' => 'number',
+		'label' => 'Draft revision',
+		'help' => false,
+		'default' => 0,
+		'perm:read' => 'everybody',
+		'perm:update' => 'nobody',
+		'showInForms' => false,
+	    ],
+	    [
+		'key' => 'draft_by',
+		'type' => 'text',
+		'label' => 'Draft saved by',
+		'help' => false,
+		'perm:read' => 'everybody',
+		'perm:update' => 'nobody',
+		'showInForms' => false,
+	    ],
+	    [
+		'key' => 'draft_at',
+		'type' => 'datetime',
+		'label' => 'Draft saved at',
+		'help' => false,
+		'perm:read' => 'everybody',
+		'perm:update' => 'nobody',
+		'showInForms' => false,
 	    ],
 	];
 	return array_merge($fields, $this->getSystemSchema());
@@ -310,12 +344,31 @@ class Workflow extends \sys\BaseModel {
 	if ($this->runVersion !== null)
 	    throw new \LogicException('a copy of a published version cannot be saved');
 	parent::beforeSave();
+	//CLD: 2026-11-28T10:00:00Z: the steps changed: the next revision (unless the designer's save took it already: WorkflowController::save), who and when
+	$changed = $this->exists() ? $this->updated() : [];
+	$this->draftSaved = array_key_exists('nodes', $changed);
+	if ($this->draftSaved) {
+	    if (!array_key_exists('draft_rev', $changed))
+		$this->draft_rev = (int)$this->draft_rev + 1;
+	    $this->draft_by = \V::app()->user && !\V::app()->user->isGuest ? (string)\V::app()->user->_id : '';
+	    $this->draft_at = new \MongoDB\BSON\UTCDateTime();
+	}
 	\V::app()->hooks->applyHook('workflow:before-save', [ $this ]);
     }
 
     public function afterSave() {
 	parent::afterSave();
+	//CLD: 2026-11-28T10:00:00Z: the designer pages of this workflow (another person's, another tab) offer to load it (app.live: workflow::saved)
+	if ($this->draftSaved)
+	    \util\Daemon::push('workflow::saved', [ 'aid' => $this->aid, 'project' => $this->project ], [ 'wf' => (string)$this->_id, 'rev' => (int)$this->draft_rev ]);
+	$this->draftSaved = false;
 	\V::app()->hooks->applyHook('workflow:after-save', [ $this ]);
+    }
+
+    //CLD: 2026-11-28T10:00:00Z: the draft's last save for the designer: { rev, by (a name; '' when not by a person), at (ISO 8601) }
+    public function draftState() {
+	$user = (string)$this->draft_by !== '' && \util\Validator::rule('oid', (string)$this->draft_by) ? \V::app()->om->findOne('User', [ '_id' => (string)$this->draft_by, 'aid' => $this->aid ]) : null;
+	return [ 'rev' => (int)$this->draft_rev, 'by' => $user ? trim((string)$user) : '', 'at' => $this->draft_at instanceof \MongoDB\BSON\UTCDateTime ? $this->draft_at->toDateTime()->format('c') : null ];
     }
 
     //deleting a workflow deletes its executions and published versions; plugins delete their own data in workflow:before-delete
