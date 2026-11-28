@@ -3453,11 +3453,12 @@ class CheckCommand extends \sys\BaseController {
 	    $A::arguments($fields, [ 'groupId' => 42, 'recursive' => 'false', 'maxItems' => '5' ])[0], $A::arguments($blockFields, [ 'group' => 'B' ])[1] ]);
 
 	$ai = array_column(\models\node\NodeAppLemonade::configSchema(), null, 'key');
-	$this->check('agent tools: the AI step\'s settings: a credential and the operations per family (section Integrations; the read ones by default), Workflows',
-	    [ 'Integrations', 'Integrations', $A::readTools('gravityzone'), true, 'gravityzoneCredential', true ],
-	    [ $ai['gravityzoneCredential']['ui']['section'] ?? null, $ai['gravityzoneTools']['ui']['section'] ?? null, $ai['gravityzoneTools']['default'] ?? null,
-	    isset($ai['gmailTools'], $ai['databaseCredential'], $ai['workflows']), $ai['gravityzoneTools']['ui']['showIf']['key'] ?? null,
-	    isset($ai['gravityzoneTools']['choices']['gz_incidents_isolate']) && str_ends_with($ai['gravityzoneTools']['choices']['gz_incidents_isolate'], '(changes)') ]);
+	$this->check('agent tools: the AI step\'s settings: a credential and the operations per family (the Tools picker; the read ones by default), Workflows',
+	    [ [ 'gravityzone', 'credential' ], [ 'gravityzone', 'use' ], $A::readTools('gravityzone'), true, true, 'workflows' ],
+	    [ [ $ai['gravityzoneCredential']['ui']['tools']['source'] ?? null, $ai['gravityzoneCredential']['ui']['tools']['role'] ?? null ],
+	    [ $ai['gravityzoneTools']['ui']['tools']['source'] ?? null, $ai['gravityzoneTools']['ui']['tools']['role'] ?? null ], $ai['gravityzoneTools']['default'] ?? null,
+	    isset($ai['gmailTools'], $ai['databaseCredential'], $ai['workflows']), in_array('gz_incidents_isolate', (array)($ai['gravityzoneTools']['ui']['tools']['writes'] ?? []), true),
+	    $ai['workflows']['ui']['tools']['source'] ?? null ]);
 
 	//the servers: AI, GravityZone, FortiGate
 	$aiServer = $this->startAiServer('agent tools');
