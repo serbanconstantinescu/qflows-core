@@ -168,6 +168,20 @@ window.app.ExprInput = (function() {
 	    }
 	}
 
+	//CLD: 2026-11-28T16:30:00+02:00: the "Insert variable" menus of the email / PDF designers: { step: the variables of the step, project: the project
+	//variables as vars.<name> } (the name list has them as one object, `vars`: models\credential\CredentialVariable::EXPRESSION_NAME; its members asked apart)
+	static async menuVariables(url, params) {
+	    const [ names, members ] = await Promise.all([
+		ExprInput.request(url, Object.assign({ text: '', before: '', mode: 'name', usage: '' }, params)),
+		ExprInput.request(url, Object.assign({ text: '{{ vars. }}', before: '{{ vars.' }, params)),
+	    ]);
+	    const items = (r) => (r && r.completion && r.completion.items) || [];
+	    return {
+		step: items(names).filter((it) => it.label !== 'vars'),
+		project: items(members).filter((it) => it.kind === 'property').map((it) => Object.assign({}, it, { label: 'vars.' + it.label })),
+	    };
+	}
+
 	async check() {
 	    if (!document.body.contains(this.input))
 		return;

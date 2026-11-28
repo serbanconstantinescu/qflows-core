@@ -271,18 +271,22 @@ window.app.EmailDesigner = (function() {
 	    }
 	}
 
-	//the variables of the step (the expression help's names), as menu items inserting {{ name }}
+	//the variables of the step, then the project variables (vars.<name>; app.ExprInput.menuVariables), as menu items inserting {{ name }}
 	async loadVariables(menu, insert) {
 	    const e = this.o.expression;
-	    const r = await window.app.ExprInput.request(e.url, Object.assign({ text: '', before: '', mode: 'name', usage: '' }, e.params ? e.params() : {}));
-	    const items = (r && r.completion && r.completion.items) || [];
-	    menu.innerHTML = items.length ? '' : '<li class="dropdown-item-text text-muted">No variables before this step</li>';
-	    items.forEach((it) => {
+	    const v = await window.app.ExprInput.menuVariables(e.url, e.params ? e.params() : {});
+	    menu.innerHTML = v.step.length ? '' : '<li class="dropdown-item-text text-muted">No variables before this step</li>';
+	    const add = (it) => {
 		const li = document.createElement('li');
 		li.innerHTML = `<button type="button" class="dropdown-item small"><code>${app.utils.escapeHtml(it.label)}</code> <span class="text-muted">${app.utils.escapeHtml(it.detail || '')}</span></button>`;
 		li.firstElementChild.addEventListener('mousedown', (ev) => { ev.preventDefault(); insert(it.label); });
 		menu.appendChild(li);
-	    });
+	    };
+	    v.step.forEach(add);
+	    if (v.project.length) {
+		menu.insertAdjacentHTML('beforeend', '<li><hr class="dropdown-divider"></li><li><h6 class="dropdown-header">Project variables</h6></li>');
+		v.project.forEach(add);
+	    }
 	}
 
 	//the right panel: the selected image block's settings; else the step's settings (setStepPanel) or a hint

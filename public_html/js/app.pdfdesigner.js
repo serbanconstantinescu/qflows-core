@@ -242,6 +242,9 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
     }
 
     //the markup of one designer; A(name): data-pd + id (unique: the labels' for)
+    //CLD: 2026-11-28T16:00:00+02:00: the toolbar fits one line at 1440 px: Header / Footer, Page setup, Sample data and Checks are icons (their names in title +
+    //aria-label), Preview PDF is Preview; in the step's dialog (fill) the columns' row does not wrap from md up, so the page scrolls in its column (a wrapping
+    //row took the page's height)
     function markup(P, ro, fill) {
 	const A = (n) => `data-pd="${n}" id="${P}${n}"`;
 	const D = (n) => `data-pd="${n}"`;
@@ -304,18 +307,18 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 	  <button class="btn btn-light border font-monospace" type="button" data-cmd="source" title="Edit the HTML of the section you are in">&lt;/&gt;</button>
 	</div>
 	<div class="btn-group btn-group-sm" role="group" aria-label="Page sections">
-	  <button class="btn btn-light border" type="button" ${D('headerTgl')} aria-pressed="true" title="Show or hide the header on every page">Header</button>
-	  <button class="btn btn-light border" type="button" ${D('footerTgl')} aria-pressed="true" title="Show or hide the footer on every page">Footer</button>
+	  <button class="btn btn-light border" type="button" ${D('headerTgl')} aria-pressed="true" title="Header: show or hide it on every page" aria-label="Header">${SVG('<rect x="3" y="1.5" width="10" height="13" rx="1"/><path d="M3.5 2h9v3.5h-9z" fill="currentColor" stroke="none" opacity=".5"/><path d="M5.5 8.5h5M5.5 11h5"/>')}</button>
+	  <button class="btn btn-light border" type="button" ${D('footerTgl')} aria-pressed="true" title="Footer: show or hide it on every page" aria-label="Footer">${SVG('<rect x="3" y="1.5" width="10" height="13" rx="1"/><path d="M3.5 10.5h9V14h-9z" fill="currentColor" stroke="none" opacity=".5"/><path d="M5.5 5h5M5.5 7.5h5"/>')}</button>
 	</div>
       </div>
       <div class="d-flex flex-wrap gap-2 ms-auto">
 	<select class="form-select form-select-sm w-auto" ${D('zoomSel')} aria-label="Zoom" title="Zoom"><option value="fit">Fit width</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option></select>
 	<div class="btn-group btn-group-sm" role="group" aria-label="Document">
-	  <button class="btn btn-light border" type="button" ${D('pageBtn')}>Page setup</button>
-	  <button class="btn btn-light border" type="button" ${D('dataBtn')} title="The variables of the preview, as JSON">Sample data</button>
-	  <button class="btn btn-light border" type="button" ${D('checksBtn')} title="Layout checks">Checks</button>
+	  <button class="btn btn-light border" type="button" ${D('pageBtn')} title="Page setup: size, orientation, margins, font" aria-label="Page setup"><i class="bi bi-file-earmark-ruled"></i></button>
+	  <button class="btn btn-light border" type="button" ${D('dataBtn')} title="Sample data: the variables of the preview, as JSON" aria-label="Sample data"><i class="bi bi-braces"></i></button>
+	  <button class="btn btn-light border" type="button" ${D('checksBtn')} title="Layout checks" aria-label="Layout checks"><i class="bi bi-clipboard-check"></i></button>
 	</div>
-	<button class="btn btn-primary btn-sm" type="button" ${D('pdfBtn')} title="Make the PDF with the sample data, in a new tab"><i class="bi bi-file-earmark-pdf me-1"></i>Preview PDF</button>
+	<button class="btn btn-primary btn-sm" type="button" ${D('pdfBtn')} title="Make the PDF with the sample data, in a new tab"><i class="bi bi-file-earmark-pdf me-1"></i>Preview</button>
       </div>
     </div>
 
@@ -370,7 +373,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
     </div>
   </div>
 
-  <div class="row g-0 ${fill ? 'flex-grow-1' : ''}" style="${fill ? 'min-height:0' : ''}">
+  <div class="row g-0 ${fill ? 'flex-grow-1 flex-md-nowrap overflow-auto' : ''}" style="${fill ? 'min-height:0' : ''}">
     <div class="col-md-9 d-flex flex-column" style="${fill ? 'min-height:0' : ''}">
       <div class="pd-desk flex-grow-1" ${D('desk')} aria-label="Page" style="${fill ? 'min-height:0' : 'max-height:70vh'}">
 	<div class="pd-tbllayer" ${D('tblLayer')}></div>
@@ -828,7 +831,9 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 	    const cb = $('checksBtn');
 	    cb.classList.remove('text-success', 'text-warning-emphasis', 'text-danger');
 	    cb.classList.add(errs ? 'text-danger' : warns ? 'text-warning-emphasis' : 'text-success');
-	    cb.textContent = errs + warns ? `Checks · ${errs + warns}` : 'Checks ✓';
+	    cb.innerHTML = '<i class="bi bi-clipboard-check"></i>' + (errs + warns ? `<span class="ms-1">${errs + warns}</span>` : '');
+	    cb.title = errs + warns ? `Layout checks: ${errs + warns} to look at` : 'Layout checks: everything fits';
+	    cb.setAttribute('aria-label', cb.title);
 
 	    layoutSheet();
 	    const fmtName = p.format === 'LETTER' ? 'Letter' : p.format === 'LEGAL' ? 'Legal' : p.format;
@@ -1876,18 +1881,18 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 	    e.stopPropagation();
 	    if (tmenu.contains(m)) tmenuKeys(e); else menuKeys(e);
 	}, true);
-	//"{{ }}": the page numbers, then the variables of the step (the expression help's names)
+	//"{{ }}": the page numbers, the variables of the step, the project variables (vars.<name>; app.ExprInput.menuVariables)
 	async function loadVariables(menu) {
 	    const page = '<li><h6 class="dropdown-header">Page</h6></li>'
 		+ '<li><button type="button" class="dropdown-item" data-ins="{PAGE}">Page number</button></li><li><button type="button" class="dropdown-item" data-ins="{PAGES}">Page count</button></li>';
 	    const e = o.expression;
 	    if (!e) { menu.innerHTML = page; return; }
 	    menu.innerHTML = page + '<li><hr class="dropdown-divider"></li><li class="dropdown-item-text text-muted">Loading the variables…</li>';
-	    const r = await window.app.ExprInput.request(e.url, Object.assign({ text: '', before: '', mode: 'name', usage: '' }, e.params ? e.params() : {}));
-	    const items = (r && r.completion && r.completion.items) || [];
+	    const v = await window.app.ExprInput.menuVariables(e.url, e.params ? e.params() : {});
+	    const list = (items) => items.map((it) => `<li><button type="button" class="dropdown-item" data-ins="{{ ${app.utils.escapeHtml(it.label)} }}"><code>${app.utils.escapeHtml(it.label)}</code><span class="text-muted ms-2 text-truncate">${app.utils.escapeHtml(it.detail || '')}</span></button></li>`).join('');
 	    menu.innerHTML = page + '<li><hr class="dropdown-divider"></li><li><h6 class="dropdown-header">Variables</h6></li>'
-		+ (items.length ? items.map((it) => `<li><button type="button" class="dropdown-item" data-ins="{{ ${app.utils.escapeHtml(it.label)} }}"><code>${app.utils.escapeHtml(it.label)}</code><span class="text-muted ms-2 text-truncate">${app.utils.escapeHtml(it.detail || '')}</span></button></li>`).join('')
-		    : '<li class="dropdown-item-text text-muted">No variables before this step</li>');
+		+ (v.step.length ? list(v.step) : '<li class="dropdown-item-text text-muted">No variables before this step</li>')
+		+ (v.project.length ? '<li><hr class="dropdown-divider"></li><li><h6 class="dropdown-header">Project variables</h6></li>' + list(v.project) : '');
 	}
 	$('varsMenu').addEventListener('click', (e) => {
 	    const b = e.target.closest('[data-ins]'); if (!b) return;
