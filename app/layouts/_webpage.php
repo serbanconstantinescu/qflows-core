@@ -41,9 +41,6 @@
 	<link rel="stylesheet" href="/css/bootstrap-icons.css">
 	<?php //Summernote (rich text editor; built by frontend/standalone-packages/Summernote/qflows_build.sh) ?>
 	<link rel="stylesheet" href="/js/vendor/summernote-0.9.1/summernote-bs5.min.css">
-
-	<?= \V::app()->cs->renderPageCssFiles(); ?>
-	<?= \V::app()->cs->renderPageCss(); ?>
     </head>
 
     <body>
