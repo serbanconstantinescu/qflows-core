@@ -246,7 +246,7 @@ class KnowledgeController extends \sys\BaseController {
 	$kb = $this->findKb('KnowledgeBase::update');
 	try {
 	    $kb->reindex();
-	    $this->addToast('success', 'OK', 'Re-indexing: the chunks are embedded again in the background');
+	    $this->addToast('success', 'OK', 'Re-indexing: the chunks are embedded again in the background. You will be told when it is done');
 	} catch (\ErrorException $e) {
 	    $this->addToast('danger', 'Not re-indexed', $e->getMessage());
 	}

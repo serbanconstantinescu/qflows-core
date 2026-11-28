@@ -11,6 +11,7 @@
 	taskOpened($task)       a Human task or an AI step's approval: to the members who may complete it (WfTask::isFor)
 	shared($resource, $project)   a workflow / data table shared with $project: to its members
 	addedTo($project, $user)      $user added to $project
+	send(...)               also by the background work a person started, when it ends (a knowledge base's re-index: KnowledgeBase::reindexJob)
     The one who did it is not told (the current user)
 */
 

@@ -534,7 +534,9 @@ class KnowledgeBase extends \sys\BaseModel {
 	\V::app()->om->updateMany('KnowledgeBase', [ '_id' => $this->_id ], [ '$set' => [ 'state' => 'reindexing', 'state_message' => '' ] ]);
 	//CLD: 2026-11-28T10:00:00Z: its pages say it is re-indexing (pushChanged)
 	$this->pushChanged();
-	\models\Job::submit('\models\kb\KnowledgeBase::reindexJob', [ 'aid' => (string)$this->aid, 'project' => (string)$this->project, 'kb' => (string)$this->_id ], [ 'delete_on_done' => true ]);
+	//CLD: 2026-11-28T10:00:00Z: who asked it (by): told how it ended (reindexJob: util\Toasts)
+	$by = \V::app()->user && !\V::app()->user->isGuest ? (string)\V::app()->user->_id : '';
+	\models\Job::submit('\models\kb\KnowledgeBase::reindexJob', [ 'aid' => (string)$this->aid, 'project' => (string)$this->project, 'kb' => (string)$this->_id, 'by' => $by ], [ 'delete_on_done' => true ]);
     }
 
     //the daemon's job: every chunk embedded again with the account's model (the new vectors aside, then put in place at once: a failure leaves the old ones), then the
@@ -566,11 +568,17 @@ class KnowledgeBase extends \sys\BaseModel {
 	    } while (count($batch) === self::REINDEX_BATCH);
 	    \V::app()->om->updateMany('KbChunk', [ 'kb' => $kb->_id, 'aid' => $kb->aid, 'embedding_new' => [ '$exists' => true ] ], [ [ '$set' => [ 'embedding' => '$embedding_new' ] ], [ '$unset' => 'embedding_new' ] ]);
 	    self::setFields($kb, [ 'model' => trim((string)$settings->model), 'dims' => $dims, 'state' => 'ready', 'state_message' => '' ]);
+	    //CLD: 2026-11-28T10:00:00Z: who asked it is told, on the pages they have open (util\Toasts)
+	    \util\Toasts::send((string)($data['by'] ?? ''), $kb->aid, 'success', 'Re-index done', (string)$kb->name . ': searched with the new model from now on',
+		\V::app()->createUrl('/knowledge/manage', [ 'id' => $kb->_id ]), 'Open it');
 	    //documents indexed with another model: their hash names it (added again: indexed again)
 	    \V::app()->om->updateMany('KbDocument', [ 'kb' => $kb->_id, 'aid' => $kb->aid ], [ '$set' => [ 'hash' => '' ] ]);
 	} catch (\Exception $e) {
 	    \V::app()->om->updateMany('KbChunk', [ 'kb' => $kb->_id, 'aid' => $kb->aid ], [ '$unset' => [ 'embedding_new' => '' ] ]);
 	    self::setFields($kb, [ 'state' => 'ready', 'state_message' => 'Re-index failed: ' . mb_substr($e->getMessage(), 0, 400) ]);
+	    //CLD: 2026-11-28T10:00:00Z: who asked it is told, on the pages they have open (util\Toasts)
+	    \util\Toasts::send((string)($data['by'] ?? ''), $kb->aid, 'error', 'Re-index failed', (string)$kb->name . ': ' . $e->getMessage(),
+		\V::app()->createUrl('/knowledge/manage', [ 'id' => $kb->_id ]), 'Open it');
 	}
     }
 
