@@ -2062,12 +2062,15 @@ window.app.smartform = (function() {
 	    return normalizeChoices(s.fields.use.choices).map((c) => ({ value: c.value, label: c.label, writes: s.id === 'workflows' || s.writes.includes(c.value) }));
 	}
 
-	//an integration with no credential chosen: its tools are not offered
+	//an integration with no credential chosen: its tools are not offered (a public service has none to choose: used when one of its tools is)
 	_off(s) {
-	    return !!s.fields.credential && !this.values[s.fields.credential.key];
+	    return !!s.fields.credential && !s.isPublic && !this.values[s.fields.credential.key];
 	}
 
+	//CLD: 2026-11-28T14:00:00+02:00: a public service not used (`<family>Credential` empty) uses none of its tools, whatever `<family>Tools` holds (its default)
 	_used(s) {
+	    if (s.isPublic && !this.values[s.fields.credential.key])
+		return [];
 	    return this._list(s.fields.use.key);
 	}
 
@@ -2114,6 +2117,9 @@ window.app.smartform = (function() {
 	    const before = this._used(s);
 	    const asking = this._asking(s);
 	    this._set(s.fields.use.key, used);
+	    //a public service: used while one of its tools is (no switch of its own)
+	    if (s.isPublic)
+		this._set(s.fields.credential.key, used.length ? normalizeChoices(s.fields.credential.choices)[0].value : '');
 	    if (!this._hasAsk(s))
 		return;
 	    const items = this._items(s);
@@ -2230,41 +2236,25 @@ window.app.smartform = (function() {
 	    title.children[1].textContent = s.help || '';
 	    head.appendChild(title);
 
-	    //an integration: its credential (a public service: used or not)
-	    if (s.fields.credential) {
+	    //an integration: its credential (a public service has none: used while one of its tools is)
+	    if (s.fields.credential && !s.isPublic) {
 		const cf = s.fields.credential;
-		if (s.isPublic) {
-		    const sw = document.createElement('div');
-		    sw.className = 'form-check form-switch mb-0';
-		    sw.innerHTML = '<input class="form-check-input" type="checkbox" role="switch"><label class="form-check-label small">Used</label>';
-		    const input = sw.querySelector('input');
-		    input.id = app.utils.uid('tools');
-		    sw.querySelector('label').htmlFor = input.id;
-		    input.checked = !!this.values[cf.key];
-		    input.disabled = !editable;
-		    input.addEventListener('change', () => {
-			this._set(cf.key, input.checked ? normalizeChoices(cf.choices)[0].value : '');
-			this._refresh();
-		    });
-		    head.appendChild(sw);
-		} else {
-		    const sel = document.createElement('select');
-		    sel.className = 'form-select form-select-sm w-auto';
-		    sel.setAttribute('aria-label', 'Credential');
-		    [ { value: '', label: 'Not used' } ].concat(normalizeChoices(cf.choices)).forEach((c) => {
-			const o = document.createElement('option');
-			o.value = c.value;
-			o.textContent = c.label;
-			sel.appendChild(o);
-		    });
-		    sel.value = String(this.values[cf.key] || '');
-		    sel.disabled = !editable;
-		    sel.addEventListener('change', () => {
-			this._set(cf.key, sel.value);
-			this._refresh();
-		    });
-		    head.appendChild(sel);
-		}
+		const sel = document.createElement('select');
+		sel.className = 'form-select form-select-sm w-auto';
+		sel.setAttribute('aria-label', 'Credential');
+		[ { value: '', label: 'Not used' } ].concat(normalizeChoices(cf.choices)).forEach((c) => {
+		    const o = document.createElement('option');
+		    o.value = c.value;
+		    o.textContent = c.label;
+		    sel.appendChild(o);
+		});
+		sel.value = String(this.values[cf.key] || '');
+		sel.disabled = !editable;
+		sel.addEventListener('change', () => {
+		    this._set(cf.key, sel.value);
+		    this._refresh();
+		});
+		head.appendChild(sel);
 	    }
 	    //MCP and tool servers: one approval setting for both
 	    if ((s.id === 'mcp' || s.id === 'servers') && this.serversMode) {
@@ -2339,7 +2329,7 @@ window.app.smartform = (function() {
 		this.rowsEl.appendChild(p);
 	    };
 	    if (this._off(s))
-		return empty(s.isPublic ? 'Switch it on to offer its operations.' : 'Choose a credential to offer its operations.');
+		return empty('Choose a credential to offer its operations.');
 	    const items = this._items(s);
 	    if (!items.length)
 		return empty({ knowledge: 'No knowledge bases in this project.', workflows: 'No workflow of this project starts with Called by a workflow.',
