@@ -35,8 +35,12 @@ class ShareController extends \sys\BaseController {
 		$this->addToast('error', 'Not shared', 'Choose a project and a level');
 	    elseif ($resource->shareOf($project->_id))
 		$this->addToast('warning', 'Not shared', 'It is already shared with that project');
-	    else
+	    else {
 		$this->saved($resource, $project, $access, $req->data);
+		//CLD: 2026-11-28T10:00:00Z: shared now: a toast for the project's members (util\Toasts)
+		if ($resource->shareOf($project->_id))
+		    \util\Toasts::shared($resource, $project);
+	    }
 	}
 	$this->show($resource);
     }

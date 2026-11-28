@@ -293,6 +293,9 @@ class ProjectController extends \sys\BaseController {
 		$saved = $this->saveMembers($project, $members, 'project.member.add', (string)$user . ' added as ' . (string)$role);
 		if ($saved && $user->state === 'active' && $user->email)
 		    \util\EmailSend::system('project_added', (string)$user->email, $vars + [ 'link' => \V::app()->createAbsoluteUrl('/site/index') ]);
+		//CLD: 2026-11-28T10:00:00Z: a toast on the pages they have open (util\Toasts)
+		if ($saved)
+		    \util\Toasts::addedTo($project, $user);
 	    }
 	    $this->backTo($project, 'members');
 	}

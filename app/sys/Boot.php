@@ -48,6 +48,8 @@ class Boot {
 	//the conversations with an agent go with its workflow; a run that stops ends its turn
 	\V::app()->hooks->addHook('workflow:before-delete', [ \models\agent\AgentConversation::class, 'beforeWorkflowDelete' ]);
 	\V::app()->hooks->addHook('execution:stopped', [ \models\agent\AgentConversation::class, 'afterRun' ]);
+	//CLD: 2026-11-28T10:00:00Z: a failed run, a long one completed: a toast for who it concerns (util\Toasts)
+	\V::app()->hooks->addHook('execution:stopped', [ \util\Toasts::class, 'runStopped' ]);
 	//an execution's AI step traces go with it; and the conversation it answers is freed
 	\V::app()->hooks->addHook('execution:before-delete', [ \models\agent\AgentTrace::class, 'dropFor' ]);
 	\V::app()->hooks->addHook('execution:before-delete', [ \models\agent\AgentConversation::class, 'beforeExecutionDelete' ]);

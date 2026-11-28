@@ -210,6 +210,16 @@ app.live = (function() {
 	    app.sidebar.reload(false);
     });
 
+    //a toast for this person (util\Toasts): plain texts, a link; one about a workflow (wf) not on that workflow's designer (its Executions panel says it)
+    api.on(null, 'toast::live', (data) => {
+	const here = new URL(window.location.href);
+	if (data.wf && here.pathname === '/workflow/index' && here.searchParams.get('id') === data.wf)
+	    return;
+	const esc = app.utils.escapeHtml;
+	const link = data.url ? ' <a href="' + esc(data.url) + '" class="ms-1"' + (data.full ? ' no-pjax' : '') + '>' + esc(data.label || 'Open') + '</a>' : '';
+	app.utils.toast({ type: data.level || 'info', title: esc(data.title || ''), body: esc(data.body || '') + link, delay: 8000 });
+    });
+
     //the sidebar's "My tasks" count (the tasks of the whole account: TaskController::count)
     api.on(null, 'tasks::changed live::resync', () => {
 	const link = document.querySelector('aside.sidebar a[href="/task/list"]');

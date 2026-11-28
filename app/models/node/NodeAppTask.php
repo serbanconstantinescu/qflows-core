@@ -259,8 +259,9 @@ class NodeAppTask extends \models\wf\WfNode {
 	    'due_at' => $due,
 	]);
 	$task->save();
-	//CLD: 2026-11-28T10:00:00Z: the open pages of the account (My tasks, its badge, the Overview)
+	//CLD: 2026-11-28T10:00:00Z: the open pages of the account (My tasks, its badge, the Overview); a toast for who may complete it
 	\util\Daemon::push('tasks::changed', [ 'aid' => $task->aid ], [ 'project' => (string)$task->project ]);
+	\util\Toasts::taskOpened($task);
 	$this->task = (string)$task->_id;
 	$this->resume_at = $due;
 	$this->exec->log($this->wfid, 'task created: ' . $task->title);

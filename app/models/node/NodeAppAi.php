@@ -1235,6 +1235,8 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	}
 	//CLD: 2026-11-28T10:00:00Z: the open pages of the account (My tasks, its badge, the Overview); the chat page of its conversation (waiting for approval)
 	\util\Daemon::push('tasks::changed', [ 'aid' => $task->aid ], [ 'project' => (string)$task->project ]);
+	//a toast for who may approve (util\Toasts)
+	\util\Toasts::taskOpened($task);
 	if ($chat)
 	    \models\agent\AgentConversation::pushChanged($chat[0]);
 	//trace: the visit goes on in the same trace
