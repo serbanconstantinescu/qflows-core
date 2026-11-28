@@ -241,6 +241,11 @@ class SysObjects {
 		'class' => 'models\credential\CredentialImap',
 		'variant-of' => 'Credential',
 	    ],
+	    //CLD: 2026-11-28T18:00:00+02:00: an SMTP server (host, port, security, optional username / password), for Send email (SMTP)
+	    'CredentialSmtp' => [
+		'class' => 'models\credential\CredentialSmtp',
+		'variant-of' => 'Credential',
+	    ],
 	    //the Google credentials (OAuth: Mail, Drive, Sheets, Calendar, Docs), core for every account
 	    'CredentialGoogleMail' => [
 		'class' => 'models\credential\CredentialGoogleMail',
@@ -850,6 +855,11 @@ class SysObjects {
 	    ],
 	    'NodeAppSendEmail' => [
 		'class' => 'models\node\NodeAppSendEmail',
+		'wfNode' => true,
+	    ],
+	    //CLD: 2026-11-28T18:00:00+02:00: Send email (SMTP): the designed email sent through an SMTP server credential (Send email is its child: the installation's server)
+	    'NodeAppSmtpEmail' => [
+		'class' => 'models\node\NodeAppSmtpEmail',
 		'wfNode' => true,
 	    ],
 	    'NodeAppWait' => [

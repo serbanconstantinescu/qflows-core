@@ -4,31 +4,31 @@ namespace util;
 
 class EmailSend {
 
-    //data keys:
-    // - message: the message
-    // - sender:
-    // - to:
-    public static function send($data, $options = []) {
-	$defaults = [
-	    // The SMTP server timeout in seconds. 5 minutes (300sec) is from RFC2821 section 4.5.3.2.
-	    'timeout' => 300,
-	    // * SMTP class debug output mode.
-	    // * Options:
-	    // * * SMTP::DEBUG_OFF: No output
-	    // * * SMTP::DEBUG_CLIENT: Client messages
-	    // * * SMTP::DEBUG_SERVER: Client and server messages
-	    // * * SMTP::DEBUG_CONNECTION: As SERVER plus connection status
-	    // * * SMTP::DEBUG_LOWLEVEL: Noisy, low-level data output, rarely needed
-	    // * @see SMTP::$do_debug
-	    'debug' => \util\SMTP::DEBUG_OFF, //\components\SMTP::DEBUG_CONNECTION,
-	    'logger' => function($message, $level) {
-		\V::app()->log->debug("SMTP: $message");
-	    },
-	    'doVerp' => false,
+    //CLD: 2026-11-28T18:00:00+02:00: the installation's SMTP server (app.env), as transmit() takes it: SMTP_HOST, SMTP_PORT (25), SMTP_SECURE ssl (SSL/TLS) or else
+    //STARTTLS when the server offers it and SMTP_AUTOTLS is on (none when off), AUTH with SMTP_USERNAME / SMTP_PASSWORD when SMTP_AUTH; null when SMTP_HOST is not set
+    public static function installationServer() {
+	if (!defined('SMTP_HOST'))
+	    return null;
+	$auth = defined('SMTP_AUTH') && !empty(SMTP_AUTH) && defined('SMTP_USERNAME') && defined('SMTP_PASSWORD');
+	return [
+	    'host' => (string)SMTP_HOST,
+	    'port' => defined('SMTP_PORT') && (int)SMTP_PORT ? (int)SMTP_PORT : 25,
+	    'security' => defined('SMTP_SECURE') && SMTP_SECURE === 'ssl' ? 'ssl' : (defined('SMTP_AUTOTLS') && SMTP_AUTOTLS !== false ? 'auto' : 'none'),
+	    'username' => $auth ? (string)SMTP_USERNAME : '',
+	    'password' => $auth ? (string)SMTP_PASSWORD : '',
+	    //the installation's always asked for no delivery notices
+	    'dsn' => 'NEVER',
 	];
-	$options = \util\Set::merge($defaults, $options);
+    }
 
-	//process data: if string => it's a filename and contents needs to be read and deserialized
+    //the name given in EHLO: SMTP_FROM_DOMAIN, else (none, or app.env.example's empty placeholder) the host name
+    public static function heloName() {
+	return defined('SMTP_FROM_DOMAIN') && SMTP_FROM_DOMAIN !== '' ? (string)SMTP_FROM_DOMAIN : (string)gethostname();
+    }
+
+    //an email through the installation's SMTP server (installationServer()); $data { sender, to / cc / bcc: [ address => name ], headers, body } (or the name of a file of it,
+    //serialized: read, then deleted when sent); true when sent, -1 when not (logged)
+    public static function send($data, $options = []) {
 	$fname = false;
 	if (is_string($data)) {
 	    $fname = $data;
@@ -36,148 +36,134 @@ class EmailSend {
 		\V::app()->log->error("file:$fname is not readable. Return.");
 		return;
 	    }
-	    $data = file_get_contents($fname);
-	    $data = unserialize($data);
+	    $data = unserialize(file_get_contents($fname));
 	}
-
-	//SC: 2026-03-30: check params early
-	if (!defined('SMTP_HOST')) {
+	$server = self::installationServer();
+	if ($server === null) {
 	    \V::app()->log->error("SMTP_HOST is not defined. Cannot send emails. Stop");
 	    return -1;
 	}
-	if (!defined('SMTP_PORT'))
-	    define('SMTP_PORT', 25);
-
-	//try to connect to SMTP server indicated in options
-        $smtp = new SMTP();
-
-        $smtp->setTimeout($options['timeout']);
-        $smtp->setDebugLevel($options['debug']);
-        $smtp->setDebugOutput($options['logger']);
-        $smtp->setVerp($options['doVerp']);
-
-	//let's get the SMTPOptions from global config
-	$params = \V::app()->config('params');
-
-
-	if (!defined('SMTP_SECURE'))
-	    define('SMTP_SECURE', false);
-
-	if (!defined('SMTP_AUTOTLS'))
-	    define('SMTP_AUTOTLS', false);
-
-	//connect
-	switch(SMTP_SECURE) {
-	    case 'ssl':
-		$tls = false;
-		$prefix = 'ssl://';
-		break;
-	    case 'tls':
-	    default:
-		$tls = true;
-		$prefix = '';
-		break;
+	foreach([ 'to', 'cc', 'bcc' ] as $grp) {
+	    if (is_string($data[$grp] ?? null))
+		$data[$grp] = unserialize($data[$grp]);
 	}
-
-	//override TLS if options says so
-	if (SMTP_AUTOTLS === false)
-	    $tls = false;
-	
-        //SC: 2026-03-30: use SMTP_USERNAME and SMTP_PASSWORD
-        $smtp_auth = false;
-        if (defined('SMTP_AUTH') && !empty(SMTP_AUTH)) {
-	    if (defined('SMTP_USERNAME') && defined('SMTP_PASSWORD')) {
-		$smtp_auth = (!empty(SMTP_USERNAME) && !empty(SMTP_PASSWORD));
-	    }
-	}
-
-	//try connection
-	//$connected = $smtp->connect($prefix . $SMTPOptions['hostname'], $SMTPOptions['port'], $options['timeout'], []);
-	$connected = $smtp->connect($prefix . SMTP_HOST, SMTP_PORT, $options['timeout'], []);
-	if (!$connected) {
-	    \V::app()->log->error("Could not connect to SMTP host:" . SMTP_HOST);
+	try {
+	    $r = self::transmit($server, $data, $options);
+	} catch (\RuntimeException $e) {
+	    \V::app()->log->error('SMTP: ' . $e->getMessage());
 	    return -1;
 	}
-
-	if (!defined('SMTP_FROM_DOMAIN'))
-	    define('SMTP_FROM_DOMAIN', gethostname());
-	//an empty SMTP_FROM_DOMAIN (app.env.example's placeholder) is as none: the host name
-	$helo = SMTP_FROM_DOMAIN !== '' ? SMTP_FROM_DOMAIN : gethostname();
-
-	//try sending hello
-        try {
-    	    $smtp->hello($helo);
-            //Disable TLS if server does not offer STARTTLS
-            if (!$smtp->getServerExt('STARTTLS'))
-        	$tls = false;
-
-            if ($tls) {
-        	//try TLS
-                if (!$smtp->startTLS()) {
-            	    \V::app()->log->debug('SMTP: cannot STARTLS');
-            	    return -1;
-                }
-                // We must resend EHLO after TLS negotiation
-                $smtp->hello($helo);
-            }
-
-            if ($smtp_auth) {
-        	if (!$smtp->authenticate(SMTP_USERNAME, SMTP_PASSWORD, $auth_type = null, $oauth = null)) {
-        	    \V::app()->log->debug('SMTP: cannot authenticate');
-        	    return -1;
-        	}
-            }
-        } catch (Exception $e) {
-            \V::app()->log->debug('SMTP: error: ' . $e->getMessage());
-            // We must have connected, but then failed TLS or Auth, so close connection nicely
-            $smtp->quit();
-            return -1;
-        }
-
-        if (empty($smtp->mail($data['sender']))) {
-    	    \V::app()->log->debug('SMTP: cannot send: ' . implode(',', $smtp->getError()) );
-	    return -1;
-        }
-
-	//SC: 2026-02-05: let's log the sender in our worker.log
-    	\V::app()->log->debug('SMTP: sending mail from:' . $data['sender']);
-	
-        // Attempt to send to all recipients
-        foreach ([ 'to', 'cc', 'bcc' ] as $grp) {
-    	    if (empty($data[$grp]))
-    		continue;
-    	    if (is_string($data[$grp]))
-    		$data[$grp] = unserialize($data[$grp]);
-
-	    if (!is_array($data[$grp]))
-		continue;
-
-            foreach ($data[$grp] as $to_email => $to_name) {
-        	$sent = $smtp->recipient($to_email, 'NEVER');
-        	if (!$sent)
-                    \V::app()->log->debug('SMTP: error sending mail to: ' . $to_email . ', error:' . implode(',', $smtp->getError()));
-
-    		\V::app()->log->debug('SMTP: sending mail to:' . $to_email);
-            }
-        }
-
-        // Only send the DATA command if we have viable recipients
-        //the headers come without a trailing CRLF (compose(), Job::reportError): CRLF CRLF ends the last header and adds the blank line
-        //before the body (was one CRLF: the body's first line, e.g. the MIME boundary, read as a header - Haraka: "Header did not look right")
-        if( !$smtp->data(rtrim($data['headers'], "\r\n") . "\r\n\r\n" . $data['body'])) {
-    	    \V::app()->log->debug('SMTP: error sending mail');
-    	    return -1;
-        }
-
-        $smtp_transaction_id = $smtp->getLastTransactionID();
-
-        $smtp->quit();
-        $smtp->close();
-
+	\V::app()->log->debug('SMTP: sent mail from:' . $data['sender'] . ' to: ' . implode(', ', $r['accepted']));
+	foreach($r['rejected'] as $to => $why)
+	    \V::app()->log->debug("SMTP: error sending mail to: {$to}, error: {$why}");
 	if ($fname)
 	    unlink($fname);
+	return true;
+    }
 
-        return true;
+    //CLD: 2026-11-28T18:00:00+02:00: one message through an SMTP server (the installation's: send(); an SMTP server credential's: the Send email (SMTP) step).
+    //$server: host, port (25), security (none | starttls: required | ssl: SSL/TLS from the start | auto: STARTTLS when offered), username + password (AUTH when both given),
+    //address (the IP connected to, the host's checked one; default the host: its name checked in the certificate), insecure (the certificate not checked), helo
+    //(heloName()), dsn (NOTIFY= of each recipient; default NEVER when the server offers DSN, else none).
+    //$m: sender, to / cc / bcc ([ address => name ]), headers, body; null: only connected, encrypted and signed in (a credential's test).
+    //$options: timeout (s, 300 as RFC 5321 4.5.3.2), debug (util\SMTP::DEBUG_*), logger, doVerp.
+    //[ accepted: [ address ], rejected: [ address => the server's reply ], id: the server's queue id or null, tls, auth ]; \RuntimeException when not sent (no connection,
+    //TLS, sign-in, sender, no recipient accepted, the message refused)
+    public static function transmit(array $server, ?array $m, array $options = []) {
+	$options += [
+	    'timeout' => 300,
+	    'debug' => \util\SMTP::DEBUG_OFF,
+	    'logger' => function($message, $level) {
+		\V::app()->log->debug("SMTP: $message");
+	    },
+	    'doVerp' => false,
+	];
+	$host = trim((string)($server['host'] ?? ''), " []");
+	if ($host === '')
+	    throw new \RuntimeException('no SMTP server');
+	$port = (int)($server['port'] ?? 25) ?: 25;
+	$security = (string)($server['security'] ?? 'auto');
+	$address = trim((string)($server['address'] ?? $host), '[]');
+	$insecure = !empty($server['insecure']);
+	$where = "{$host}:{$port}";
+	$smtp = new SMTP();
+	$smtp->setTimeout($options['timeout']);
+	$smtp->setDebugLevel($options['debug']);
+	$smtp->setDebugOutput($options['logger']);
+	$smtp->setVerp($options['doVerp']);
+	//the certificate of the host's name (also when connecting to its checked address)
+	$context = [ 'ssl' => [ 'peer_name' => $host, 'verify_peer' => !$insecure, 'verify_peer_name' => !$insecure, 'allow_self_signed' => $insecure ] ];
+	$target = ($security === 'ssl' ? 'ssl://' : '') . (str_contains($address, ':') ? "[{$address}]" : $address);
+	if (!$smtp->connect($target, $port, $options['timeout'], $context)) {
+	    $why = self::tlsWhy($smtp);
+	    //SSL/TLS: PHP gives no reason for a refused handshake
+	    if ($security === 'ssl' && $why === ': Failed to connect to server')
+		$why .= $insecure ? ' (is it the server\'s SSL/TLS port?)' : ' (its certificate not trusted - a self-signed one: trust the server\'s certificate in the credential - or not its SSL/TLS port)';
+	    throw new \RuntimeException("no connection to {$where}{$why}");
+	}
+	try {
+	    $helo = (string)($server['helo'] ?? self::heloName());
+	    if (!$smtp->hello($helo))
+		throw new \RuntimeException("{$where} refused EHLO" . self::why($smtp));
+	    $tls = $security === 'ssl';
+	    if ($security === 'starttls' || ($security === 'auto' && $smtp->getServerExt('STARTTLS'))) {
+		if (!$smtp->getServerExt('STARTTLS'))
+		    throw new \RuntimeException("{$where} does not offer STARTTLS (choose another security, or the server's SSL/TLS port)");
+		if (!$smtp->startTLS())
+		    throw new \RuntimeException("STARTTLS with {$where} failed" . self::tlsWhy($smtp));
+		//EHLO again after TLS
+		$smtp->hello($helo);
+		$tls = true;
+	    }
+	    $user = (string)($server['username'] ?? '');
+	    $pass = (string)($server['password'] ?? '');
+	    $auth = $user !== '' && $pass !== '';
+	    if ($auth && !$smtp->authenticate($user, $pass))
+		throw new \RuntimeException("{$where} refused the sign-in as {$user}" . self::why($smtp));
+	    $r = [ 'accepted' => [], 'rejected' => [], 'id' => null, 'tls' => $tls, 'auth' => $auth ];
+	    if ($m === null) {
+		$smtp->quit();
+		return $r;
+	    }
+	    if (!$smtp->mail((string)$m['sender']))
+		throw new \RuntimeException("{$where} refused the sender {$m['sender']}" . self::why($smtp));
+	    $dsn = array_key_exists('dsn', $server) ? (string)$server['dsn'] : ($smtp->getServerExt('DSN') ? 'NEVER' : '');
+	    foreach([ 'to', 'cc', 'bcc' ] as $grp) {
+		foreach(is_array($m[$grp] ?? null) ? $m[$grp] : [] as $to => $name) {
+		    if ($smtp->recipient((string)$to, $dsn))
+			$r['accepted'][] = (string)$to;
+		    else
+			$r['rejected'][(string)$to] = ltrim(self::why($smtp), ': ') ?: 'refused';
+		}
+	    }
+	    if (!$r['accepted'])
+		throw new \RuntimeException("{$where} accepted no recipient" . ($r['rejected'] ? ': ' . implode('; ', array_map(fn($a, $w) => "{$a}: {$w}", array_keys($r['rejected']), $r['rejected'])) : ''));
+	    //the headers come without a trailing CRLF (compose(), Job::reportError): CRLF CRLF ends the last header and adds the blank line before the body
+	    if (!$smtp->data(rtrim((string)$m['headers'], "\r\n") . "\r\n\r\n" . $m['body']))
+		throw new \RuntimeException("{$where} refused the message" . self::why($smtp));
+	    $r['id'] = $smtp->getLastTransactionID() ?: null;
+	    $smtp->quit();
+	    return $r;
+	} finally {
+	    $smtp->close();
+	}
+    }
+
+    //why() of a connection or TLS failure: a certificate not trusted said plainly
+    protected static function tlsWhy(SMTP $smtp) {
+	$why = self::why($smtp);
+	if (str_contains($why, 'certificate verify failed'))
+	    return ': the server\'s certificate is not trusted (a self-signed one: trust the server\'s certificate in the credential)';
+	return preg_replace('/^: \d+ (stream_socket_\w+\(\): )?/', ': ', $why);
+    }
+
+    //": <the server's reply or the error>" of util\SMTP's last error ('' when none), else $otherwise
+    protected static function why(SMTP $smtp, $otherwise = '') {
+	$e = (array)$smtp->getError();
+	//a reply of the server: its code, enhanced code and text; else util\SMTP's error (a connection's: its system error as smtp_code_ex)
+	$ex = trim((string)($e['smtp_code_ex'] ?? ''));
+	$text = trim((string)($e['detail'] ?? '')) !== '' ? trim(($e['smtp_code'] ?? '') . " {$ex} " . trim((string)$e['detail'])) : trim((string)($e['error'] ?? '') . ($ex !== '' ? ": {$ex}" : ''));
+	return $text !== '' ? ': ' . mb_substr(preg_replace('/\s+/', ' ', $text), 0, 300) : $otherwise;
     }
 
     //a header value on one line: the line breaks (and the spaces around them) as one space; no header injection
@@ -284,21 +270,21 @@ class EmailSend {
     }
 
     //the job of a queued email (the Send Email step): { aid, from_name, to, cc, bcc, reply_to, subject, html, text, images: [ cid => file id ], attachments: [ file id ] }; sent from
-    //the app's address (config mail.from);
-    //an image file gone is left out; CLD: 2026-11-16T23:30:00+02:00: so is an attachment's (the account's files only)
+    //the app's address (config mail.from) through the installation's server (send());
     //throws when the SMTP server does not take it (the daemon tries again)
     public static function deliver($data) {
 	$data = (array)$data;
-/*
-	if (!empty($data->images)) {
-	    \V::app()->log->debug('EmailSend::deliver: data=' . print_r($data, true));
-	}
+	$from = (string)\V::app()->config('mail.from');
+	[ $headers, $body ] = self::messageOf($data, $from);
+	$result = self::send([ 'sender' => $from, 'headers' => $headers, 'body' => $body ] + self::envelopeOf($data));
+	if ($result !== true)
+	    throw new \ErrorException('the email "' . ($data['subject'] ?? '') . '" was not accepted by the SMTP server');
+    }
 
-	$data = json_decode(\util\JSON::encode($data), true);
-*/
+    //CLD: 2026-11-28T18:00:00+02:00: the MIME message (compose()) of an email of the Send email steps ({ aid, from_name, to, cc, bcc, reply_to, subject, html, text,
+    //images: [ cid => file id ], attachments: [ file id ] }) from $from: [ headers, body ]; an image or attachment file gone is left out (the account's files only)
+    public static function messageOf(array $data, $from) {
 	$images = [];
-
-
 	foreach((array)($data['images'] ?? []) as $cid => $fid) {
 	    $file = \V::app()->om->findOne('File', [ '_id' => (string)$fid, 'aid' => $data['aid'] ?? null ]);
 	    if ($file)
@@ -312,11 +298,15 @@ class EmailSend {
 		$attachments[] = [ 'name' => (string)$file->filename, 'type' => \models\File::CONTENT_TYPES[$ext] ?? 'application/octet-stream', 'content' => (string)$file->getContents() ];
 	    }
 	}
-	$from = (string)\V::app()->config('mail.from');
-	[ $headers, $body ] = self::compose([ 'from' => $from, 'images' => $images, 'attachments' => $attachments ] + $data);
-	$result = self::send([ 'sender' => $from, 'to' => array_fill_keys(array_values(array_filter((array)($data['to'] ?? []))), ''), 'cc' => array_fill_keys(array_values(array_filter((array)($data['cc'] ?? []))), ''), 'bcc' => array_fill_keys(array_values(array_filter((array)($data['bcc'] ?? []))), ''), 'headers' => $headers, 'body' => $body ]);
-	if ($result !== true)
-	    throw new \ErrorException('the email "' . ($data['subject'] ?? '') . '" was not accepted by the SMTP server');
+	return self::compose([ 'from' => (string)$from, 'images' => $images, 'attachments' => $attachments ] + $data);
+    }
+
+    //the recipients of an email of the Send email steps, as send() / transmit() take them: [ to / cc / bcc => [ address => '' ] ]
+    public static function envelopeOf(array $data) {
+	$out = [];
+	foreach([ 'to', 'cc', 'bcc' ] as $grp)
+	    $out[$grp] = array_fill_keys(array_values(array_filter(array_map('strval', (array)($data[$grp] ?? [])))), '');
+	return $out;
     }
 
     //an email of the app (data\SysEmails: sign-up, later invitations) to $to,

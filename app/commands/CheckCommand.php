@@ -15,7 +15,7 @@
 namespace commands;
 
 class CheckCommand extends \sys\BaseController {
-    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'slack', 's3', 'github', 'gitlab', 'entra', 'okta', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'xmljson', 'demo', 'ssh', 'windows', 'logpatterns' ];
+    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'slack', 's3', 'github', 'gitlab', 'entra', 'okta', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'xmljson', 'smtp', 'demo', 'ssh', 'windows', 'logpatterns' ];
     //not run unless named in --only (demo: an account made and deleted, public services called)
     const SLOW = [ 'steps', 'demo' ];
 
@@ -11803,6 +11803,135 @@ class CheckCommand extends \sys\BaseController {
 	foreach([ $saved, \V::app()->om->findOne('File', [ '_id' => $fid ]) ] as $x) {
 	    if ($x)
 		$x->delete();
+	}
+    }
+
+    //CLD: 2026-11-28T18:00:00+02:00: the SMTP server credential and Send email (SMTP) against app/commands/tests/SmtpTestServer.php (no security + sign-in, STARTTLS and
+    //SSL/TLS with a self-signed certificate made here), util\EmailSend::transmit's refusals, and Send email as its child (no server settings, queued)
+    private function suiteSmtp() {
+	$om = \V::app()->om;
+	$T = \models\credential\CredentialSmtp::class;
+	$work = sys_get_temp_dir() . '/qflows-check-smtp-' . uniqid();
+	@mkdir($work, 0700, true);
+	$pk = openssl_pkey_new([ 'private_key_bits' => 2048 ]);
+	$crt = openssl_csr_sign(openssl_csr_new([ 'commonName' => '127.0.0.1' ], $pk, [ 'digest_alg' => 'sha256' ]), null, $pk, 1, [ 'digest_alg' => 'sha256' ]);
+	openssl_x509_export($crt, $certPem);
+	openssl_pkey_export($pk, $keyPem);
+	file_put_contents("{$work}/cert.pem", $certPem);
+	file_put_contents("{$work}/key.pem", $keyPem);
+	$servers = [];
+	$creds = [];
+	$start = function($name, array $args) use ($work, &$servers) {
+	    @mkdir("{$work}/{$name}", 0700, true);
+	    $proc = proc_open(array_merge([ PHP_BINARY, BASE . '/app/commands/tests/SmtpTestServer.php', "{$work}/{$name}" ], $args), [ 1 => [ 'pipe', 'w' ], 2 => [ 'file', "{$work}/{$name}/server.err", 'a' ] ], $pipes);
+	    stream_set_timeout($pipes[1], 10);
+	    $line = (string)fgets($pipes[1]);
+	    if (!preg_match('/^PORT (\d+)/', $line, $m))
+		throw new \ErrorException("the SMTP test server ({$name}) did not start: " . trim($line . ' ' . @file_get_contents("{$work}/{$name}/server.err")));
+	    $servers[] = $proc;
+	    return (int)$m[1];
+	};
+	$cred = function($name, array $more) use ($om, $T, &$creds) {
+	    $c = $om->create('CredentialSmtp', [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'name' => "Check: SMTP {$name} " . uniqid(), 'host' => '127.0.0.1' ] + $more);
+	    if (!$c->validates() || !$c->save())
+		throw new \ErrorException("smtp: the credential {$name} was not saved: " . json_encode($c->errors()));
+	    $creds[] = $c;
+	    return $om->findById('CredentialSmtp', (string)$c->_id);
+	};
+	$tested = function($c) {
+	    try {
+		return $c->test();
+	    } catch (\Exception $e) {
+		return 'error: ' . $e->getMessage();
+	    }
+	};
+	$mails = fn($name) => array_map(fn($l) => json_decode($l, true), array_filter(explode("\n", (string)@file_get_contents("{$work}/{$name}/mail.jsonl"))));
+	try {
+	    $T::$testing = true;
+	    $plain = $start('plain', [ '--user=box', '--pass=secret' ]);
+	    $tls = $start('tls', [ "--cert={$work}/cert.pem", "--key={$work}/key.pem" ]);
+	    $ssl = $start('ssl', [ "--cert={$work}/cert.pem", "--key={$work}/key.pem", '--ssl' ]);
+
+	    $auth = $cred('auth', [ 'port' => $plain, 'security' => 'none', 'username' => 'box', 'password' => 'secret', 'fromAddress' => 'robot@example.com' ]);
+	    $wrong = $cred('wrong', [ 'port' => $plain, 'security' => 'none', 'username' => 'box', 'password' => 'nope' ]);
+	    $noAuth = $cred('none', [ 'port' => $plain, 'security' => 'none' ]);
+	    $noTls = $cred('notls', [ 'port' => $plain, 'security' => 'starttls', 'username' => 'box', 'password' => 'secret' ]);
+	    $untrusted = $cred('untrusted', [ 'port' => $tls, 'security' => 'starttls' ]);
+	    $trusted = $cred('trusted', [ 'port' => $tls, 'security' => 'starttls', 'trustCertificate' => true ]);
+	    $sslCred = $cred('ssl', [ 'port' => $ssl, 'security' => 'ssl', 'trustCertificate' => true ]);
+	    $this->check('smtp credential: the form (a host needed; username and password optional), the password kept encrypted', [ true, false, true ], [
+		in_array('host', array_keys(($b = $om->create('CredentialSmtp', [ 'name' => 'x', 'host' => '', 'port' => 25, 'security' => 'none' ]))->validates() ? [] : $b->errors()), true),
+		in_array('username', array_keys($b->errors()), true), $auth->password === 'secret' ]);
+	    $this->check('smtp credential Test: signed in; no sign-in; wrong password; STARTTLS required but not offered; a self-signed certificate refused, then trusted; SSL/TLS', [
+		"connected to 127.0.0.1:{$plain}, not encrypted, signed in as box", "connected to 127.0.0.1:{$plain}, not encrypted, no sign-in", true, true, true,
+		"connected to 127.0.0.1:{$tls}, encrypted, no sign-in", "connected to 127.0.0.1:{$ssl}, encrypted, no sign-in" ], [
+		$tested($auth), $tested($noAuth), str_contains($tested($wrong), 'refused the sign-in as box: 535 5.7.8'), str_contains($tested($noTls), 'does not offer STARTTLS'),
+		str_contains($tested($untrusted), 'STARTTLS with 127.0.0.1:' . $tls . ' failed'), $tested($trusted), $tested($sslCred) ]);
+
+	    $n = [ self::class, 'node' ];
+	    $e = [ self::class, 'edge' ];
+	    $body = [ 'preheader' => '', 'blocks' => [ [ 'type' => 'html', 'html' => '<p>Hello {{ name }}</p>' ] ] ];
+	    $step = fn($id, $cred, array $more = []) => $n($id, 'app::smtp-email', $more + [ 'credential' => (string)$cred->_id, 'to' => '{{ who }}', 'subject' => 'Hi {{ name }}',
+		'fromName' => 'Check', 'email' => $body, 'timeout' => 20, 'onError' => 'output' ]);
+	    $exe = $this->runFlow('smtp email', [ $n('m', 'trigger::manual'),
+		$step('a', $auth, [ 'cc' => 'copy@example.com', 'variable' => 'sent' ]),
+		$step('t', $trusted, [ 'from' => 'tls@example.com', 'variable' => 'overTls' ]),
+		$step('w', $wrong, [ 'from' => 'x@example.com', 'variable' => 'refused' ]),
+		$n('s', 'app::set', [ 'variable' => 'after', 'value' => 'error output' ]),
+		$e('e1', 'm', 'a'), $e('e2', 'a', 't'), $e('e3', 't', 'w'), $e('e4', 'w', 's', 1) ], [ 'who' => [ 'ana@example.com', 'reject-me@example.com' ], 'name' => 'Ana' ]);
+	    $sent = $exe?->getVariable('sent');
+	    $got = $mails('plain')[0] ?? [];
+	    $this->check('Send email (SMTP): the run ends on the error output of the wrong password (its variable null)', [ 'end', 'error output', true ],
+		[ $exe?->state, $exe?->getVariable('after'), $exe?->getVariable('refused') === null ]);
+	    $this->check('Send email (SMTP): from the credential\'s address, accepted and refused recipients, the server\'s queue id', [ 'robot@example.com', [ 'ana@example.com', 'copy@example.com' ],
+		'reject-me@example.com', true, true ], [ $sent['from'] ?? null, $sent['accepted'] ?? null, $sent['rejected'][0]['address'] ?? null,
+		str_contains((string)($sent['rejected'][0]['reason'] ?? ''), '550'), (bool)preg_match('/^CHK[0-9A-F]{8}$/', (string)($sent['queueId'] ?? '')) ]);
+	    $this->check('Send email (SMTP): the server got it signed in, from the address, to the accepted recipients, with its Message-ID, subject and body', [ 'box', 'robot@example.com',
+		[ 'ana@example.com', 'copy@example.com' ], true, true, true, [ '', '' ] ], [ $got['auth'] ?? null, $got['from'] ?? null, $got['rcpt'] ?? null,
+		str_contains((string)($got['data'] ?? ''), 'Message-ID: <' . ($sent['messageId'] ?? '?') . '>'), str_contains((string)($got['data'] ?? ''), 'Subject: Hi Ana'),
+		str_contains(quoted_printable_decode((string)($got['data'] ?? '')), 'Hello Ana'), $got['notify'] ?? null ]);
+	    $this->check('Send email (SMTP): over STARTTLS, from the step\'s address', [ 'tls@example.com', true ], [ $exe?->getVariable('overTls')['from'] ?? null, $mails('tls')[0]['tls'] ?? null ]);
+	    $this->check('Send email (SMTP): the error logged', true, str_contains((string)self::logLine($exe, 'smtp-email: '), 'refused the sign-in'));
+
+	    $exe = $this->runFlow('smtp email fails', [ $n('m', 'trigger::manual'), $step('f', $noAuth, [ 'from' => '', 'onError' => 'fail' ]), $e('e1', 'm', 'f') ], [ 'who' => 'a@example.com', 'name' => 'A' ]);
+	    $this->check('Send email (SMTP): no From address fails the step (On error: fail)', [ 'error', true ], [ $exe?->state, str_contains((string)$exe?->error, 'From address: none') ]);
+	    $exe = $this->runFlow('smtp email all refused', [ $n('m', 'trigger::manual'), $step('f', $auth, [ 'onError' => 'fail' ]), $e('e1', 'm', 'f') ], [ 'who' => 'reject-a@example.com', 'name' => 'A' ]);
+	    $this->check('Send email (SMTP): every recipient refused fails the step', [ 'error', true ], [ $exe?->state, str_contains((string)$exe?->error, 'accepted no recipient: reject-a@example.com: 550') ]);
+	    $this->check('Send email (SMTP): an SMTP server credential is required', true, (bool)array_filter($this->errorsOf('smtp email no credential', [ $n('m', 'trigger::manual'),
+		$n('f', 'app::smtp-email', [ 'credential' => (string)$this->project->_id, 'to' => 'a@example.com', 'subject' => 's', 'email' => $body ]), $e('e1', 'm', 'f') ]), fn($m) => str_contains($m, 'SMTP server')));
+
+	    //Send email: the child, without the server's settings
+	    $S = \models\node\NodeAppSmtpEmail::class;
+	    $C = \models\node\NodeAppSendEmail::class;
+	    $keys = fn($cls) => array_column($cls::configSchema(), 'key');
+	    $this->check('Send email is Send email (SMTP) without credential, From, timeout, variable, On error; basic (SMTP: advanced), no error output, queued', [
+		true, [ 'credential', 'from', 'timeout', 'variable', 'onError' ], [], 'basic', 'advanced', null, [] ], [
+		is_subclass_of($C, $S), array_values(array_diff($keys($S), $keys($C))), array_values(array_diff($keys($C), $keys($S))), $C::$audience, $S::$audience, $C::$outPorts, $C::outputVariables([]) ]);
+	    $server = \util\EmailSend::installationServer();
+	    $this->check('the installation\'s server: app.env (SMTP_HOST), no delivery notices', [ defined('SMTP_HOST') ? (string)SMTP_HOST : null, 'NEVER' ], [ $server['host'] ?? null, $server['dsn'] ?? null ]);
+	    $refused = function(array $server, $m) {
+		try {
+		    \util\EmailSend::transmit($server, $m, [ 'timeout' => 5 ]);
+		    return 'sent';
+		} catch (\RuntimeException $e) {
+		    return $e->getMessage();
+		}
+	    };
+	    $this->check('transmit refused: no server, nothing listening, the sender before signing in', [ 'no SMTP server', true, true ], [ $refused([ 'host' => '' ], null),
+		str_starts_with($refused([ 'host' => '127.0.0.1', 'port' => 1, 'security' => 'none' ], null), 'no connection to 127.0.0.1:1: Failed to connect to server'),
+		str_contains($refused([ 'host' => '127.0.0.1', 'port' => $plain, 'security' => 'none' ], [ 'sender' => 'a@example.com', 'to' => [ 'b@example.com' => '' ], 'headers' => 'Subject: x', 'body' => 'x' ]),
+		    'refused the sender a@example.com: 530 5.7.0') ]);
+	} finally {
+	    $T::$testing = false;
+	    foreach($servers as $p)
+		proc_terminate($p);
+	    foreach($creds as $c)
+		$c->delete();
+	    foreach(glob("{$work}/*/*") ?: [] as $f)
+		@unlink($f);
+	    foreach(glob("{$work}/*") ?: [] as $f)
+		is_dir($f) ? @rmdir($f) : @unlink($f);
+	    @rmdir($work);
 	}
     }
 
