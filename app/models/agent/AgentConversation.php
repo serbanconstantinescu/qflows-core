@@ -189,6 +189,13 @@ class AgentConversation extends \sys\BaseModel {
     // ------------------------------------------------------------------------------------
     //messages
 
+    //CLD: 2026-11-28T10:00:00Z: what the chat page shows changed (a message, the status): its person's open pages told (app.agentchat: chat::changed); a guest's, a mail sender's,
+    //a Teams person's (no user) poll or have no page
+    public static function pushChanged(array $conv) {
+	if (!empty($conv['user']))
+	    \util\Daemon::push('chat::changed', [ 'aid' => $conv['aid'], 'user' => $conv['user'] ], [ 'conversation' => (string)$conv['_id'] ]);
+    }
+
     //message $fields (role: user | assistant | notice, text, ...) added => its number
     public static function addMessage(array $conv, $role, array $fields) {
 	$now = new \MongoDB\BSON\UTCDateTime();
@@ -204,6 +211,8 @@ class AgentConversation extends \sys\BaseModel {
 	$message = \V::app()->om->create('AgentMessage', [ 'aid' => $conv['aid'], 'conversation' => $conv['_id'], 'seq' => (int)$after['seq'], 'role' => (string)$role, 'at' => $now ] + $fields);
 	if (!$message->save())
 	    throw new \ErrorException('the message was not saved');
+	//CLD: 2026-11-28T10:00:00Z: the chat page loads it (pushChanged)
+	self::pushChanged($conv);
 	return (int)$after['seq'];
     }
 
@@ -317,7 +326,9 @@ class AgentConversation extends \sys\BaseModel {
 	$conv = self::read((string)$input['conversation'], $exe->aid);
 	if (!$conv)
 	    return;
-	\V::app()->om->updateOne('AgentConversation', [ '_id' => $conv['_id'], 'aid' => $conv['aid'], 'execution' => (string)$exe->_id ], [ '$set' => [ 'execution' => null ] ]);
+	//CLD: 2026-11-28T10:00:00Z: no longer working: the chat page told (pushChanged)
+	if (\V::app()->om->updateOne('AgentConversation', [ '_id' => $conv['_id'], 'aid' => $conv['aid'], 'execution' => (string)$exe->_id ], [ '$set' => [ 'execution' => null ] ]))
+	    self::pushChanged($conv);
 	$answered = \V::app()->om->count('AgentMessage', [ 'conversation' => $conv['_id'], 'aid' => $conv['aid'], 'role' => 'assistant', 'execution' => (string)$exe->_id ]) > 0;
 	if ($exe->state === 'end' && $answered)
 	    return;

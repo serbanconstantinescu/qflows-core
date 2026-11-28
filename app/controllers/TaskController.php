@@ -81,6 +81,10 @@ class TaskController extends \sys\BaseController {
 	$exe = \V::app()->om->findOne('WfExecution', [ '_id' => $task->execution, 'aid' => $task->aid ]);
 	if ($exe && $exe->canRun())
 	    $exe->queue('task completed by ' . (string)\V::app()->user->name);
+	//CLD: 2026-11-28T10:00:00Z: an AI step's approval: its chat page no longer says it waits (AgentConversation::pushChanged)
+	$chat = $exe && (string)$task->kind === 'ai-approval' ? \models\agent\AgentConversation::ofExecution($exe) : null;
+	if ($chat)
+	    \models\agent\AgentConversation::pushChanged($chat[0]);
 
 	$resp->sendJSON([ 'ok' => true, 'message' => 'Done, thank you.' ]);
     }

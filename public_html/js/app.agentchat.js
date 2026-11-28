@@ -1,9 +1,12 @@
 //the chat of an agent: the app's page (views/agent/open.php: /agent/send, /agent/poll, /agent/remove) and the embeddable one (views/chat/embed.php: /chat/<token>; its conversation and
 //key kept in this browser). Messages as the designer's Assistant shows them (.wf-assistant .wfa-msg); an answer's html is the server's safe HTML (util\Markdown). What is new is polled: no streaming
+//CLD: 2026-11-28T10:00:00Z: the app's page polls when its conversation changes (app.live: chat::changed, AgentConversation::pushChanged) and after the live events were away (live::resync),
+//else every SAFETY ms while they are connected; one poll at a time (one asked meanwhile follows it). The embedded page (a guest: no live events) polls as before
 window.AgentChat = (function() {
     const POLL_FAST = 1000;
     const POLL_SLOW = 4000;
     const FAST_FOR = 60000;
+    const SAFETY = 15000;
 
     function start(o) {
 	const root = document.getElementById(o.root);
@@ -101,12 +104,18 @@ window.AgentChat = (function() {
 	    clearTimeout(state.timer);
 	    if (state.status === 'idle' || !state.conversation || !root.isConnected)
 		return;
-	    state.timer = setTimeout(poll, Date.now() - state.since < FAST_FOR ? POLL_FAST : POLL_SLOW);
+	    const live = !embed && window.app && app.live && app.live.connected();
+	    state.timer = setTimeout(poll, live ? SAFETY : Date.now() - state.since < FAST_FOR ? POLL_FAST : POLL_SLOW);
 	}
 
 	async function poll() {
 	    if (!root.isConnected)
 		return;
+	    if (state.polling) {
+		state.again = true;
+		return;
+	    }
+	    state.polling = true;
 	    const url = embed
 		? `/chat/${encodeURIComponent(o.embed)}?poll=1&conversation=${encodeURIComponent(state.conversation)}&after=${lastSeq()}`
 		: `/agent/poll?conversation=${encodeURIComponent(state.conversation)}&after=${lastSeq()}`;
@@ -123,9 +132,24 @@ window.AgentChat = (function() {
 		}
 		state.error = e.message;
 	    }
+	    state.polling = false;
 	    render();
+	    if (state.again) {
+		state.again = false;
+		poll();
+		return;
+	    }
 	    schedule();
 	}
+
+	//the app's page: polled at once when its conversation changes
+	if (!embed && window.app && app.live)
+	    app.live.on(root, 'chat::changed live::resync', (data, type) => {
+		if (state.conversation && (type === 'live::resync' || data.conversation === state.conversation)) {
+		    clearTimeout(state.timer);
+		    poll();
+		}
+	    });
 
 	async function send(text, label) {
 	    if (busy() || !text.trim())

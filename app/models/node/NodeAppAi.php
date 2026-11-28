@@ -1208,6 +1208,8 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	$fields[] = [ 'type' => 'textarea', 'key' => 'comment', 'label' => 'Comment', 'helpText' => 'Optional: the agent reads it with a rejection', 'rows' => 2 ];
 	$unit = (string)$this->cfg('approvalTimeoutUnit', 'none');
 	$due = isset(\data\Constants::TIME_UNIT_SECONDS[$unit]) ? new \MongoDB\BSON\UTCDateTime((time() + max(1, (int)$this->cfg('approvalTimeout', 1)) * \data\Constants::TIME_UNIT_SECONDS[$unit]) * 1000) : null;
+	//the conversation it answers, if any (not_by; its chat page told: pushChanged)
+	$chat = \models\agent\AgentConversation::ofExecution($exec);
 	$task = \V::app()->om->create('WfTask', [
 	    'aid' => $exec->aid,
 	    'project' => $exec->project,
@@ -1223,7 +1225,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	    'users' => array_values(array_map('strval', (array)$this->cfg('approvalUsers', []))),
 	    'roles' => array_values(array_map('strval', (array)$this->cfg('approvalRoles', []))),
 	    //who talks to the agent does not approve its actions (when no approvers are chosen: models\wf\WfTask::isFor)
-	    'not_by' => (string)(\models\agent\AgentConversation::ofExecution($exec)[0]['user'] ?? ''),
+	    'not_by' => (string)($chat[0]['user'] ?? ''),
 	    'state' => 'open',
 	    'due_at' => $due,
 	]);
@@ -1231,8 +1233,10 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	    self::dropBlob($file);
 	    throw new \ErrorException('the approval task could not be saved: ' . json_encode($task->errors(), JSON_UNESCAPED_UNICODE));
 	}
-	//CLD: 2026-11-28T10:00:00Z: the open pages of the account (My tasks, its badge, the Overview)
+	//CLD: 2026-11-28T10:00:00Z: the open pages of the account (My tasks, its badge, the Overview); the chat page of its conversation (waiting for approval)
 	\util\Daemon::push('tasks::changed', [ 'aid' => $task->aid ], [ 'project' => (string)$task->project ]);
+	if ($chat)
+	    \models\agent\AgentConversation::pushChanged($chat[0]);
 	//trace: the visit goes on in the same trace
 	$this->agentWait = [ 'task' => (string)$task->_id, 'file' => (string)$file, 'trace' => $this->tracer->id() ];
 	$this->tracer->waiting();
