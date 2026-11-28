@@ -1,6 +1,7 @@
 #!/bin/bash
 
-#the app's nginx site, written from the template below (@BASE@: the app's folder, @SERVER_NAME@: the host of BASE_URL in app.env), over
+#the app's nginx site, written from the template below (@BASE@: the app's folder, @SERVER_NAME@: the host of BASE_URL in app.env, @PUSH_PORT@: the daemon's
+#port for the live events, DAEMON_PUSH_PORT of app.env, default DAEMON_PORT + 1000), over
 #<app>/etc/nginx.conf (a link to /etc/nginx/conf.d/<user>.conf; made when missing), then checked (nginx -t) and nginx reloaded.
 #The file there is kept as <file>.bak-<time> (not loaded by nginx: conf.d/*.conf only) and put back when the check fails; the changes are shown first.
 # commands, as scripts/playwright-mcp.sh: install (nginx too), setup (the site only), start / stop / restart /
@@ -72,6 +73,22 @@ server_name() {
     if ! [[ $SERVER_NAME =~ ^[A-Za-z0-9.-]+$ ]]; then
         echo "no valid host name (BASE_URL in app.env: '$url'): give --server-name=<host>"
         exit 1
+    fi
+}
+
+#CLD: 2026-11-28T10:00:00Z: the daemon's port for the browsers' live events (location /push), as config.php's app.daemon_push_port
+push_port() {
+    local push port
+    if [ -f "$BASE/app.env" ]; then
+        push=$(set +u; . "$BASE/app.env" >/dev/null 2>&1; echo "${DAEMON_PUSH_PORT:-}")
+        port=$(set +u; . "$BASE/app.env" >/dev/null 2>&1; echo "${DAEMON_PORT:-}")
+    fi
+    if [[ ${push:-} =~ ^[0-9]+$ ]] && [ "$push" -gt 0 ]; then
+        PUSH_PORT=$push
+    elif [[ ${port:-} =~ ^[0-9]+$ ]] && [ "$port" -gt 0 ]; then
+        PUSH_PORT=$((port + 1000))
+    else
+        PUSH_PORT=10000
     fi
 }
 
@@ -189,6 +206,17 @@ server {
         fastcgi_index index.php;
     }
 
+    #the live events (Server-Sent Events) from the workflow daemon: each event at once, the stream kept open (a comment every 25 s), the ticket of the URL not logged
+    location = /push {
+        proxy_pass http://127.0.0.1:@PUSH_PORT@;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 1h;
+        access_log off;
+    }
+
     location / {
         try_files $uri @rewrite;
     }
@@ -207,7 +235,8 @@ NGINX
 
 #the template filled in
 site() {
-    template | sed -e "s|@BASE@|$BASE|g" -e "s|@SERVER_NAME@|$SERVER_NAME|g"
+    push_port
+    template | sed -e "s|@BASE@|$BASE|g" -e "s|@SERVER_NAME@|$SERVER_NAME|g" -e "s|@PUSH_PORT@|$PUSH_PORT|g"
 }
 
 #nginx itself, when missing (install.sh installs it with the other packages)

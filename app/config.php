@@ -60,13 +60,16 @@ function get_config($mode = 'web') {
 	//ntp
 	'app.ntp.server' => 'local', // or 'time.google.com:123'
 
-	//the daemon's port for its commands (NEWJOB, KILLJOB), on 127.0.0.1 only: DAEMON_PORT of app.env, default 9000.
+	//the daemon's port for its commands (NEWJOB, KILLJOB, PUSH), on 127.0.0.1 only: DAEMON_PORT of app.env, default 9000.
 	//Several installations on one server: a port each
 	'app.daemon_port' => defined('DAEMON_PORT') && (int)DAEMON_PORT > 0 ? (int)DAEMON_PORT : 9000,
 	//where the daemon listens (DAEMON_LISTEN, default 127.0.0.1; Docker: 0.0.0.0, the containers' private network only) and where the app finds
 	//it (DAEMON_HOST, default 127.0.0.1; Docker: daemon), from app.env or the environment (compose.yaml)
 	'app.daemon_listen' => (string)\V::env('DAEMON_LISTEN', '') ?: '127.0.0.1',
 	'app.daemon_host' => (string)\V::env('DAEMON_HOST', '') ?: '127.0.0.1',
+	//CLD: 2026-11-28T10:00:00Z: the daemon's port for the browsers' live events (SSE, nginx /push proxies to it; commands\DaemonCommand::setup_push_listener), on app.daemon_listen:
+	//DAEMON_PUSH_PORT of app.env or the environment, default app.daemon_port + 1000 (live 10000, development 10001)
+	'app.daemon_push_port' => max(0, (int)\V::env('DAEMON_PUSH_PORT', 0)) ?: (defined('DAEMON_PORT') && (int)DAEMON_PORT > 0 ? (int)DAEMON_PORT : 9000) + 1000,
 	//CLD: 2026-11-23T14:00:00Z: the daemon's settings (commands\DaemonCommand::readSettings; its command-line options win): DAEMON_<OPTION> of app.env or the environment,
 	//e.g. DAEMON_MAX_WORKER_MEMORY; empty: the default
 	'app.daemon' => array_combine(DAEMON_OPTIONS, array_map(fn($o) => (string)\V::env('DAEMON_' . strtoupper(str_replace('-', '_', $o)), ''), DAEMON_OPTIONS)),

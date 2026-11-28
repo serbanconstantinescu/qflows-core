@@ -49,6 +49,10 @@ class DaemonCommand extends \sys\BaseController {
     public $job_listener = null;
     public $job_conns = [];
 
+    //CLD: 2026-11-28T10:00:00Z: the browsers' live events (setup_push_listener): the listener and its streams (id => [ stream, head, claims, out, since, writing, closing ])
+    public $push_listener = null;
+    public $push_conns = [];
+
     //worker mode
     public $pid = null;
 
@@ -415,7 +419,7 @@ class DaemonCommand extends \sys\BaseController {
     //the job listener is a plain TCP stream server on 127.0.0.1 (app.daemon_port: DAEMON_PORT of app.env, default 9000) watched by the loop,
     // so that Haraka (another user) and other local processes reach it
     // a port taken (e.g. by another installation): logged, tried again at the next check
-    //one command per line: NEWJOB, KILLJOB:<event id>
+    //one command per line: NEWJOB, KILLJOB:<event id>, PUSH:<json> (the live events: push_publish)
     public function setup_job_listener() {
 	if (!empty($this->job_listener))
 	    return;
@@ -464,8 +468,10 @@ class DaemonCommand extends \sys\BaseController {
 
     //one command from the job
     protected function job_command($message) {
-	\V::app()->log->debug("WMGR: received command: $message");
 	$cmd = explode(':', $message, 2);
+	//CLD: 2026-11-28T10:00:00Z: not the live events (many): push_publish logs them
+	if ($cmd[0] !== 'PUSH')
+	    \V::app()->log->debug("WMGR: received command: $message");
 	switch($cmd[0]) {
 	    case 'KILLJOB':
 		$jid = trim($cmd[1] ?? '');
@@ -481,6 +487,14 @@ class DaemonCommand extends \sys\BaseController {
 	    case 'NEWJOB':
 		//submit job
 		$this->dispatch_jobs();
+		break;
+	    //CLD: 2026-11-28T10:00:00Z: an event for the open pages (util\Daemon::push)
+	    case 'PUSH':
+		try {
+		    $this->push_publish($cmd[1] ?? '');
+		} catch (\Throwable $e) {
+		    \V::app()->log->error('WMGR: live events: ' . $e->getMessage());
+		}
 		break;
 
 	    default:
@@ -500,6 +514,206 @@ class DaemonCommand extends \sys\BaseController {
 	    $this->loop->removeReadStream($this->job_listener);
 	    @fclose($this->job_listener);
 	    $this->job_listener = null;
+	}
+    }
+
+    //CLD: 2026-11-28T10:00:00Z: the browsers' live events (Server-Sent Events), a plain TCP stream server on app.daemon_listen:app.daemon_push_port (DAEMON_PUSH_PORT),
+    // reached through nginx (location /push). GET /push?t=<token> (util\Daemon::pushToken): the stream stays open, PUSH:<json> of the command port (util\Daemon::push)
+    // goes to the streams whose claims hold each key of its scope, as `data: {"type", "data"}`; a comment every 25 s keeps them open (push_tick), an expired
+    // ticket gets `event: expired` and is closed (the page asks for a new one). A failure stays here (logged, that stream closed): the jobs never wait for it;
+    // a page that reads too slowly is dropped (PUSH_MAX_BACKLOG). A port taken: logged, tried again at the next check
+    const PUSH_MAX_CONNS = 5000;
+    const PUSH_MAX_HEAD = 8192;
+    const PUSH_MAX_BACKLOG = 262144;
+
+    public function setup_push_listener() {
+	if (!empty($this->push_listener))
+	    return;
+
+	$address = \util\Daemon::pushAddress();
+	$server = @stream_socket_server($address, $errno, $errstr);
+	if (!$server) {
+	    \V::app()->log->error("WMGR: cannot serve the live events on {$address}: {$errstr}");
+	    return;
+	}
+	\V::app()->log->info("WMGR: live events on {$address}");
+	stream_set_blocking($server, false);
+	$this->push_listener = $server;
+
+	$this->loop->addReadStream($server, function($server) {
+	    $conn = @stream_socket_accept($server, 0);
+	    if (!$conn)
+		return;
+	    if (count($this->push_conns) >= self::PUSH_MAX_CONNS) {
+		@fwrite($conn, "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+		@fclose($conn);
+		return;
+	    }
+	    stream_set_blocking($conn, false);
+	    $id = (int)$conn;
+	    $this->push_conns[$id] = [ 'stream' => $conn, 'head' => '', 'claims' => null, 'out' => '', 'since' => time(), 'writing' => false, 'closing' => false ];
+	    $this->loop->addReadStream($conn, function($conn) use ($id) {
+		try {
+		    $this->push_read($id);
+		} catch (\Throwable $e) {
+		    \V::app()->log->error('WMGR: live events: ' . $e->getMessage());
+		    $this->push_close($id);
+		}
+	    });
+	});
+    }
+
+    //the request, until its empty line; after it only the end of the stream matters
+    protected function push_read($id) {
+	if (!isset($this->push_conns[$id]))
+	    return;
+	$stream = $this->push_conns[$id]['stream'];
+	$chunk = @fread($stream, 8192);
+	if ($chunk === false || ($chunk === '' && feof($stream))) {
+	    $this->push_close($id);
+	    return;
+	}
+	if ($this->push_conns[$id]['claims'] !== null || $this->push_conns[$id]['closing'])
+	    return;
+
+	$head = $this->push_conns[$id]['head'] . $chunk;
+	if (strlen($head) > self::PUSH_MAX_HEAD) {
+	    $this->push_reply($id, '431 Request Header Fields Too Large');
+	    return;
+	}
+	if (strpos($head, "\r\n\r\n") === false) {
+	    $this->push_conns[$id]['head'] = $head;
+	    return;
+	}
+	$this->push_conns[$id]['head'] = '';
+
+	if (!preg_match('#^GET (/push(?:\?\S*)?) HTTP/1\.[01]\r\n#', $head, $m)) {
+	    $this->push_reply($id, '400 Bad Request');
+	    return;
+	}
+	parse_str((string)parse_url($m[1], PHP_URL_QUERY), $query);
+	$claims = \util\Daemon::pushClaims(is_string($query['t'] ?? null) ? $query['t'] : '');
+	if (!$claims) {
+	    $this->push_reply($id, '401 Unauthorized');
+	    return;
+	}
+	$this->push_conns[$id]['claims'] = $claims;
+	//X-Accel-Buffering: nginx passes each event at once; retry: the browser's wait before it connects again
+	$this->push_write($id, "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache, no-store\r\nX-Accel-Buffering: no\r\nConnection: close\r\n\r\nretry: 5000\n\n");
+	\V::app()->log->debug('WMGR: live events: a page of account ' . ($claims['aid'] ?? '-') . ' connected (' . count($this->push_conns) . ' open)');
+    }
+
+    //an answer that ends the stream (sent, then closed)
+    protected function push_reply($id, $status) {
+	$this->push_conns[$id]['closing'] = true;
+	$this->push_write($id, "HTTP/1.1 {$status}\r\nContent-Type: text/plain\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+    }
+
+    protected function push_write($id, $data) {
+	if (!isset($this->push_conns[$id]))
+	    return;
+	if (strlen($this->push_conns[$id]['out']) + strlen($data) > self::PUSH_MAX_BACKLOG) {
+	    \V::app()->log->debug('WMGR: live events: a page reads too slowly, closed');
+	    $this->push_close($id);
+	    return;
+	}
+	$this->push_conns[$id]['out'] .= $data;
+	if (!$this->push_conns[$id]['writing'])
+	    $this->push_flush($id);
+    }
+
+    //what the socket takes now; the rest when it is writable again
+    protected function push_flush($id) {
+	if (!isset($this->push_conns[$id]))
+	    return;
+	$c = $this->push_conns[$id];
+	$n = $c['out'] === '' ? 0 : @fwrite($c['stream'], $c['out']);
+	if ($n === false) {
+	    $this->push_close($id);
+	    return;
+	}
+	$out = (string)substr($c['out'], $n);
+	$this->push_conns[$id]['out'] = $out;
+	if ($out === '') {
+	    if ($c['writing']) {
+		$this->loop->removeWriteStream($c['stream']);
+		$this->push_conns[$id]['writing'] = false;
+	    }
+	    if ($c['closing'])
+		$this->push_close($id);
+	} elseif (!$c['writing']) {
+	    $this->push_conns[$id]['writing'] = true;
+	    $this->loop->addWriteStream($c['stream'], function() use ($id) {
+		try {
+		    $this->push_flush($id);
+		} catch (\Throwable $e) {
+		    \V::app()->log->error('WMGR: live events: ' . $e->getMessage());
+		    $this->push_close($id);
+		}
+	    });
+	}
+    }
+
+    protected function push_close($id) {
+	if (!isset($this->push_conns[$id]))
+	    return;
+	$c = $this->push_conns[$id];
+	unset($this->push_conns[$id]);
+	$this->loop->removeReadStream($c['stream']);
+	if ($c['writing'])
+	    $this->loop->removeWriteStream($c['stream']);
+	@fclose($c['stream']);
+    }
+
+    //PUSH:<json> { type, scope: { key: value }, data }: to the streams whose claims hold each key of the scope (a claim may be a list); an empty scope: to none
+    protected function push_publish($json) {
+	$msg = json_decode((string)$json, true);
+	$type = is_array($msg) ? ($msg['type'] ?? null) : null;
+	$scope = is_array($msg) ? ($msg['scope'] ?? null) : null;
+	if (!is_string($type) || !preg_match('/^[A-Za-z0-9_.:-]{1,100}$/', $type) || !is_array($scope) || !$scope || isset($scope['exp'])) {
+	    \V::app()->log->warn('WMGR: live events: not an event: ' . substr((string)$json, 0, 200));
+	    return;
+	}
+	$frame = 'data: ' . \util\JSON::encode([ 'type' => $type, 'data' => (object)(is_array($msg['data'] ?? null) ? $msg['data'] : []) ]) . "\n\n";
+	$sent = 0;
+	foreach($this->push_conns as $id => $c) {
+	    if ($c['claims'] === null || $c['closing'])
+		continue;
+	    foreach($scope as $key => $value) {
+		if (!isset($c['claims'][$key]) || !in_array((string)$value, array_map('strval', (array)$c['claims'][$key]), true))
+		    continue 2;
+	    }
+	    $this->push_write($id, $frame);
+	    $sent++;
+	}
+	\V::app()->log->debug("WMGR: live events: {$type} to {$sent} page(s)");
+    }
+
+    //every 25 s: a comment on each stream (nginx and the proxies keep it open), the expired tickets told and closed, requests not finished in 10 s closed
+    protected function push_tick() {
+	$now = time();
+	foreach($this->push_conns as $id => $c) {
+	    if ($c['closing'])
+		continue;
+	    if ($c['claims'] === null) {
+		if ($c['since'] < $now - 10)
+		    $this->push_close($id);
+	    } elseif ((int)($c['claims']['exp'] ?? 0) <= $now) {
+		$this->push_conns[$id]['closing'] = true;
+		$this->push_write($id, "event: expired\ndata: {}\n\n");
+	    } else {
+		$this->push_write($id, ": ping\n\n");
+	    }
+	}
+    }
+
+    public function close_push_listener() {
+	foreach(array_keys($this->push_conns) as $id)
+	    $this->push_close($id);
+	if (!empty($this->push_listener)) {
+	    $this->loop->removeReadStream($this->push_listener);
+	    @fclose($this->push_listener);
+	    $this->push_listener = null;
 	}
     }
 
@@ -558,6 +772,8 @@ class DaemonCommand extends \sys\BaseController {
     	$this->loop->addTimer(1, function() {
 	    //setup job_listener
 	    $this->setup_job_listener();
+	    //CLD: 2026-11-28T10:00:00Z: the live events
+	    $this->setup_push_listener();
 
 	    $this->ensure_workers();
     	});
@@ -579,7 +795,18 @@ class DaemonCommand extends \sys\BaseController {
 
 	    //check/setup job_listener
 	    $this->setup_job_listener();
+	    //CLD: 2026-11-28T10:00:00Z: the live events' listener too
+	    $this->setup_push_listener();
     	});
+
+	//CLD: 2026-11-28T10:00:00Z: the live events' streams kept open (push_tick)
+	$this->loop->addPeriodicTimer(25, function() {
+	    try {
+		$this->push_tick();
+	    } catch (\Throwable $e) {
+		\V::app()->log->error('WMGR: live events: ' . $e->getMessage());
+	    }
+	});
 
 	//add a 5min periodic timer
 	// - warn via email if there are too many jobs in queue
@@ -648,6 +875,8 @@ class DaemonCommand extends \sys\BaseController {
 	\V::app()->log->info("WMGR: main loop exited, kill workers....");
 	$this->stopping = true;
 	$this->close_job_listener();
+	//CLD: 2026-11-28T10:00:00Z: the pages connect again to the next daemon
+	$this->close_push_listener();
 	if ($this->timer) {
 	    $this->loop->cancelTimer($this->timer);
 	    $this->timer = null;

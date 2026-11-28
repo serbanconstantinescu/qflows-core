@@ -36,6 +36,8 @@ x-app: &app
     DAEMON_LISTEN: 0.0.0.0
     DAEMON_HOST: daemon
     DAEMON_PORT: ${DAEMON_PORT:-9000}
+    # the daemon's live events for the browsers (web: location /push proxies to daemon:<port>)
+    DAEMON_PUSH_PORT: ${DAEMON_PUSH_PORT:-10000}
     # the host's Haraka (compose.mail.yaml: host.docker.internal): the Email (inbound) step and the Inbound mail tab
     HARAKA_HOST: ${HARAKA_HOST:-}
     # the setup's defaults (/setup): the database of the mongo container, its app user
@@ -117,6 +119,7 @@ services:
     restart: unless-stopped
     environment:
       NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-_}
+      DAEMON_PUSH_PORT: ${DAEMON_PUSH_PORT:-10000}
     # the operator's reverse proxy forwards here (README.md); HTTP_BIND=0.0.0.0 only with a proxy elsewhere that alone reaches the port
     ports:
       - "${HTTP_BIND:-127.0.0.1}:${HTTP_PORT:-8080}:80"
