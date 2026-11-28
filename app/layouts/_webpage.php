@@ -16,6 +16,8 @@
 
 	<meta name="csrf-param" content="<?= \V::app()->csrf->getKey() ?>">
 	<meta name="csrf-token" content="<?= \V::app()->csrf->getToken() ?>">
+	<?php //CLD: 2026-11-28T18:00:00+02:00: the sign-in page, for app.session (a fetch redirected there: the session has ended) ?>
+	<meta name="login-url" content="<?= \V::app()->html->escape((string)\V::app()->user->getLoginUrl()) ?>">
 	
 	<?php //light / dark / auto (the system's), chosen per browser (localStorage qflows.theme: app.theme in app.js; default app.color-scheme), set on <html> before
 	//the styles load (no flash of the other theme) ?>

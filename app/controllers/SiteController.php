@@ -312,8 +312,9 @@ class SiteController extends \sys\BaseController {
     const OVERVIEW_LONG_RUN = 900;
 
     public function overview($req, $resp) {
+	//CLD: 2026-11-28T18:00:00+02:00: to the sign-in page (an ajax request: 401 with X-Login, app.session says the session has ended: sys\http\Response::redirect)
 	if (\V::app()->user->isGuest)
-	    \V::app()->error(401, 'Log in first.');
+	    \V::app()->response->redirect(\V::app()->user->getLoginUrl());
 	$om = \V::app()->om;
 	$user = \V::app()->user;
 	$account = \V::app()->config('rt.account');
@@ -554,8 +555,9 @@ class SiteController extends \sys\BaseController {
     //CLD: 2026-11-28T10:00:00Z: a new ticket for the page's live events (app.live: the last one expired, or the daemon was away): for its project (?project=) when
     //the user still reads it, else the current one -> { ok, ticket }; 401 signed out
     public function live_ticket($req, $resp) {
+	//CLD: 2026-11-28T18:00:00+02:00: to the sign-in page (an ajax request: 401 with X-Login, app.session says the session has ended: sys\http\Response::redirect)
 	if (\V::app()->user->isGuest)
-	    $resp->sendJSON([ 'ok' => false, 'error' => 'Log in first.' ], true, 401);
+	    $resp->redirect(\V::app()->user->getLoginUrl());
 	$account = \V::app()->var('rt.account');
 	$id = (string)($req->query['project'] ?? '');
 	$project = \util\Validator::rule('oid', $id) ? \V::app()->om->findOne('Project', [ '_id' => $id, 'aid' => $account->_id ?? null ]) : null;

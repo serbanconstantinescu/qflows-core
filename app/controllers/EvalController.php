@@ -15,8 +15,9 @@ class EvalController extends \sys\BaseController {
 
     public function _init() {
 	parent::_init();
+	//CLD: 2026-11-28T18:00:00+02:00: to the sign-in page (an ajax request: 401 with X-Login, app.session says the session has ended: sys\http\Response::redirect)
 	if (\V::app()->user->isGuest)
-	    \V::app()->response->sendJSON([ 'error' => 'Log in first' ], true, 401);
+	    \V::app()->response->redirect(\V::app()->user->getLoginUrl());
 	//the request's account (rt.account, set at sign-in), for the actions
 	$this->account = \V::app()->config('rt.account');
     }

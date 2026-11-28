@@ -688,6 +688,66 @@ app.theme = (function() {
     };
 })();
 
+//CLD: 2026-11-28T18:00:00+02:00: the session ended (signed out by its limits, in another tab, ...): sys\http\Response::redirect answers an ajax request 401 with the
+//sign-in page in X-Login; a fetch without X-Requested-With is redirected to the sign-in page (<meta name=login-url>). A dialog says so: Sign in loads the sign-in page (back
+//to this page after it), Stay on this page closes it (to copy what was not saved; the next request answered so opens it again). Every fetch (app.utils.post too) and jQuery
+//request is watched: the callers still get their answer (an error)
+app.session = (function() {
+    let dialog = null;
+
+    function ended(login) {
+	if (dialog && dialog.isConnected)
+	    return;
+	//back to the page shown (not to what was asked: a fragment, a file)
+	const url = new URL(login, location.href);
+	url.searchParams.set('return', location.pathname + location.search);
+
+	dialog = app.utils.el('div', 'modal fade', { tabindex: '-1', 'data-bs-backdrop': 'static', 'aria-labelledby': 'qf-session-ended' });
+	dialog.innerHTML = `
+	    <div class="modal-dialog modal-dialog-centered">
+		<div class="modal-content">
+		    <div class="modal-header"><h5 class="modal-title" id="qf-session-ended"><i class="bi bi-clock-history me-2"></i>Your session has ended</h5></div>
+		    <div class="modal-body">Sign in again to continue. What was not saved on this page is lost when you leave it.</div>
+		    <div class="modal-footer">
+			<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Stay on this page</button>
+			<a class="btn btn-primary" no-pjax>Sign in</a>
+		    </div>
+		</div>
+	    </div>`;
+	dialog.querySelector('a').href = url.pathname + url.search;
+	const node = dialog;
+	node.addEventListener('hidden.bs.modal', () => node.remove());
+	document.body.append(node);
+	bootstrap.Modal.getOrCreateInstance(node).show();
+    }
+
+    return {
+	ended: ended,
+
+	init() {
+	    const loginPath = document.querySelector('meta[name=login-url]')?.getAttribute('content') || '';
+	    const nativeFetch = window.fetch.bind(window);
+	    window.fetch = async function(...args) {
+		const res = await nativeFetch(...args);
+		const login = res.headers.get('X-Login');
+		if (res.status === 401 && login) {
+		    ended(login);
+		} else if (res.redirected && loginPath) {
+		    const to = new URL(res.url);
+		    if (to.origin === location.origin && to.pathname === loginPath)
+			ended(res.url);
+		}
+		return res;
+	    };
+	    $(document).ajaxError((e, xhr) => {
+		const login = xhr.getResponseHeader('X-Login');
+		if (xhr.status === 401 && login)
+		    ended(login);
+	    });
+	},
+    };
+})();
+
 +function() {
     console.log('app: initializing');
     const app_modules = Object.keys(window.app);

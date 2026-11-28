@@ -68,6 +68,14 @@ class BaseController extends \sys\BaseObject {
 	if ($this->layout === null && \V::app()->request->is('ajax'))
 	    $this->layout = 'ajax';
 
+	//CLD: 2026-11-28T18:00:00+02:00: a page of its own layout (bare: the sign-in, 2FA, password reset pages; form) asked by pjax (a link, or X-Pjax-Redirect to the sign-in
+	//page when the session ended) cannot be shown in the app's page: X-Pjax-Location, app.pjax loads it as a full page. GET only (a POST is not asked again)
+	if (\V::app()->request->is('pjax') && \V::app()->request->is('get') && !in_array($this->layout, [ 'pjax', 'ajax', false ], true)) {
+	    \V::app()->response->addHeader('X-Pjax-Location', \V::app()->request->requestUri);
+	    \V::app()->response->write('', true);
+	    \V::app()->end();
+	}
+
 	//the events kept by a full-page redirect (redirect()), before this request's own; only on a page that shows them (pjax, or a full page; not
 	//an ajax fragment)
 	$shows = \V::app()->request->is('pjax') || !\V::app()->request->is('ajax');

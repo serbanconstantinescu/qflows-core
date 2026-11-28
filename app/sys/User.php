@@ -68,19 +68,30 @@ class User extends \sys\BaseObject {
 	}
     }
 
-    //CLD: 2026-11-17T22:30:00+02:00: redirects to the sign-in page (login.url), else a 403; the page asked (its path and query, not for an ajax / pjax request) is kept as
-    //the return URL (getReturnUrl() after the sign-in; only a path of this site: not `//host`). Response::redirect answers ajax and pjax requests in their own way (X-Redirect / X-Pjax-Redirect)
+    //CLD: 2026-11-28T18:00:00+02:00: redirects to the sign-in page (login.url), else a 403. Response::redirect adds the page to come back to (returnPath) and answers
+    //pjax and ajax requests in their own way
     public function loginRequired() {
-	$request = \V::app()->request;
-	$uri = (string)$request->requestUri;
-	if (!$request->is('ajax') && !$request->is('pjax') && str_starts_with($uri, '/') && !str_starts_with($uri, '//') && !str_starts_with($uri, '/\\'))
-	    $this->return_url = $uri;
-
     	$url = $this->_config['login.url'];
 	if (!empty($url))
 	    \V::app()->response->redirect($url);
 
 	\V::app()->error(403, \V::t('Login Required'));
+    }
+
+    //CLD: 2026-11-28T18:00:00+02:00: the page to come back to after signing in (the ?return= of the sign-in page: SiteController::login): the page asked by a full-page GET,
+    //the page shown by a pjax request (its X-Pjax-Page header: app.pjax; not the page asked, which may be a dialog's fragment); none for other requests (an ajax call: app.session
+    //asks the sign-in with the page shown). Only a path of this site (not `//host`, nor `/\host`), not the sign-in page itself
+    public function returnPath() {
+	$request = \V::app()->request;
+	if ($request->is('pjax'))
+	    $path = (string)($request->headers['x-pjax-page'] ?? '');
+	elseif (!$request->is('ajax') && $request->is('get'))
+	    $path = (string)$request->requestUri;
+	else
+	    return null;
+	if (!str_starts_with($path, '/') || str_starts_with($path, '//') || str_contains($path, '\\') || preg_match('~\s~', $path) || strtok($path, '?') === $this->_config['login.url'])
+	    return null;
+	return $path;
     }
 
     // Returns the URL that the user should be redirected to after successful login.

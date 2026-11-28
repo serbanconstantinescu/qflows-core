@@ -36,7 +36,21 @@ class Response extends \sys\BaseObject {
 	$this->headers[$key] = $val;
     }
 
+    //CLD: 2026-11-28T18:00:00+02:00: to the sign-in page (login.url, e.g. a session that ended): with the page to come back to (?return=: sys\User::returnPath); an ajax
+    //request (not pjax) is answered 401 { ok, error, login } with the address in X-Login too (app.session in app.js: "your session has ended"), not with a redirect it would not follow
     public function redirect($url, $terminate = true, $status = 302) {
+	$login = \V::app()->user?->getLoginUrl();
+	if (!empty($login) && $url === $login) {
+	    $back = \V::app()->user->returnPath();
+	    if ($back !== null)
+		$url .= '?return=' . rawurlencode($back);
+	    if (\V::app()->request->is('ajax') && !\V::app()->request->is('pjax')) {
+		$this->headers['X-Login'] = $url;
+		$this->sendJSON([ 'ok' => false, 'error' => \V::t('Your session has ended: sign in again.'), 'login' => $url ], $terminate, 401);
+		return;
+	    }
+	}
+
 	switch(true) {
 	    case \V::app()->request->is('pjax'):
 		//redirect via pjax: change status and set X-Pjax-Redirect

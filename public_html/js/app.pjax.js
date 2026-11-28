@@ -84,6 +84,8 @@ window.app.pjax = (function() {
     		}
 		xhr.setRequestHeader('X-PJAX', 'true')
         	xhr.setRequestHeader('X-Csrf-Token', app.utils.csrf());
+		//CLD: 2026-11-28T18:00:00+02:00: the page shown, to come back to after signing in when the session has ended (sys\User::returnPath)
+		xhr.setRequestHeader('X-Pjax-Page', location.pathname + location.search);
 
 		//disable source element
 		if (options.source)
@@ -112,6 +114,13 @@ window.app.pjax = (function() {
 
 		if (options.source)
 		    enableElement(options.source);
+
+		//CLD: 2026-11-28T18:00:00+02:00: a page of its own layout (the sign-in page, e.g. after the session ended: sys\BaseController::render) is loaded as a full page
+		const fullPage = xhr.getResponseHeader('X-Pjax-Location');
+		if (fullPage) {
+		    window.location.assign(fullPage);
+		    return;
+		}
 
 		if (textStatus != 'success') {
 		    if (debug)
