@@ -74,7 +74,7 @@ class Boot {
 		'pidfile' => BASE . '/run/daemon.pid',
 		//on its port, 127.0.0.1:<DAEMON_PORT>
 		'health' => function() {
-		    $address = \models\Job::daemonAddress();
+		    $address = \util\Daemon::address();
 		    $port = parse_url($address, PHP_URL_PORT);
 		    $s = @stream_socket_client($address, $errno, $errstr, 1);
 		    if (!$s)

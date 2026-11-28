@@ -144,35 +144,8 @@ class Job extends \sys\BaseModel {
 	    throw $e;
 	}
 	if (!empty($options['notify']) || !isset($options['notify']))
-	    self::notify();
+	    \util\Daemon::notify();
 	return $id;
-    }
-
-    //where the daemon takes its commands: tcp://127.0.0.1:<app.daemon_port> (DAEMON_PORT of app.env)
-    //$listen: the daemon's own address (app.daemon_listen), else where others reach it (app.daemon_host); both 127.0.0.1 unless set (Docker)
-    public static function daemonAddress($listen = false) {
-	$host = (string)\V::app()->config($listen ? 'app.daemon_listen' : 'app.daemon_host');
-	return 'tcp://' . (str_contains($host, ':') ? "[{$host}]" : $host) . ':' . (int)\V::app()->config('app.daemon_port');
-    }
-
-    //wake the daemon (NEWJOB on its local port); nothing happens when it does not run
-    public static function notify() {
-	$conn = @stream_socket_client(self::daemonAddress(), $errno, $errstr, 1);
-	if (!$conn)
-	    return false;
-	fwrite($conn, "NEWJOB\n");
-	fclose($conn);
-	return true;
-    }
-
-    //stop the worker running job $jid (KILLJOB on the daemon's port); nothing happens when the daemon does not run
-    public static function kill($jid) {
-	$conn = @stream_socket_client(self::daemonAddress(), $errno, $errstr, 1);
-	if (!$conn)
-	    return false;
-	fwrite($conn, "KILLJOB:{$jid}\n");
-	fclose($conn);
-	return true;
     }
 
     //log an error and mail it to ERRORS_EMAIL (app.env) when set; $error: a message or a Throwable

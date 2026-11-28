@@ -658,7 +658,7 @@ class WfExecution extends \sys\BaseModel {
     }
 
     //kill a running (or waiting) execution: `cancel` in the database (a targeted update: the process running it may save meanwhile; it stops at its next
-    //pass, see killed()), its daemon jobs removed (not run / queued again) and the worker running one stopped (Job::kill). $by: who killed it (the log). False when it no longer runs
+    //pass, see killed()), its daemon jobs removed (not run / queued again) and the worker running one stopped (util\Daemon::kill). $by: who killed it (the log). False when it no longer runs
     public function kill($by = null) {
 	$now = new \MongoDB\BSON\UTCDateTime();
 	$message = 'killed' . ($by ? ' by ' . $by : '');
@@ -674,7 +674,7 @@ class WfExecution extends \sys\BaseModel {
 	    //removed first: the daemon does not queue it again when its worker is stopped
 	    \V::app()->om->deleteOne('Job', [ '_id' => $job['_id'] ]);
 	    if ($job['state'] === 'run')
-		\models\Job::kill((string)$job['_id']);
+		\util\Daemon::kill((string)$job['_id']);
 	}
 
 	$outer = \models\ExecutionLog::$execution;
