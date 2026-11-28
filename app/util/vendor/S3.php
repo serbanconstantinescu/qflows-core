@@ -236,31 +236,11 @@ class S3 {
 
     //XML as arrays: an element's children by name (repeated ones: a list), a text element: its text
     public static function xmlArray($xml) {
-	$xml = trim((string)$xml);
-	if ($xml === '' || $xml[0] !== '<')
+	//CLD: 2026-11-28T16:00:00+02:00: util\Xml without the attributes, texts as they are (a key may start / end with a space); the root's content ([] when not XML)
+	try {
+	    return (array)current(\util\Xml::toArray(trim((string)$xml), [ 'attributes' => false, 'trim' => false ]));
+	} catch (\RuntimeException $e) {
 	    return [];
-	$prev = libxml_use_internal_errors(true);
-	$doc = simplexml_load_string($xml, \SimpleXMLElement::class, LIBXML_NONET | LIBXML_NOCDATA);
-	libxml_use_internal_errors($prev);
-	if ($doc === false)
-	    return [];
-	$walk = function(\SimpleXMLElement $e) use (&$walk) {
-	    if (!$e->count())
-		return (string)$e;
-	    $out = [];
-	    foreach($e->children() as $name => $child) {
-		$v = $walk($child);
-		if (array_key_exists($name, $out)) {
-		    if (!is_array($out[$name]) || !array_is_list($out[$name]) || !isset($out['__list'][$name]))
-			$out[$name] = [ $out[$name] ];
-		    $out['__list'][$name] = true;
-		    $out[$name][] = $v;
-		} else
-		    $out[$name] = $v;
-	    }
-	    unset($out['__list']);
-	    return $out;
-	};
-	return (array)$walk($doc);
+	}
     }
 }

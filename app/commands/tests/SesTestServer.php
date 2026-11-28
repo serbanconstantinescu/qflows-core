@@ -10,7 +10,7 @@
 	<state>/throttle.json: how many 429 next (TooManyRequestsException). Each request appended to <state>/requests.jsonl (method, path, raw path, query, body, signed)
 */
 
-require_once __DIR__ . '/../../util/AwsSigV4.php';
+require_once __DIR__ . '/../../util/vendor/AwsSigV4.php';
 
 $state = getenv('SES_STATE') ?: sys_get_temp_dir();
 $method = $_SERVER['REQUEST_METHOD'];

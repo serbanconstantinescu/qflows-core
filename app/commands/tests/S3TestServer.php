@@ -11,7 +11,7 @@
 	Each request appended to <state>/requests.jsonl (method, path, query, headers signed, size)
 */
 
-require dirname(__DIR__, 2) . '/util/AwsSigV4.php';
+require dirname(__DIR__, 2) . '/util/vendor/AwsSigV4.php';
 //the Content-Type as stored (PHP adds a charset to text/* types otherwise; S3 does not)
 ini_set('default_charset', '');
 

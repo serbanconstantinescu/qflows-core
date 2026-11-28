@@ -73,7 +73,7 @@ class CredentialNamecheap extends \models\Credential {
 
     public function test() {
 	try {
-	    $b = \plugins\ITOps\util\Namecheap::attrs($this->client($this->aid, 20)->call('namecheap.users.getBalances')->UserGetBalancesResult);
+	    $b = \plugins\ITOps\util\Namecheap::attrs($this->client($this->aid, 20)->call('namecheap.users.getBalances')['UserGetBalancesResult'] ?? null);
 	} catch (\RuntimeException $e) {
 	    throw new \Exception($e->getMessage());
 	}

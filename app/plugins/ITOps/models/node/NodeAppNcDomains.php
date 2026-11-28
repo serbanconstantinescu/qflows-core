@@ -85,7 +85,7 @@ class NodeAppNcDomains extends NodeAppNamecheap {
 		    $r = $this->call('namecheap.domains.getList', [ 'ListType' => 'ALL', 'SortBy' => 'EXPIREDATE', 'SearchTerm' => $text('search') ?: null, 'Page' => $page, 'PageSize' => \plugins\ITOps\util\Namecheap::PAGE ]);
 		    $n = 0;
 		    $past = false;
-		    foreach($r->DomainGetListResult->Domain ?? [] as $el) {
+		    foreach(\util\Xml::children($r['DomainGetListResult'] ?? null, 'Domain') as $el) {
 			$n++;
 			$d = self::withDaysLeft(\plugins\ITOps\util\Namecheap::attrs($el));
 			if ($d['daysLeft'] !== null && $d['daysLeft'] > $days)
@@ -93,7 +93,7 @@ class NodeAppNcDomains extends NodeAppNamecheap {
 			elseif ($expired || ($d['daysLeft'] ?? 0) >= 0)
 			    $all[] = $d;
 		    }
-		    $total = isset($r->Paging->TotalItems) ? (int)(string)$r->Paging->TotalItems : 0;
+		    $total = isset($r['Paging']['TotalItems']) ? (int)\util\Xml::text($r['Paging']['TotalItems']) : 0;
 		    if ($past || $n < \plugins\ITOps\util\Namecheap::PAGE || $page * \plugins\ITOps\util\Namecheap::PAGE >= $total || count($all) >= $max)
 			break;
 		}
@@ -102,7 +102,7 @@ class NodeAppNcDomains extends NodeAppNamecheap {
 		return [ $res, "{$sum} expiring within {$days} days" ];
 	    case 'get':
 		[ $domain ] = $this->domainOf($value);
-		$d = \plugins\ITOps\util\Namecheap::toArray($this->call('namecheap.domains.getInfo', [ 'DomainName' => $domain ])->DomainGetInfoResult);
+		$d = \plugins\ITOps\util\Namecheap::toArray($this->call('namecheap.domains.getInfo', [ 'DomainName' => $domain ])['DomainGetInfoResult'] ?? null);
 		$expires = $d['DomainDetails']['ExpiredDate'] ?? null;
 		return [ $d, "{$domain}: " . ($d['Status'] ?? '') . (is_scalar($expires) ? ", expires {$expires}" : '') ];
 	    case 'check':
@@ -112,22 +112,22 @@ class NodeAppNcDomains extends NodeAppNamecheap {
 		if (count($names) > self::MAX_CHECK)
 		    throw new \RuntimeException('Names: at most ' . self::MAX_CHECK . ' in one check, not ' . count($names));
 		$items = [];
-		foreach($this->call('namecheap.domains.check', [ 'DomainList' => $names ])->DomainCheckResult ?? [] as $el)
+		foreach(\util\Xml::children($this->call('namecheap.domains.check', [ 'DomainList' => $names ]), 'DomainCheckResult') as $el)
 		    $items[] = \plugins\ITOps\util\Namecheap::attrs($el);
 		$available = array_values(array_map(fn($i) => (string)$i['Domain'], array_filter($items, fn($i) => ($i['Available'] ?? false) === true)));
 		return [ [ 'items' => $items, 'available' => $available, 'count' => count($items) ], count($available) . ' of ' . \util\Format::plural(count($items), 'name') . ' available' ];
 	    case 'contacts':
 		[ $domain ] = $this->domainOf($value);
-		return [ \plugins\ITOps\util\Namecheap::toArray($this->call('namecheap.domains.getContacts', [ 'DomainName' => $domain ])->DomainContactsResult), "the contacts of {$domain}" ];
+		return [ \plugins\ITOps\util\Namecheap::toArray($this->call('namecheap.domains.getContacts', [ 'DomainName' => $domain ])['DomainContactsResult'] ?? null), "the contacts of {$domain}" ];
 	    case 'lockStatus':
 		[ $domain ] = $this->domainOf($value);
-		$a = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.domains.getRegistrarLock', [ 'DomainName' => $domain ])->DomainGetRegistrarLockResult);
+		$a = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.domains.getRegistrarLock', [ 'DomainName' => $domain ])['DomainGetRegistrarLockResult'] ?? null);
 		$locked = ($a['RegistrarLockStatus'] ?? false) === true;
 		return [ [ 'domain' => $domain, 'locked' => $locked ], "{$domain}: " . ($locked ? 'locked' : 'unlocked') ];
 	    case 'lock':
 	    case 'unlock':
 		[ $domain ] = $this->domainOf($value);
-		$a = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.domains.setRegistrarLock', [ 'DomainName' => $domain, 'LockAction' => strtoupper($operation) ])->DomainSetRegistrarLockResult);
+		$a = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.domains.setRegistrarLock', [ 'DomainName' => $domain, 'LockAction' => strtoupper($operation) ])['DomainSetRegistrarLockResult'] ?? null);
 		if (($a['IsSuccess'] ?? true) !== true)
 		    throw new \RuntimeException("Namecheap did not {$operation} {$domain}");
 		return [ [ 'domain' => $domain, 'locked' => $operation === 'lock' ], "{$domain} {$operation}ed" ];
@@ -136,14 +136,14 @@ class NodeAppNcDomains extends NodeAppNamecheap {
 		$years = (int)$value('years');
 		if ($years < 1 || $years > 10)
 		    throw new \RuntimeException('Years: from 1 to 10');
-		$a = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.domains.renew', [ 'DomainName' => $domain, 'Years' => $years, 'PromotionCode' => $text('promotionCode') ?: null ])->DomainRenewResult);
+		$a = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.domains.renew', [ 'DomainName' => $domain, 'Years' => $years, 'PromotionCode' => $text('promotionCode') ?: null ])['DomainRenewResult'] ?? null);
 		if (($a['Renew'] ?? true) !== true)
 		    throw new \RuntimeException("Namecheap did not renew {$domain}");
 		return [ $a, "{$domain} renewed for " . \util\Format::plural($years, 'year') . (isset($a['ChargedAmount']) ? ", charged {$a['ChargedAmount']}" : '') ];
 	    case 'tlds':
 		$all = [];
-		foreach($this->call('namecheap.domains.getTldList')->Tlds->Tld ?? [] as $el)
-		    $all[] = \plugins\ITOps\util\Namecheap::attrs($el) + [ 'Description' => trim((string)$el) ];
+		foreach(\util\Xml::children($this->call('namecheap.domains.getTldList')['Tlds'] ?? null, 'Tld') as $el)
+		    $all[] = \plugins\ITOps\util\Namecheap::attrs($el) + [ 'Description' => trim(\util\Xml::text($el)) ];
 		return $this->listResult($all, 'TLD');
 	}
 	throw new \RuntimeException("unknown operation `{$operation}`");

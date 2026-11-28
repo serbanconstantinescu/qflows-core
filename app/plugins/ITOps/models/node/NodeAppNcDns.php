@@ -172,9 +172,9 @@ class NodeAppNcDns extends NodeAppNamecheap {
 
     //the domain's records: [ records, email type, the answer's attributes ]
     protected function hosts($sld, $tld) {
-	$r = $this->nc->call('namecheap.domains.dns.getHosts', [ 'SLD' => $sld, 'TLD' => $tld ])->DomainDNSGetHostsResult;
+	$r = $this->nc->call('namecheap.domains.dns.getHosts', [ 'SLD' => $sld, 'TLD' => $tld ])['DomainDNSGetHostsResult'] ?? null;
 	$records = [];
-	foreach($r->host ?? [] as $el) {
+	foreach(\util\Xml::children($r, 'host') as $el) {
 	    $a = \plugins\ITOps\util\Namecheap::attrs($el);
 	    $rec = [ 'Name' => (string)($a['Name'] ?? '@'), 'Type' => strtoupper((string)($a['Type'] ?? '')), 'Address' => (string)($a['Address'] ?? ''), 'TTL' => (int)($a['TTL'] ?? self::TTL_DEFAULT) ];
 	    if ($rec['Type'] === 'MX')
@@ -190,7 +190,7 @@ class NodeAppNcDns extends NodeAppNamecheap {
 	$clean = array_map(fn($r) => array_intersect_key($r, array_flip([ 'Name', 'Type', 'Address', 'TTL', 'MXPref' ])), $after);
 	$changed = $added || $removed;
 	if ($changed) {
-	    $a = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.domains.dns.setHosts', self::hostsParams($sld, $tld, $clean, self::emailType($clean, $emailType)))->DomainDNSSetHostsResult);
+	    $a = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.domains.dns.setHosts', self::hostsParams($sld, $tld, $clean, self::emailType($clean, $emailType)))['DomainDNSSetHostsResult'] ?? null);
 	    if (($a['IsSuccess'] ?? true) !== true)
 		throw new \RuntimeException("Namecheap did not save the records of {$domain}");
 	}
@@ -246,10 +246,10 @@ class NodeAppNcDns extends NodeAppNamecheap {
 		$r = $this->writeHosts($domain, $sld, $tld, $records, $new, $emailType, $new, $records);
 		return [ $r, \util\Format::plural(count($new), 'record') . " written to {$domain} (" . count($records) . ' before)' ];
 	    case 'nameservers':
-		$r = $this->call('namecheap.domains.dns.getList', [ 'SLD' => $sld, 'TLD' => $tld ])->DomainDNSGetListResult;
+		$r = $this->call('namecheap.domains.dns.getList', [ 'SLD' => $sld, 'TLD' => $tld ])['DomainDNSGetListResult'] ?? null;
 		$ns = [];
-		foreach($r->Nameserver ?? [] as $el)
-		    $ns[] = strtolower(trim((string)$el));
+		foreach(\util\Xml::children($r, 'Nameserver') as $el)
+		    $ns[] = strtolower(trim(\util\Xml::text($el)));
 		$a = \plugins\ITOps\util\Namecheap::attrs($r);
 		return [ [ 'domain' => $domain, 'nameservers' => $ns, 'usingNamecheapDns' => $a['IsUsingOurDNS'] ?? null ], "{$domain}: " . implode(', ', $ns) ];
 	    case 'setNameservers':
@@ -259,19 +259,19 @@ class NodeAppNcDns extends NodeAppNamecheap {
 		$ns = array_values(array_unique($ns));
 		if (count($ns) < 2)
 		    throw new \RuntimeException('Name servers: at least 2');
-		$a = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.domains.dns.setCustom', [ 'SLD' => $sld, 'TLD' => $tld, 'Nameservers' => $ns ])->DomainDNSSetCustomResult);
+		$a = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.domains.dns.setCustom', [ 'SLD' => $sld, 'TLD' => $tld, 'Nameservers' => $ns ])['DomainDNSSetCustomResult'] ?? null);
 		if (($a['Updated'] ?? true) !== true)
 		    throw new \RuntimeException("Namecheap did not change the name servers of {$domain}");
 		return [ [ 'domain' => $domain, 'nameservers' => $ns ], "{$domain} on " . implode(', ', $ns) ];
 	    case 'resetNameservers':
-		$a = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.domains.dns.setDefault', [ 'SLD' => $sld, 'TLD' => $tld ])->DomainDNSSetDefaultResult);
+		$a = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.domains.dns.setDefault', [ 'SLD' => $sld, 'TLD' => $tld ])['DomainDNSSetDefaultResult'] ?? null);
 		if (($a['Updated'] ?? true) !== true)
 		    throw new \RuntimeException("Namecheap did not change the name servers of {$domain}");
 		return [ [ 'domain' => $domain, 'usingNamecheapDns' => true ], "{$domain} on Namecheap's name servers" ];
 	    case 'forwarding':
 		$items = [];
-		foreach($this->call('namecheap.domains.dns.getEmailForwarding', [ 'DomainName' => $domain ])->DomainDNSGetEmailForwardingResult->Forward ?? [] as $el)
-		    $items[] = [ 'mailbox' => (string)$el['mailbox'], 'forwardTo' => trim((string)$el) ];
+		foreach(\util\Xml::children($this->call('namecheap.domains.dns.getEmailForwarding', [ 'DomainName' => $domain ])['DomainDNSGetEmailForwardingResult'] ?? null, 'Forward') as $el)
+		    $items[] = [ 'mailbox' => (string)($el['@mailbox'] ?? ''), 'forwardTo' => trim(\util\Xml::text($el)) ];
 		return [ [ 'domain' => $domain, 'forwards' => $items, 'count' => count($items) ], \util\Format::plural(count($items), 'forward') . " of {$domain}" ];
 	    case 'setForwarding':
 		$p = [ 'DomainName' => $domain ];
@@ -288,7 +288,7 @@ class NodeAppNcDns extends NodeAppNamecheap {
 		}
 		if (count($p) === 1)
 		    throw new \RuntimeException('Forwarding: empty');
-		$a = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.domains.dns.setEmailForwarding', $p)->DomainDNSSetEmailForwardingResult);
+		$a = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.domains.dns.setEmailForwarding', $p)['DomainDNSSetEmailForwardingResult'] ?? null);
 		if (($a['IsSuccess'] ?? true) !== true)
 		    throw new \RuntimeException("Namecheap did not save the forwarding of {$domain}");
 		$n = (count($p) - 1) / 2;

@@ -40,7 +40,7 @@ class NodeAppNcAccount extends NodeAppNamecheap {
     protected function runOperation($operation, \Closure $text, \Closure $value) {
 	switch($operation) {
 	    case 'balances':
-		$b = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.users.getBalances')->UserGetBalancesResult);
+		$b = \plugins\ITOps\util\Namecheap::attrs($this->call('namecheap.users.getBalances')['UserGetBalancesResult'] ?? null);
 		return [ $b, 'available ' . ($b['AvailableBalance'] ?? '?') . ' ' . ($b['Currency'] ?? '') ];
 	    case 'pricing':
 		$tld = strtolower(ltrim($text('tld'), '.'));
@@ -48,13 +48,13 @@ class NodeAppNcAccount extends NodeAppNamecheap {
 		    throw new \RuntimeException('TLD: not a TLD: `' . mb_substr($tld, 0, 32) . '`');
 		$action = isset(self::ACTIONS[(string)$this->cfg('action', 'REGISTER')]) ? (string)$this->cfg('action', 'REGISTER') : 'REGISTER';
 		$r = $this->call('namecheap.users.getPricing', [ 'ProductType' => 'DOMAIN', 'ActionName' => $action, 'ProductName' => $tld,
-		    'PromotionCode' => $text('promotionCode') ?: null ])->UserGetPricingResult;
+		    'PromotionCode' => $text('promotionCode') ?: null ])['UserGetPricingResult'] ?? null;
 		$all = [];
-		foreach($r->ProductType ?? [] as $type)
-		    foreach($type->ProductCategory ?? [] as $cat)
-			foreach($cat->Product ?? [] as $product)
-			    foreach($product->Price ?? [] as $price)
-				$all[] = [ 'tld' => (string)$product['Name'], 'action' => strtolower((string)$cat['Name']) ] + \plugins\ITOps\util\Namecheap::attrs($price);
+		foreach(\util\Xml::children($r, 'ProductType') as $type)
+		    foreach(\util\Xml::children($type, 'ProductCategory') as $cat)
+			foreach(\util\Xml::children($cat, 'Product') as $product)
+			    foreach(\util\Xml::children($product, 'Price') as $price)
+				$all[] = [ 'tld' => (string)($product['@Name'] ?? ''), 'action' => strtolower((string)($cat['@Name'] ?? '')) ] + \plugins\ITOps\util\Namecheap::attrs($price);
 		if (!$all)
 		    throw new \RuntimeException("Namecheap has no price to " . strtolower($action) . " .{$tld}");
 		return $this->listResult($all, 'price');

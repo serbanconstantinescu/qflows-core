@@ -509,6 +509,11 @@ class SysObjects {
 		'class' => 'models\node\NodeAppSpreadsheet',
 		'wfNode' => true,
 	    ],
+	    //CLD: 2026-11-28T16:00:00+02:00: XML to JSON (an XML file or text as data, util\Xml; optionally a .json file in the project's Files)
+	    'NodeAppXmlJson' => [
+		'class' => 'models\node\NodeAppXmlJson',
+		'wfNode' => true,
+	    ],
 	    //CLD: 2026-11-22T12:00:00+02:00: PDF document (designed in the step, filled with the variables, made by tc-lib-pdf, saved in the project's Files; no credential)
 	    'NodeAppPdf' => [
 		'class' => 'models\node\NodeAppPdf',

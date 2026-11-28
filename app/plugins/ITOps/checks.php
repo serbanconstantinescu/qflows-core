@@ -619,12 +619,12 @@ return [
 		return $e->getMessage();
 	    }
 	};
-	$xml = simplexml_load_string('<IPHostGroup><Name>G</Name><HostList><Host>a</Host><Host>b</Host></HostList><Description/></IPHostGroup>');
+	$xml = current(\util\Xml::toArray('<IPHostGroup><Name>G</Name><HostList><Host>a</Host><Host>b</Host></HostList><Description/></IPHostGroup>'));
 	$this->check('sophos: an address without /webconsole; an entity to XML (a list repeated, escaped) and back (repeated children a list); a code said with what to do', [
 	    'https://fw:4444', '<IPHostGroup><Name>A &amp; B</Name><HostList><Host>a</Host><Host>b</Host></HostList></IPHostGroup>',
 	    [ 'Name' => 'G', 'HostList' => [ 'Host' => [ 'a', 'b' ] ], 'Description' => '' ], [ 'x' ], true ], [
 	    $S::baseUrl('https://fw:4444/webconsole/APIController'), $S::toXml('IPHostGroup', [ 'Name' => 'A & B', 'HostList' => [ 'Host' => [ 'a', 'b' ] ] ]), $S::toArray($xml), $S::items('x'),
-	    str_contains($thrown(fn() => $S::checkStatus(simplexml_load_string('<Status code="534">no</Status>'))), 'add qflows\'s address') ]);
+	    str_contains($thrown(fn() => $S::checkStatus(current(\util\Xml::toArray('<Status code="534">no</Status>')))), 'add qflows\'s address') ]);
 	$this->check('sophos: an IP host from an IP, a CIDR, "ip mask", an IPv6 network; a blocked IPv6 host\'s name; domains from URLs', [
 	    [ 'HostType' => 'IP', 'IPAddress' => '10.1.2.3' ], [ 'HostType' => 'Network', 'IPAddress' => '10.1.0.0', 'Subnet' => '255.255.0.0' ],
 	    [ 'HostType' => 'Network', 'IPAddress' => '10.1.2.0', 'Subnet' => '255.255.255.0' ], [ [ 'HostType' => 'Network', 'IPAddress' => '2001:db8::', 'Subnet' => '64' ], 'IPv6' ],
@@ -2591,7 +2591,7 @@ return [
 	    $D::sameRecord([ 'Name' => '@', 'Type' => 'A', 'Address' => '1.2.3.4' ], [ 'Name' => '@', 'Type' => 'A', 'Address' => ' 1.2.3.4 ' ]) ]);
 	$xml = $NC::parse('<?xml version="1.0"?><ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response"><CommandResponse><R A="true" B="x"><C>1</C><C>2</C><D E="false">t</D></R></CommandResponse></ApiResponse>');
 	$this->check('namecheap: the answer read: attributes (booleans), repeated children a list, text; a DOCTYPE refused', [ [ 'A' => true, 'B' => 'x', 'C' => [ '1', '2' ], 'D' => [ 'E' => false, 'value' => 't' ] ], null ],
-	    [ $NC::toArray($xml->CommandResponse->R), $NC::parse('<!DOCTYPE x [<!ENTITY a "b">]><ApiResponse Status="OK"/>') ]);
+	    [ $NC::toArray($xml['CommandResponse']['R'] ?? null), $NC::parse('<!DOCTYPE x [<!ENTITY a "b">]><ApiResponse Status="OK"/>') ]);
 
 	$dir = sys_get_temp_dir() . '/qflows-check-nc-' . uniqid();
 	@mkdir($dir, 0700, true);

@@ -15,7 +15,7 @@
 namespace commands;
 
 class CheckCommand extends \sys\BaseController {
-    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'slack', 's3', 'github', 'gitlab', 'entra', 'okta', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'demo', 'ssh', 'windows', 'logpatterns' ];
+    const SUITES = [ 'j', 'expr', 'types', 'if', 'switch', 'loop', 'merge', 'mcp', 'vars', 'code', 'forms', 'email', 'file', 'images', 'invite', 'urls', 'select', 'json', 'nested', 'assistant', 'gdrive', 'gsheets', 'gmail', 'gcalendar', 'gdocs', 'microsoft', 'localai', 'kb', 'toolservers', 'http', 'suspend', 'markdown', 'ftp', 'ldap', 'database', 'shopify', 'nextcloud', 'jira', 'hubspot', 'salesforce', 'zendesk', 'slack', 's3', 'github', 'gitlab', 'entra', 'okta', 'infobip', 'yousign', 'brevo', 'mailjet', 'amazonses', 'access', 'roles', 'sharing', 'saml', 'tenant', 'audit', 'signin', 'users', 'tiers', 'format', 'transfer', 'call', 'agenttools', 'agentapproval', 'agentguard', 'agenttrace', 'agentchat', 'agenteval', 'steps', 'tableexport', 'move', 'spreadsheet', 'xmljson', 'demo', 'ssh', 'windows', 'logpatterns' ];
     //not run unless named in --only (demo: an account made and deleted, public services called)
     const SLOW = [ 'steps', 'demo' ];
 
@@ -11755,6 +11755,52 @@ class CheckCommand extends \sys\BaseController {
 	    'attachments' => [ [ 'name' => 'check.csv', 'type' => 'text/csv', 'content' => "a,b\n" ] ] ]);
 	$this->check('send email: the attachment in the message', [ true, true ], [ str_contains($headers, 'multipart/mixed'), str_contains($body, 'filename="check.csv"') ]);
 	foreach([ $f, $fc ] as $x) {
+	    if ($x)
+		$x->delete();
+	}
+    }
+
+    //CLD: 2026-11-28T16:00:00+02:00: util\Xml (attributes, repeated elements, texts, CDATA, types, namespaces, refused documents) and the XML to JSON step (a text, a project
+    //file saved back as .json, the error output)
+    private function suiteXmljson() {
+	$X = \util\Xml::class;
+	$thrown = function(\Closure $f) {
+	    try {
+		$f();
+		return 'no error';
+	    } catch (\RuntimeException $e) {
+		return $e->getMessage();
+	    }
+	};
+	$xml = '<?xml version="1.0"?><order id="7" xmlns:cbc="urn:x"><cbc:ID>007</cbc:ID><line n="1">A</line><line n="2"><![CDATA[B & c]]></line><note/><paid>true</paid><total>12.50</total><!-- c --><item>x</item></order>';
+	$this->check('xml: attributes @, repeated elements a list, #text beside attributes, CDATA as text, an empty element \'\', comments left out', [ 'order' => [ '@id' => '7', 'cbc:ID' => '007',
+	    'line' => [ [ '@n' => '1', '#text' => 'A' ], [ '@n' => '2', '#text' => 'B & c' ] ], 'note' => '', 'paid' => 'true', 'total' => '12.50', 'item' => 'x' ] ], $X::toArray($xml));
+	$t = $X::toArray($xml, [ 'types' => true, 'stripNamespaces' => true, 'lists' => [ 'item' ] ])['order'];
+	$this->check('xml: types (007 stays a text), names without prefixes, always lists, no attributes, texts kept', [ [ 7, '007', true, 12.5, [ 'x' ] ], [ 'A', 'B & c' ], ' a ' ], [
+	    [ $t['@id'] ?? null, $t['ID'] ?? null, $t['paid'] ?? null, $t['total'] ?? null, $t['item'] ?? null ], $X::toArray($xml, [ 'attributes' => false ])['order']['line'] ?? null,
+	    $X::toArray('<k> a </k>', [ 'trim' => false ])['k'] ]);
+	$o = $X::toArray($xml)['order'];
+	$this->check('xml: children (always a list), text, attributes', [ 2, [ 'x' ], [], 'B & c', [ 'id' => '7' ] ], [ count($X::children($o, 'line')), $X::children($o, 'item'), $X::children($o, 'none'), $X::text($o['line'][1]), $X::attributes($o) ]);
+	$this->check('xml refused: empty, not well-formed, entity declarations', [ true, true, true ], [ str_contains($thrown(fn() => $X::toArray(' ')), 'empty'),
+	    str_contains($thrown(fn() => $X::toArray('<a><b></a>')), 'not valid XML'), str_contains($thrown(fn() => $X::toArray('<!DOCTYPE a [<!ENTITY x "y">]><a>&x;</a>')), 'entity') ]);
+
+	$n = [ self::class, 'node' ];
+	$e = [ self::class, 'edge' ];
+	$fid = \models\File::createFromString('check-order.xml', $xml, [ 'metadata' => [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'owner' => null, 'source' => 'check' ] ]);
+	$exe = $this->runFlow('xml-json', [ $n('m', 'trigger::manual'),
+	    $n('t', 'app::xml-json', [ 'source' => 'text', 'xml' => '{{ doc }}', 'types' => true, 'lists' => 'item, line', 'variable' => 'fromText', 'onError' => 'fail' ]),
+	    $n('f', 'app::xml-json', [ 'source' => 'file', 'file' => (string)$fid, 'saveFile' => true, 'variable' => 'fromFile', 'onError' => 'fail' ]),
+	    $n('bad', 'app::xml-json', [ 'source' => 'text', 'xml' => '<a><b></a>', 'variable' => 'none', 'onError' => 'output' ]),
+	    $n('s', 'app::set', [ 'variable' => 'after', 'value' => 'error output' ]),
+	    $e('e1', 'm', 't'), $e('e2', 't', 'f'), $e('e3', 'f', 'bad'), $e('e4', 'bad', 's', 1) ], [ 'doc' => '<list><item><qty>2</qty></item></list>' ]);
+	$text = $exe?->getVariable('fromText');
+	$file = $exe?->getVariable('fromFile');
+	$this->check('xml-json: the run ends on the error output (the variable null)', [ 'end', null, 'error output' ], [ $exe?->state, $exe?->getVariable('none'), $exe?->getVariable('after') ]);
+	$this->check('xml-json: a text: root, types, always lists, no file', [ 'list', [ 'list' => [ 'item' => [ [ 'qty' => 2 ] ] ] ], null ], [ $text['root'] ?? null, $text['data'] ?? null, array_key_exists('file', (array)$text) ? $text['file'] : 'missing' ]);
+	$saved = !empty($file['file']['id']) ? \V::app()->om->findOne('File', [ '_id' => $file['file']['id'], 'metadata.aid' => $this->account->_id ]) : null;
+	$this->check('xml-json: a project file: its data, saved as check-order.json (the same data as JSON)', [ '007', 'check-order.json', 'application/json', true ], [ $file['data']['order']['cbc:ID'] ?? null,
+	    $file['file']['filename'] ?? null, $file['file']['contentType'] ?? null, $saved && json_decode((string)$saved->getContents(), true) === ($file['data'] ?? false) ]);
+	foreach([ $saved, \V::app()->om->findOne('File', [ '_id' => $fid ]) ] as $x) {
 	    if ($x)
 		$x->delete();
 	}

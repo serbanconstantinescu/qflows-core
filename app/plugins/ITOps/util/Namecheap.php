@@ -8,8 +8,10 @@
     Limits of Namecheap: 20 commands a minute, 700 an hour, 8000 a day (per user); over them it answers with an error
 
     $n = new Namecheap($cred, $aid, $timeout);
-    $n->call($command, $params)          the <CommandResponse> element; \RuntimeException with Namecheap's errors (their numbers) or no answer
-    Namecheap::toArray($el)              an element as an array: its attributes (true / false as booleans), children by name (repeated ones a list), its text as `value`
+    $n->call($command, $params)          the <CommandResponse> element (CLD: 2026-11-28T16:00:00+02:00: as util\Xml::toArray has it: @attributes, #text; read with
+					 Xml::children / text); \RuntimeException with Namecheap's errors (their numbers) or no answer
+    Namecheap::toArray($el)              an element (of call()) as the steps give it: its attributes (true / false as booleans), children by name (repeated ones a list),
+					 its text as `value`
     Namecheap::attrs($el)                its attributes only
     Namecheap::domain($v)                [ domain, sld, tld ] of a registered domain's name (example.co.uk: example, co.uk)
 
@@ -80,32 +82,33 @@ class Namecheap {
 	$root = self::parse($r['body']);
 	if ($root === null)
 	    throw new \RuntimeException("Namecheap's answer is not its XML (HTTP status {$r['status']})");
-	if (strtoupper((string)$root['Status']) !== 'OK')
+	if (strtoupper((string)($root['@Status'] ?? '')) !== 'OK')
 	    throw new \RuntimeException(self::errors($root) ?: 'Namecheap refused the command');
-	$response = $root->CommandResponse;
-	if (!$response || !$response->getName())
+	$response = $root['CommandResponse'] ?? null;
+	if (!is_array($response))
 	    throw new \RuntimeException('Namecheap\'s answer has no CommandResponse');
 	return $response;
     }
 
+    //the answer's <ApiResponse> (util\Xml::toArray), null when it is not one
     public static function parse($xml) {
 	$xml = (string)$xml;
 	if (trim($xml) === '' || preg_match('~<!(DOCTYPE|ENTITY)~i', $xml))
 	    return null;
-	//the default namespace of the answer (http://api.namecheap.com/xml.response) dropped, so the children are found by name
-	$prev = libxml_use_internal_errors(true);
-	$root = simplexml_load_string(preg_replace('~\sxmlns="[^"]*"~', '', $xml, 1), \SimpleXMLElement::class, LIBXML_NONET | LIBXML_NOCDATA);
-	libxml_clear_errors();
-	libxml_use_internal_errors($prev);
-	return $root === false || $root->getName() !== 'ApiResponse' ? null : $root;
+	try {
+	    $a = \util\Xml::toArray($xml);
+	} catch (\RuntimeException $e) {
+	    return null;
+	}
+	return array_key_first($a) === 'ApiResponse' ? (is_array($a['ApiResponse']) ? $a['ApiResponse'] : []) : null;
     }
 
     //the errors of an answer: "<message> (error <number>)[: what it means]", separated by "; "
-    public static function errors(\SimpleXMLElement $root) {
+    public static function errors(array $root) {
 	$list = [];
-	foreach($root->Errors->Error ?? [] as $e) {
-	    $n = trim((string)$e['Number']);
-	    $list[] = trim((string)$e) . ($n !== '' ? " (error {$n})" : '') . (isset(self::HINTS[$n]) ? ': ' . self::HINTS[$n] : '');
+	foreach(\util\Xml::children($root['Errors'] ?? null, 'Error') as $e) {
+	    $n = trim((string)($e['@Number'] ?? ''));
+	    $list[] = trim(\util\Xml::text($e)) . ($n !== '' ? " (error {$n})" : '') . (isset(self::HINTS[$n]) ? ': ' . self::HINTS[$n] : '');
 	}
 	return mb_substr(implode('; ', array_slice($list, 0, 5)), 0, 1000);
     }
@@ -115,28 +118,23 @@ class Namecheap {
 	return [ 'true' => true, 'false' => false ][strtolower($v)] ?? $v;
     }
 
-    public static function attrs(?\SimpleXMLElement $el) {
-	$a = [];
-	foreach($el ? $el->attributes() : [] as $k => $v)
-	    $a[$k] = self::scalar($v);
-	return $a;
+    public static function attrs($el) {
+	return array_map([ self::class, 'scalar' ], \util\Xml::attributes($el));
     }
 
     //an element: its attributes, its children by name (repeated ones a list), its text as `value` (only text: the text itself)
-    public static function toArray(\SimpleXMLElement $el) {
+    public static function toArray($el) {
+	if (!is_array($el))
+	    return self::scalar($el);
 	$a = self::attrs($el);
-	$children = $el->children();
-	$text = trim((string)$el);
-	if (count($children) === 0)
-	    return $a ? ($text !== '' ? $a + [ 'value' => $text ] : $a) : self::scalar($text);
-	foreach($children as $name => $child) {
-	    $v = self::toArray($child);
-	    if (!array_key_exists($name, $a))
-		$a[$name] = $v;
-	    elseif (is_array($a[$name]) && array_is_list($a[$name]) && $a[$name] !== [])
-		$a[$name][] = $v;
-	    else
-		$a[$name] = [ $a[$name], $v ];
+	$children = array_filter($el, fn($k) => $k !== '#text' && $k[0] !== '@', ARRAY_FILTER_USE_KEY);
+	if (!$children) {
+	    $text = trim(\util\Xml::text($el));
+	    return $text !== '' ? $a + [ 'value' => $text ] : $a;
+	}
+	foreach($children as $name => $v) {
+	    $v = is_array($v) && array_is_list($v) ? array_map([ self::class, 'toArray' ], $v) : self::toArray($v);
+	    $a[$name] = array_key_exists($name, $a) ? array_merge([ $a[$name] ], is_array($v) && array_is_list($v) ? $v : [ $v ]) : $v;
 	}
 	return $a;
     }

@@ -7,6 +7,7 @@
     request refused) and an element per entity: its fields, or <Status code="2xx|5xx">text</Status> (a change), or <Status>Number of records Zero.</Status> (an empty read).
     A Login status "Authentication Failure", a code that is not 2xx: a \RuntimeException (532 the API off, 534 this address not allowed: said what to do).
     Entities as arrays: an element with children an array (a repeated child a list), else its text; written back the same way (a list: the element repeated).
+    CLD: 2026-11-28T16:00:00+02:00: the answer read by util\Xml::toArray (@attributes, #text), toArray() gives the entities without the attributes.
     Public addresses only, unless the account allows private network addresses; the certificate checked unless the credential trusts it (the firewall's own is self-signed).
 
     $s = new Sophos($cred, $aid, $timeout);
@@ -85,22 +86,21 @@ class Sophos {
 	return "<{$name}>" . self::esc($value) . "</{$name}>";
     }
 
-    //an element as an array (children by name, repeated ones a list), or its trimmed text; attributes left out
-    public static function toArray(\SimpleXMLElement $el) {
-	$children = $el->children();
-	if (count($children) === 0)
+    //an element (of util\Xml::toArray) as an array (children by name, repeated ones a list), or its trimmed text; attributes left out
+    public static function toArray($el) {
+	if (!is_array($el))
 	    return trim((string)$el);
 	$a = [];
-	foreach($children as $name => $child) {
-	    $v = self::toArray($child);
-	    if (!array_key_exists($name, $a))
-		$a[$name] = $v;
-	    elseif (is_array($a[$name]) && array_is_list($a[$name]) && $a[$name] !== [])
-		$a[$name][] = $v;
-	    else
-		$a[$name] = [ $a[$name], $v ];
+	foreach(self::childNames($el) as $name) {
+	    $v = $el[$name];
+	    $a[$name] = is_array($v) && array_is_list($v) ? array_map([ self::class, 'toArray' ], $v) : self::toArray($v);
 	}
-	return $a;
+	return $a ?: trim(\util\Xml::text($el));
+    }
+
+    //the names of the child elements of element $el (of util\Xml::toArray)
+    protected static function childNames($el) {
+	return is_array($el) ? array_values(array_filter(array_keys($el), fn($k) => $k !== '#text' && $k[0] !== '@')) : [];
     }
 
     //a field that may hold one value or several (<HostList><Host>…</Host>…</HostList> read back): always a list, '' and null none
@@ -139,24 +139,26 @@ class Sophos {
 	$body = (string)$r['body'];
 	if (stripos($body, '<!DOCTYPE') !== false || stripos($body, '<!ENTITY') !== false)
 	    throw new \RuntimeException('the answer is not the Sophos Firewall API\'s');
-	$prev = libxml_use_internal_errors(true);
-	$root = simplexml_load_string($body, \SimpleXMLElement::class, LIBXML_NONET | LIBXML_NOCDATA);
-	libxml_clear_errors();
-	libxml_use_internal_errors($prev);
-	if ($root === false || $root->getName() !== 'Response')
+	try {
+	    $answer = \util\Xml::toArray($body);
+	} catch (\RuntimeException $e) {
+	    $answer = [];
+	}
+	if (array_key_first($answer) !== 'Response')
 	    throw new \RuntimeException('the answer is not the Sophos Firewall API\'s (is the address right?)');
-	$login = isset($root->Login) ? trim((string)($root->Login->status ?? '')) : '';
+	$root = is_array($answer['Response']) ? $answer['Response'] : [];
+	$login = trim(\util\Xml::text(\util\Xml::children($root['Login'] ?? null, 'status')[0] ?? ''));
 	if ($login !== '' && stripos($login, 'Success') === false)
 	    throw new \RuntimeException("{$login}: the user name or password is refused");
-	if (isset($root->Status))
-	    self::checkStatus($root->Status, true);
+	if ($status = \util\Xml::children($root, 'Status'))
+	    self::checkStatus($status[0], true);
 	return $root;
     }
 
     //a <Status>: a code that is not 2xx thrown (532, 534 said what to do); returns [ code, text ]
-    public static function checkStatus(\SimpleXMLElement $status, $request = false) {
-	$code = trim((string)($status['code'] ?? ''));
-	$text = trim((string)$status);
+    public static function checkStatus($status, $request = false) {
+	$code = trim((string)($status['@code'] ?? ''));
+	$text = trim(\util\Xml::text($status));
 	if ($code !== '' && $code[0] !== '2')
 	    throw new \RuntimeException("status {$code}: " . (self::CODES[$code] ?? ($text !== '' ? mb_substr($text, 0, 300) : 'refused')));
 	if ($request && $code === '' && $text !== '' && stripos($text, 'records Zero') === false)
@@ -165,14 +167,13 @@ class Sophos {
     }
 
     //the entities $tag of the answer: [ entities, messages ] (an entity with a Status: its message; "Number of records Zero.": none)
-    protected static function entities(\SimpleXMLElement $root, $tag) {
+    protected static function entities(array $root, $tag) {
 	$list = [];
 	$messages = [];
-	foreach($root->children() as $name => $el) {
-	    if ($name !== $tag)
-		continue;
-	    if (isset($el->Status) && count($el->children()) === 1) {
-		[ , $text ] = self::checkStatus($el->Status);
+	foreach(\util\Xml::children($root, $tag) as $el) {
+	    //only a <Status>
+	    if (self::childNames($el) === [ 'Status' ] && count(\util\Xml::children($el, 'Status')) === 1) {
+		[ , $text ] = self::checkStatus($el['Status']);
 		if (stripos($text, 'records Zero') === false)
 		    $messages[] = $text;
 		continue;
@@ -222,27 +223,28 @@ class Sophos {
 	$xml = trim((string)$xml);
 	if ($xml === '' || preg_match('~<\s*/?\s*(Login|Request|!DOCTYPE|!ENTITY)\b~i', $xml))
 	    throw new \RuntimeException('the request: the elements inside <Request> after <Login>, such as <Get><IPHost/></Get>');
-	$prev = libxml_use_internal_errors(true);
-	$ok = simplexml_load_string('<Request>' . $xml . '</Request>', \SimpleXMLElement::class, LIBXML_NONET) !== false;
-	libxml_clear_errors();
-	libxml_use_internal_errors($prev);
-	if (!$ok)
+	try {
+	    \util\Xml::toArray('<Request>' . $xml . '</Request>');
+	} catch (\RuntimeException $e) {
 	    throw new \RuntimeException('the request is not well-formed XML');
+	}
 	$root = $this->post($xml);
-	foreach($root->children() as $el) {
-	    if (isset($el->Status))
-		self::checkStatus($el->Status);
+	foreach(self::childNames($root) as $name) {
+	    foreach(\util\Xml::children($root, $name) as $el) {
+		if ($status = \util\Xml::children($el, 'Status'))
+		    self::checkStatus($status[0]);
+	    }
 	}
 	$a = self::toArray($root);
 	$a = is_array($a) ? $a : [];
 	unset($a['Login']);
-	return [ 'APIVersion' => (string)($root['APIVersion'] ?? '') ] + $a;
+	return [ 'APIVersion' => (string)($root['@APIVersion'] ?? '') ] + $a;
     }
 
     //the API version of the firewall (the answer's APIVersion) and its hostname (AdminSettings), for the credential's test
     public function about() {
 	$root = $this->post('<Get><AdminSettings></AdminSettings></Get>');
 	[ $list ] = self::entities($root, 'AdminSettings');
-	return [ 'apiVersion' => (string)($root['APIVersion'] ?? ''), 'hostname' => (string)($list[0]['HostnameSettings']['HostName'] ?? '') ];
+	return [ 'apiVersion' => (string)($root['@APIVersion'] ?? ''), 'hostname' => (string)($list[0]['HostnameSettings']['HostName'] ?? '') ];
     }
 }

@@ -231,12 +231,12 @@ abstract class NodeAppNamecheap extends \models\wf\WfNode {
 	for ($page = 1; ; $page++) {
 	    $r = $this->call($command, $params + [ 'Page' => $page, 'PageSize' => \plugins\ITOps\util\Namecheap::PAGE ]);
 	    $n = 0;
-	    foreach($r->{$result}->{$tag} ?? [] as $el) {
+	    foreach(\util\Xml::children($r[$result] ?? null, $tag) as $el) {
 		$n++;
 		if (count($items) < $max)
 		    $items[] = $item ? $item($el) : \plugins\ITOps\util\Namecheap::attrs($el);
 	    }
-	    $total = isset($r->Paging->TotalItems) ? (int)(string)$r->Paging->TotalItems : ($page - 1) * \plugins\ITOps\util\Namecheap::PAGE + $n;
+	    $total = isset($r['Paging']['TotalItems']) ? (int)\util\Xml::text($r['Paging']['TotalItems']) : ($page - 1) * \plugins\ITOps\util\Namecheap::PAGE + $n;
 	    if ($n < \plugins\ITOps\util\Namecheap::PAGE || count($items) >= $max || $page * \plugins\ITOps\util\Namecheap::PAGE >= $total)
 		break;
 	}
