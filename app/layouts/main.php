@@ -25,6 +25,15 @@ ob_start();
     </div>
 </main>
 
+<?php
+//CLD: 2026-11-28T10:00:00Z: the daemon's live events for this page (app.live): its ticket, a new one from SiteController::live_ticket; none without APP_SECRET
+try {
+    $liveTicket = \util\Daemon::pushToken([ 'aid' => \V::app()->var('rt.account')->_id ?? null, 'project' => \V::app()->user->crtProject, 'user' => \V::app()->user->_id ]);
+    \V::app()->cs->addPageScript('app.live.start(' . \util\JSON::encode([ 'ticket' => $liveTicket, 'renew' => '/site/live_ticket' ]) . ');');
+} catch (\ErrorException $e) {
+}
+?>
+
 <!-- toasts -->
 <?php //CLD: 2026-11-15T15:00:00+02:00: the stack fixed at the window's bottom right (was absolute at the page's end); each toast announces itself (app.utils.toast) ?>
 <div class="toast-container position-fixed bottom-0 end-0 p-3">

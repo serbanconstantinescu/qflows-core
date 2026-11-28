@@ -1,6 +1,22 @@
 <?php
 $this->pageTitle = 'My tasks';
-echo "<div class='p-3'><h4 class='mb-3'><i class='bi bi-person-check me-2'></i>My tasks</h4>";
+//CLD: 2026-11-28T10:00:00Z: loaded again when a task is created, completed, expires or is cancelled (app.live: tasks::changed); the page's element stays (its handler with it)
+\V::app()->cs->addPageScript(<<<'JS'
+(() => {
+    const page = document.getElementById('task-list-page');
+    app.live.on(page, 'tasks::changed live::resync', () => {
+	fetch('/task/list', { credentials: 'same-origin', headers: { 'X-PJAX': 'true', 'X-Requested-With': 'XMLHttpRequest' } })
+	    .then((r) => r.ok ? r.json() : null)
+	    .then((data) => {
+		const fresh = data && typeof data.content === 'string' ? new DOMParser().parseFromString(data.content, 'text/html').getElementById('task-list-page') : null;
+		if (fresh && page.isConnected)
+		    page.innerHTML = fresh.innerHTML;
+	    })
+	    .catch(() => {});
+    });
+})();
+JS);
+echo "<div class='p-3' id='task-list-page'><h4 class='mb-3'><i class='bi bi-person-check me-2'></i>My tasks</h4>";
 if (!$tasks) {
     echo "<div class='text-muted'>No open tasks for you.</div></div>";
     return;

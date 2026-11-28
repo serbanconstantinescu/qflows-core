@@ -23,7 +23,7 @@ server {
     include /etc/nginx/nfn/locations.conf;
 
     # the live events (Server-Sent Events) from the daemon container: each event at once, the stream kept open, the ticket of the URL not logged.
-    # The operator's reverse proxy must not buffer it either (nginx: proxy_buffering off for /push; the daemon sends X-Accel-Buffering: no)
+    # X-Accel-Buffering: no passed on, so that the operator's nginx does not buffer it either (Caddy passes event streams at once)
     location = /push {
         proxy_pass http://daemon:${DAEMON_PUSH_PORT};
         proxy_http_version 1.1;
@@ -31,6 +31,7 @@ server {
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 1h;
+        proxy_pass_header X-Accel-Buffering;
         access_log off;
     }
 }

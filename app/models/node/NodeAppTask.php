@@ -212,6 +212,8 @@ class NodeAppTask extends \models\wf\WfNode {
 	if ($task->state === 'open' && $task->due_at instanceof \MongoDB\BSON\UTCDateTime && (int)(string)$task->due_at <= (int)(microtime(true) * 1000)) {
 	    if (\V::app()->om->updateMany('WfTask', [ '_id' => $task->_id, 'state' => 'open' ], [ '$set' => [ 'state' => 'expired' ] ]) > 0) {
 		$this->exec->log($this->wfid, 'task expired');
+		//CLD: 2026-11-28T10:00:00Z: the open pages of the account (My tasks, its badge, the Overview)
+		\util\Daemon::push('tasks::changed', [ 'aid' => $task->aid ], [ 'project' => (string)$task->project ]);
 		$this->task = null;
 		$this->resume_at = null;
 		return [ 1 ];
@@ -257,6 +259,8 @@ class NodeAppTask extends \models\wf\WfNode {
 	    'due_at' => $due,
 	]);
 	$task->save();
+	//CLD: 2026-11-28T10:00:00Z: the open pages of the account (My tasks, its badge, the Overview)
+	\util\Daemon::push('tasks::changed', [ 'aid' => $task->aid ], [ 'project' => (string)$task->project ]);
 	$this->task = (string)$task->_id;
 	$this->resume_at = $due;
 	$this->exec->log($this->wfid, 'task created: ' . $task->title);

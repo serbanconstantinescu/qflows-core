@@ -164,7 +164,13 @@ class WfTask extends \sys\BaseModel {
 
     //hook workflow:before-delete (sys\Boot): a deleted workflow's tasks go away
     public static function beforeWorkflowDelete($wf) {
-	foreach(\V::app()->om->find('WfTask', [ 'wf' => $wf->_id ]) as $task)
+	//CLD: 2026-11-28T10:00:00Z: open ones among them: the open pages of the account told (My tasks, its badge, the Overview)
+	$open = false;
+	foreach(\V::app()->om->find('WfTask', [ 'wf' => $wf->_id ]) as $task) {
+	    $open = $open || $task->state === 'open';
 	    $task->delete();
+	}
+	if ($open)
+	    \util\Daemon::push('tasks::changed', [ 'aid' => $wf->aid ], [ 'project' => (string)$wf->project ]);
     }
 }

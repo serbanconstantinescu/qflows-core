@@ -551,4 +551,17 @@ class SiteController extends \sys\BaseController {
 	$this->render('/layouts/main_aside');
     }
 
+    //CLD: 2026-11-28T10:00:00Z: a new ticket for the page's live events (app.live: the last one expired, or the daemon was away): for its project (?project=) when
+    //the user still reads it, else the current one -> { ok, ticket }; 401 signed out
+    public function live_ticket($req, $resp) {
+	if (\V::app()->user->isGuest)
+	    $resp->sendJSON([ 'ok' => false, 'error' => 'Log in first.' ], true, 401);
+	$account = \V::app()->var('rt.account');
+	$id = (string)($req->query['project'] ?? '');
+	$project = \util\Validator::rule('oid', $id) ? \V::app()->om->findOne('Project', [ '_id' => $id, 'aid' => $account->_id ?? null ]) : null;
+	if (!$project || !\V::app()->user->can('Project::read', [ 'object' => $project ]))
+	    $project = \V::app()->om->findOne('Project', [ '_id' => \V::app()->user->crtProject, 'aid' => $account->_id ?? null ]);
+	$resp->sendJSON([ 'ok' => true, 'ticket' => \util\Daemon::pushToken([ 'aid' => $account->_id ?? null, 'project' => $project->_id ?? null, 'user' => \V::app()->user->_id ]) ]);
+    }
+
 }

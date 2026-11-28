@@ -1231,6 +1231,8 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	    self::dropBlob($file);
 	    throw new \ErrorException('the approval task could not be saved: ' . json_encode($task->errors(), JSON_UNESCAPED_UNICODE));
 	}
+	//CLD: 2026-11-28T10:00:00Z: the open pages of the account (My tasks, its badge, the Overview)
+	\util\Daemon::push('tasks::changed', [ 'aid' => $task->aid ], [ 'project' => (string)$task->project ]);
 	//trace: the visit goes on in the same trace
 	$this->agentWait = [ 'task' => (string)$task->_id, 'file' => (string)$file, 'trace' => $this->tracer->id() ];
 	$this->tracer->waiting();
@@ -1246,8 +1248,11 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	if (!$task || $task->state !== 'open')
 	    return false;
 	if ($task->due_at instanceof \MongoDB\BSON\UTCDateTime && (int)(string)$task->due_at <= (int)(microtime(true) * 1000)) {
-	    if (\V::app()->om->updateMany('WfTask', [ '_id' => $task->_id, 'state' => 'open' ], [ '$set' => [ 'state' => 'expired' ] ]) > 0)
+	    //CLD: 2026-11-28T10:00:00Z: expired: the open pages of the account told (My tasks, its badge, the Overview)
+	    if (\V::app()->om->updateMany('WfTask', [ '_id' => $task->_id, 'state' => 'open' ], [ '$set' => [ 'state' => 'expired' ] ]) > 0) {
+		\util\Daemon::push('tasks::changed', [ 'aid' => $task->aid ], [ 'project' => (string)$task->project ]);
 		return false;
+	    }
 	    return \V::app()->om->findById('WfTask', (string)$task->_id)?->state === 'open';
 	}
 	return true;

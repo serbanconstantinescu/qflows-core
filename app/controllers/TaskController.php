@@ -2,6 +2,7 @@
 
 /*
     "My tasks" - the tasks of the Human task steps (models\wf\WfTask):
+    /task/count     JSON { count }: how many of them, in every project (the sidebar's badge, kept up to date by app.live on tasks::changed)
     /task/list      the open tasks of the current project the user may complete (assigned to them, to their role, or to any member)
     /task/<id>      GET: the task (instructions + form); POST (JSON { answers }): checked on the server (util\SmartForm::answers), the task claimed (only one person
                   completes it) and done, the waiting run resumed after the answer -> { ok, message }; 422 { errors } / 409 when it is no longer open
@@ -34,6 +35,11 @@ class TaskController extends \sys\BaseController {
 	$this->render('list', compact('tasks', 'names', 'projects'));
     }
 
+    //CLD: 2026-11-28T10:00:00Z: the sidebar's badge (layouts/main_aside.php counts the same)
+    public function count($req, $resp) {
+	$resp->sendJSON([ 'ok' => true, 'count' => count(\models\wf\WfTask::openFor(\V::app()->user, $this->account->_id ?? null, null)) ]);
+    }
+
     public function open($req, $resp) {
 	$id = (string)($req->query['id'] ?? '');
 	$post = $req->is('post');
@@ -64,6 +70,8 @@ class TaskController extends \sys\BaseController {
 	$task->completed_by = \V::app()->user->_id;
 	$task->completed_at = new \MongoDB\BSON\UTCDateTime();
 	$task->save();
+	//CLD: 2026-11-28T10:00:00Z: the other open pages of the account (My tasks, its badge, the Overview)
+	\util\Daemon::push('tasks::changed', [ 'aid' => $task->aid ], [ 'project' => (string)$task->project ]);
 
 	//an AI step's approval: who decided what, with the arguments (the audit log)
 	if ((string)$task->kind === 'ai-approval')

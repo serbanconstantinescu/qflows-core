@@ -683,7 +683,9 @@ class WfExecution extends \sys\BaseModel {
 	\models\ExecutionLog::$execution = $outer;
 
 	//its open tasks (Human task, an AI step's approval) are cancelled; an AI step's saved conversation is removed
-	\V::app()->om->updateMany('WfTask', [ 'aid' => $this->aid, 'execution' => $this->_id, 'state' => 'open' ], [ '$set' => [ 'state' => 'cancelled' ] ]);
+	//CLD: 2026-11-28T10:00:00Z: some cancelled: the open pages of the account told (My tasks, its badge, the Overview)
+	if (\V::app()->om->updateMany('WfTask', [ 'aid' => $this->aid, 'execution' => $this->_id, 'state' => 'open' ], [ '$set' => [ 'state' => 'cancelled' ] ]) > 0)
+	    \util\Daemon::push('tasks::changed', [ 'aid' => $this->aid ], [ 'project' => (string)$this->project ]);
 	\models\node\NodeAppAi::dropSaved($this);
 	//its traces end
 	\models\agent\AgentTrace::stopOpen($this);

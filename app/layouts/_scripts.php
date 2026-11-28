@@ -25,6 +25,8 @@ $js_assets = [
     'app.dataview.js',
     //the chat pages of the agents
     'app.agentchat.js',
+    //CLD: 2026-11-28T10:00:00Z: the daemon's live events (app.live.start: layouts/main.php)
+    'app.live.js',
     //last
     'app.js',
 ];

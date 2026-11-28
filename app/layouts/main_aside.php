@@ -111,7 +111,8 @@ $dd_items = implode('', $dd_items);
 		    [ 'class' => 'nav-link', 'escape' => false ]
 		);
 		$openTasks = count(\models\wf\WfTask::openFor(\V::app()->user, $crtProject->aid, null));
-		$badge = $openTasks ? \util\VString::insert('<span class="badge rounded-pill text-bg-primary ms-1">{:n}</span>', [ 'n' => $openTasks ]) : '';
+		//CLD: 2026-11-28T10:00:00Z: qf-tasks-badge: kept up to date by app.live (tasks::changed)
+		$badge = $openTasks ? \util\VString::insert('<span class="badge rounded-pill text-bg-primary ms-1 qf-tasks-badge">{:n}</span>', [ 'n' => $openTasks ]) : '';
 		echo \V::app()->html->link(
 		    \util\VString::insert('<i class="bi bi-person-check"></i> My tasks {:badge}', [
 			'badge' => $badge,
