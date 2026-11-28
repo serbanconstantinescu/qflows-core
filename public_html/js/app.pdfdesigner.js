@@ -243,11 +243,12 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 
     //the markup of one designer; A(name): data-pd + id (unique: the labels' for)
     //CLD: 2026-11-28T16:00:00+02:00: the toolbar fits one line at 1440 px: Header / Footer, Page setup, Sample data and Checks are icons (their names in title +
-    //aria-label), Preview PDF is Preview; Page setup is grouped with Header / Footer (the formatting toolbar: hidden when read-only, as they are); in the step's dialog (fill) the columns' row does not wrap from md up, so the page scrolls in its column (a wrapping
-    //row took the page's height)
+    //aria-label), Preview PDF is Preview; Page setup is grouped with Header / Footer, read-only (the formatting toolbar hidden) with Sample data / Checks (its
+    //fields disabled); in the step's dialog (fill) the columns' row does not wrap from md up, so the page scrolls in its column (a wrapping row took the page's height)
     function markup(P, ro, fill) {
 	const A = (n) => `data-pd="${n}" id="${P}${n}"`;
 	const D = (n) => `data-pd="${n}"`;
+	const pageBtn = `<button class="btn btn-light border" type="button" ${D('pageBtn')} title="Page setup: size, orientation, margins, font" aria-label="Page setup"><i class="bi bi-file-earmark-ruled"></i></button>`;
 	const lenField = (n, label, col) => `<div class="${col}"><label class="form-label small mb-1" for="${P}${n}">${label}</label><div class="input-group input-group-sm"><input class="form-control" ${A(n)} type="number" min="0"><span class="input-group-text u-label">mm</span></div></div>`;
 	const overlay = (n, title, body, footer, wide) => `<div class="pd-overlay${wide ? ' wide' : ''}" ${D(n)} hidden role="dialog" aria-modal="true" aria-label="${title}"><div class="card shadow">
 	    <div class="card-header d-flex align-items-center"><span class="fw-semibold" ${D(n + 'Title')}>${title}</span><button type="button" class="btn-close ms-auto" data-close aria-label="Close"></button></div>
@@ -307,7 +308,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 	  <button class="btn btn-light border font-monospace" type="button" data-cmd="source" title="Edit the HTML of the section you are in">&lt;/&gt;</button>
 	</div>
 	<div class="btn-group btn-group-sm" role="group" aria-label="Page">
-	  <button class="btn btn-light border" type="button" ${D('pageBtn')} title="Page setup: size, orientation, margins, font" aria-label="Page setup"><i class="bi bi-file-earmark-ruled"></i></button>
+	  ${ro ? '' : pageBtn}
 	  <button class="btn btn-light border" type="button" ${D('headerTgl')} aria-pressed="true" title="Header: show or hide it on every page" aria-label="Header">${SVG('<rect x="3" y="1.5" width="10" height="13" rx="1"/><path d="M3.5 2h9v3.5h-9z" fill="currentColor" stroke="none" opacity=".5"/><path d="M5.5 8.5h5M5.5 11h5"/>')}</button>
 	  <button class="btn btn-light border" type="button" ${D('footerTgl')} aria-pressed="true" title="Footer: show or hide it on every page" aria-label="Footer">${SVG('<rect x="3" y="1.5" width="10" height="13" rx="1"/><path d="M3.5 10.5h9V14h-9z" fill="currentColor" stroke="none" opacity=".5"/><path d="M5.5 5h5M5.5 7.5h5"/>')}</button>
 	</div>
@@ -315,6 +316,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
       <div class="d-flex flex-wrap gap-2 ms-auto">
 	<select class="form-select form-select-sm w-auto" ${D('zoomSel')} aria-label="Zoom" title="Zoom"><option value="fit">Fit width</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option></select>
 	<div class="btn-group btn-group-sm" role="group" aria-label="Document">
+	  ${ro ? pageBtn : ''}
 	  <button class="btn btn-light border" type="button" ${D('dataBtn')} title="Sample data: the variables of the preview, as JSON" aria-label="Sample data"><i class="bi bi-braces"></i></button>
 	  <button class="btn btn-light border" type="button" ${D('checksBtn')} title="Layout checks" aria-label="Layout checks"><i class="bi bi-clipboard-check"></i></button>
 	</div>
@@ -952,7 +954,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 	    if (/^justify/.test(cmd)) active().querySelectorAll('[style*="text-align"]').forEach(fixAlign);
 	    const made = chipify(active());
 	    if (cmd === 'insertText' && made.length) caretAfter(made[made.length - 1]);
-	    changed();
+	    changed(); updateFormatUI();
 	    return true;
 	}
 	try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch (e) { }
@@ -1916,6 +1918,37 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 	    if (src && $('alignIcon').dataset.a !== a) { $('alignIcon').innerHTML = src.outerHTML; $('alignIcon').dataset.a = a; }
 	}
 	listen(document, 'selectionchange', updateAlignUI);
+	//CLD: 2026-11-28T17:00:00+02:00: the toolbar shows the format at the caret: bold / italic / underline / strike and the lists pressed, the paragraph style,
+	//the size (pt; one not in the list as an extra option) and the color; outside the text (other tab, HTML source) the selects show their placeholders
+	const FMT_CMDS = [ 'bold', 'italic', 'underline', 'strikeThrough', 'insertUnorderedList', 'insertOrderedList' ];
+	function updateFormatUI() {
+	    const ed = active(), s = getSelection();
+	    const inText = isSection(leftTab) && !sourceMode && s.rangeCount && ed.contains(s.anchorNode);
+	    const el = inText ? (s.anchorNode.nodeType === 1 ? s.anchorNode : s.anchorNode.parentElement) : null;
+	    FMT_CMDS.forEach((c) => {
+		const b = root.querySelector(`.pd-toolbar [data-cmd="${c}"]`);
+		let on = false;
+		try { on = !!inText && document.queryCommandState(c); } catch (err) { }
+		if (b) press(b, on);
+	    });
+	    const block = el && el.closest('p, h1, h2, h3, h4, h5, h6');
+	    const tag = block && ed.contains(block) ? block.tagName.toLowerCase() : '';
+	    $('blockSel').value = [ ...$('blockSel').options ].some((op) => op.value === tag) ? tag : '';
+	    const sel = $('sizeSel');
+	    let extra = sel.querySelector('option[data-cur]');
+	    const pt = el ? Math.round(parseFloat(getComputedStyle(el).fontSize) / PT * 2) / 2 : 0;
+	    const v = pt ? String(pt) : '';
+	    if (v && ![ ...sel.options ].some((op) => !op.dataset.cur && op.value === v)) {
+		if (!extra) { extra = document.createElement('option'); extra.dataset.cur = '1'; extra.hidden = true; sel.appendChild(extra); }
+		extra.value = extra.textContent = v;
+	    } else if (extra) extra.remove();
+	    sel.value = v;
+	    if (el) {
+		const m = getComputedStyle(el).color.match(/\d+(\.\d+)?/g);
+		if (m) $('colorIn').value = '#' + m.slice(0, 3).map((x) => (+x).toString(16).padStart(2, '0')).join('');
+	    }
+	}
+	listen(document, 'selectionchange', updateFormatUI);
 	$('toolbar').addEventListener('click', (e) => {
 	    const toggle = e.target.closest('[data-dd]');
 	    if (toggle) { if (toggle.nextElementSibling.classList.contains('show')) closeMenus(); else openMenu(toggle, e.detail === 0); return; }
@@ -1951,7 +1984,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 		const s = document.createElement('span'); s.setAttribute('style', 'font-size:' + v + 'pt');
 		while (f.firstChild) s.appendChild(f.firstChild); f.replaceWith(s);
 	    });
-	    changed();
+	    changed(); updateFormatUI();
 	});
 	$('colorIn').addEventListener('change', (e) => exec('foreColor', e.target.value));
 
