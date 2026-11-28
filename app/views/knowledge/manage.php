@@ -3,6 +3,8 @@
     one knowledge base (KnowledgeController::manage): its documents (status: indexed, pending - the daemon indexes it -, error), adding them
     (uploaded files, project files, a web page, a text: KnowledgeController::upload / add), removing them, a test search (KnowledgeController::search), re-index (when the account's
     embedding model is another), its settings and delete. The documents come from KnowledgeController::documents, polled every 3 s while some are pending or it is re-indexing
+    CLD: 2026-11-28T10:00:00Z: loaded again when its documents or state change (app.live: kb::changed; a workflow, another person) and after the live events were away; the poll
+    while some are pending every 15 s then (else 3 s)
 */
 $this->pageTitle = 'Knowledge base - ' . $kb->name;
 $id = (string)$kb->_id;
@@ -15,6 +17,7 @@ $opts = \util\JSON::encode([
     'remove' => \V::app()->createUrl('/knowledge/remove', [ 'id' => $id ]),
     'fileView' => \V::app()->createUrl('/file/view'),
     'canUpdate' => $canUpdate,
+    'kb' => $id,
 ]);
 
 \V::app()->cs->addPageScript("+function(o) {" . <<<'JS'
@@ -68,7 +71,7 @@ $opts = \util\JSON::encode([
 
 	clearTimeout(timer);
 	if (kb.state === 'reindexing' || docs.some((d) => d.status === 'pending'))
-	    timer = setTimeout(load, 3000);
+	    timer = setTimeout(load, app.live.connected() ? 15000 : 3000);
     };
     const load = () => $.getJSON(o.documents).done(render);
 
@@ -152,6 +155,10 @@ $opts = \util\JSON::encode([
     });
 
     app.events.on('object::deleted object::updated', () => load());
+    app.live.on(root, 'kb::changed live::resync', (data, type) => {
+	if (type !== 'kb::changed' || data.kb === o.kb)
+	    load();
+    });
     load();
 JS . "}({$opts});");
 ?>

@@ -123,6 +123,9 @@ class FileController extends \sys\BaseController {
 		else
 		    \V::app()->om->updateOne('File', [ '_id' => $entry->_id, 'metadata.aid' => $this->account->_id ],
 			[ '$set' => [ 'metadata.folder' => $target?->_id, 'metadata.updated_at' => new \MongoDB\BSON\UTCDateTime() ] ]);
+		//CLD: 2026-11-28T10:00:00Z: the project's Files pages told (FileEntry::pushChanged)
+		if (!$isFolder)
+		    \models\FileEntry::pushChanged($this->account->_id, $this->project->_id ?? null);
 		$this->addToast('success', 'OK', ($isFolder ? 'Folder' : 'File') . ' moved!');
 		$this->addEvent('object::updated', [ 'object' => $isFolder ? 'Folder' : 'File', 'oid' => (string)$entry->_id ]);
 		$this->sendEvents();

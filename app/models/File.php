@@ -136,6 +136,8 @@ class File extends FileEntry {
     public function delete($options = []) {
 	if (!empty($this->_id)) {
 	    self::_bucket()->delete($this->_id);
+	    //CLD: 2026-11-28T10:00:00Z: the project's Files pages told (FileEntry::pushChanged)
+	    self::pushChanged($this->metadata['aid'] ?? null, $this->metadata['project'] ?? null, 1);
 
 	    $this->_config['exists'] = false;
 	    $this->_data = [];
@@ -207,6 +209,8 @@ class File extends FileEntry {
 	    [ '_id' => $file_id ],
 	    [ '$set' => $set ]
 	);
+	//CLD: 2026-11-28T10:00:00Z: the project's Files pages told (FileEntry::pushChanged)
+	self::pushChanged($aid, $options['metadata']['project'] ?? null, 1);
 
 	return $file_id;
     }

@@ -39,6 +39,9 @@ $title = \util\JSON::encode(\V::app()->html->escape($folder ? (string)$folder->f
 $script = "
 +function(){
     const fileList = document.getElementById('files-list');
+    //CLD: 2026-11-28T10:00:00Z: an entry of the project added, renamed, moved or deleted elsewhere (another person, a workflow: app.live files::changed): the rows loaded
+    //again (app.live.grid); this page's own change (live.own) is not loaded twice
+    const live = app.live.grid(fileList, 'files::changed', () => 'rows');
 
     new app.GridView(fileList, {
 	create: '{$createBtn}',
@@ -75,6 +78,7 @@ $script = "
 
 	    //refresh gv on a new folder, a rename, a move, a delete
 	    app.events.on('object::deleted object::created object::updated', (e) => {
+		live.own();
 		fileList._dataView.reload();
 	    })
 
@@ -117,6 +121,7 @@ $script = "
     		    });
 		},
 		onUploadComplete: () => {
+		    live.own();
 		    btnUpload.disabled = false;
 		    btnUpload.textContent = saveLabel;
 		    btnUpload.style.width = null;

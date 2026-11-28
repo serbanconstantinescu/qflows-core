@@ -400,6 +400,14 @@ class KnowledgeBase extends \sys\BaseModel {
 	$this->chunks = \V::app()->om->count('KbChunk', [ 'kb' => $this->_id, 'aid' => $this->aid ]);
 	\V::app()->om->updateMany('KnowledgeBase', [ '_id' => $this->_id ], [ '$set' => [ 'documents' => $this->documents, 'chunks' => $this->chunks,
 	    'updated_at' => new \MongoDB\BSON\UTCDateTime() ] ]);
+	//CLD: 2026-11-28T10:00:00Z: a document queued, indexed or removed (each one recounts)
+	$this->pushChanged();
+    }
+
+    //CLD: 2026-11-28T10:00:00Z: its documents or its state changed: the project's open pages of it told (views/knowledge/manage.php: kb::changed), at most once a second
+    //from this process (util\Daemon::push: a workflow adding documents in a loop)
+    public function pushChanged() {
+	\util\Daemon::push('kb::changed', [ 'aid' => $this->aid, 'project' => $this->project ], [ 'kb' => (string)$this->_id ], 1);
     }
 
     //$meta checked: names (letters, digits, _), values text / number / yes-no / null or lists of them; \ErrorException otherwise
@@ -510,6 +518,8 @@ class KnowledgeBase extends \sys\BaseModel {
 	} catch (\Exception $e) {
 	    \V::app()->om->updateOne('KbDocument', [ '_id' => $doc['_id'], 'aid' => $kb->aid ], [ '$set' => [ 'status' => 'error', 'error' => mb_substr($e->getMessage(), 0, 500),
 		'updated_at' => new \MongoDB\BSON\UTCDateTime() ] ]);
+	    //CLD: 2026-11-28T10:00:00Z: its page shows the error (pushChanged)
+	    $kb->pushChanged();
 	}
     }
 
@@ -522,6 +532,8 @@ class KnowledgeBase extends \sys\BaseModel {
 	$this->state = 'reindexing';
 	$this->state_message = '';
 	\V::app()->om->updateMany('KnowledgeBase', [ '_id' => $this->_id ], [ '$set' => [ 'state' => 'reindexing', 'state_message' => '' ] ]);
+	//CLD: 2026-11-28T10:00:00Z: its pages say it is re-indexing (pushChanged)
+	$this->pushChanged();
 	\models\Job::submit('\models\kb\KnowledgeBase::reindexJob', [ 'aid' => (string)$this->aid, 'project' => (string)$this->project, 'kb' => (string)$this->_id ], [ 'delete_on_done' => true ]);
     }
 
@@ -565,6 +577,8 @@ class KnowledgeBase extends \sys\BaseModel {
     //fields $fields of knowledge base $kb saved as they are (no model hooks)
     private static function setFields($kb, array $fields) {
 	\V::app()->om->updateMany('KnowledgeBase', [ '_id' => $kb->_id ], [ '$set' => $fields ]);
+	//CLD: 2026-11-28T10:00:00Z: re-indexed or failed: its pages told (pushChanged)
+	$kb->pushChanged();
     }
 
     // ------------------------------------------------------------------------------------

@@ -129,6 +129,13 @@ class FileEntry extends \sys\BaseModel {
 
     //keep a top-level `aid` and `project` (queried by generic code, e.g. Field_object::objectChoices),
     //taken from metadata.aid, metadata.project where GridFS uploads store the account
+    //CLD: 2026-11-28T10:00:00Z: an entry of project $project added, renamed, moved or deleted: the project's open Files pages told (views/file/list.php: files::changed);
+    //none without a project (a file kept for something else). $every: at most once in so many seconds from this process (util\Daemon::push: a step saving files in a loop)
+    public static function pushChanged($aid, $project, $every = 0) {
+	if (!empty($aid) && !empty($project))
+	    \util\Daemon::push('files::changed', [ 'aid' => $aid, 'project' => $project ], [], $every);
+    }
+
     public function beforeSave() {
 	parent::beforeSave();
 

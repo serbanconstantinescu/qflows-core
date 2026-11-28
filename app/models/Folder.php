@@ -71,6 +71,8 @@ class Folder extends FileEntry {
 	} catch (\MongoDB\Driver\Exception\BulkWriteException $e) {
 	    throw new \RuntimeException("There is already a folder `{$name}` here");
 	}
+	//CLD: 2026-11-28T10:00:00Z: the project's Files pages told (FileEntry::pushChanged)
+	self::pushChanged($aid, $project, 1);
 	return \V::app()->om->findOne('Folder', [ '_id' => $id ]);
     }
 
@@ -130,6 +132,8 @@ class Folder extends FileEntry {
 	} catch (\MongoDB\Driver\Exception\BulkWriteException $e) {
 	    throw new \RuntimeException('There is already a folder with this name there');
 	}
+	//CLD: 2026-11-28T10:00:00Z: the project's Files pages told (FileEntry::pushChanged)
+	self::pushChanged($this->metadata['aid'] ?? null, $this->metadata['project'] ?? null);
     }
 
     //only an empty folder (no files, no folders in it): \RuntimeException otherwise
@@ -140,6 +144,8 @@ class Folder extends FileEntry {
 	if ($n > 0)
 	    throw new \RuntimeException('The folder is not empty (' . \util\Format::plural($n, 'item') . '): move or delete what is in it first');
 	\V::app()->om->deleteOne('Folder', [ '_id' => $this->_id ]);
+	//CLD: 2026-11-28T10:00:00Z: the project's Files pages told (FileEntry::pushChanged)
+	self::pushChanged($this->metadata['aid'] ?? null, $this->metadata['project'] ?? null);
 	$this->_config['exists'] = false;
 	$this->_data = [];
 	return true;

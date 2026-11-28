@@ -5,6 +5,7 @@
  *                                            where a new one is asked (SiteController::live_ticket) when it expires or the daemon was away
  *   app.live.on(el, 'a::b c::d', fn)         fn(data, type) for these events while `el` is on the page (pjax replaced it: dropped); el = null: always
  *   app.live.connected()                     whether the stream is open (a page polls while it is not)
+ *   app.live.grid(container, types, accept)  an app.GridView loaded again on these events (data tables, Files): see grid() below
  *
  * An event only says what changed ({ type, data }: ids, no records): the handlers load what they show themselves. The same event and data within
  * DEBOUNCE ms come once. `live::resync` comes after the stream was away (the daemon restarted, the network): the events meanwhile are lost,
@@ -14,6 +15,7 @@ window.app = window.app || {};
 app.live = (function() {
     const DEBOUNCE = 300;
     const MAX_WAIT = 60000;
+    const GRID_MIN = 2000;
 
     let source = null;
     let ticket = null;
@@ -150,6 +152,55 @@ app.live = (function() {
 	//whether the stream is open now (else the pages poll as before)
 	connected: function() {
 	    return !!source && source.readyState === EventSource.OPEN;
+	},
+
+	//the app.GridView of `container` (its _dataView) loaded again on `types` and live::resync: accept(data, type) says what: false (not this grid's), 'page' (the page
+	//loaded again, e.g. new columns; not while a dialog is open), anything else its rows (the page of rows shown; not while rows are selected); at most once in GRID_MIN ms,
+	//a change meanwhile loaded after it. Returns { own() }: the page's own change, which it loads itself: the events of the next GRID_MIN ms are not loaded again
+	grid: function(container, types, accept) {
+	    const g = { own: Date.now(), timer: null, pending: false, page: false };
+	    const run = () => {
+		const dv = container._dataView;
+		if (!container.isConnected || !dv)
+		    return;
+		if (g.page) {
+		    if (document.querySelector('.modal.show')) {
+			g.pending = true;
+			return;
+		    }
+		    g.page = false;
+		    app.pjax.fetch(window.location.pathname + window.location.search, { push: false });
+		    return;
+		}
+		if (dv.selected && dv.selected.size) {
+		    g.pending = true;
+		    return;
+		}
+		dv.loadData();
+	    };
+	    const load = () => {
+		if (g.timer) {
+		    g.pending = true;
+		    return;
+		}
+		run();
+		g.timer = setTimeout(() => {
+		    g.timer = null;
+		    if (g.pending) {
+			g.pending = false;
+			load();
+		    }
+		}, GRID_MIN);
+	    };
+	    api.on(container, types + ' live::resync', (data, type) => {
+		const what = type === 'live::resync' ? true : accept(data, type);
+		if (!what || Date.now() - g.own < GRID_MIN)
+		    return;
+		if (what === 'page')
+		    g.page = true;
+		load();
+	    });
+	    return { own: () => { g.own = Date.now(); } };
 	},
     };
 
