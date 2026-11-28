@@ -24,6 +24,9 @@ window.app.Overview = (function() {
 	new: [ 'New', 'bi-circle', 'text-secondary' ],
     };
     const STORE = 'qflows.overview.period';
+    //CLD: 2026-11-28T10:00:00Z: the live events (app.live): loaded again, quietly, at most once a LIVE_MIN ms, when a task of the project changes (tasks::changed), a run of it starts
+    //or changes state (execution::changed; not a test's, not a save of a run in the same state: `seen`) and after the events were away (live::resync); not while Kill? is asked
+    const LIVE_MIN = 5000;
 
     const percent = (r) => r === null || r === undefined ? '–' : (Math.round(r * 1000) / 10) + '%';
 
@@ -55,6 +58,42 @@ window.app.Overview = (function() {
 	    }
 	    this.build();
 	    this.load();
+	    //the live events: the runs' states last seen, the throttle
+	    this.seen = new Map();
+	    this.liveTimer = null;
+	    this.livePending = false;
+	    app.live.on(this.root, 'tasks::changed execution::changed live::resync', (data, type) => this.onLive(data, type));
+	}
+
+	onLive(data, type) {
+	    const mine = app.live.claims();
+	    if (type === 'tasks::changed' && mine && data.project && data.project !== mine.project)
+		return;
+	    if (type === 'execution::changed') {
+		if (data.test || this.seen.get(data.execution) === data.state)
+		    return;
+		this.seen.set(data.execution, data.state);
+	    }
+	    this.liveLoad();
+	}
+
+	liveLoad() {
+	    if (this.liveTimer) {
+		this.livePending = true;
+		return;
+	    }
+	    //Kill? asked: after it
+	    if (this.root.querySelector('.ov-kill-yes'))
+		this.livePending = true;
+	    else
+		this.load(true);
+	    this.liveTimer = setTimeout(() => {
+		this.liveTimer = null;
+		if (this.livePending) {
+		    this.livePending = false;
+		    this.liveLoad();
+		}
+	    }, LIVE_MIN);
 	}
 
 	build() {
@@ -83,15 +122,18 @@ window.app.Overview = (function() {
 	    document.addEventListener('app:themechange', onTheme);
 	}
 
-	async load() {
+	//quiet: no reduced opacity meanwhile (the live events)
+	async load(quiet) {
 	    this.root.querySelectorAll('[data-period]').forEach((b) => b.classList.toggle('active', b.dataset.period === this.period));
 	    const body = this.root.querySelector('.ov-body');
-	    body.style.opacity = '0.5';
+	    if (!quiet)
+		body.style.opacity = '0.5';
 	    try {
 		const res = await fetch(this.o.url + '?period=' + encodeURIComponent(this.period), { headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' } });
 		if (!res.ok)
 		    throw new Error('the server answered ' + res.status);
 		this.data = await res.json();
+		(this.data.recent || []).forEach((r) => this.seen.set(r.id, r.state));
 		this.render();
 		this.root.querySelector('.ov-status').textContent = 'Updated ' + app.formatter.shortTime(new Date());
 	    } catch (err) {

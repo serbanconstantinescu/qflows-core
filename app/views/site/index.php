@@ -52,17 +52,5 @@ $this->pageTitle = 'Overview';
     .qflows-overview .ov-periods .btn:not(.active), .qflows-overview .ov-refresh { color: var(--bs-body-color); }
     </style>
     <div class="qflows-overview" id="qflows-overview"></div>
-    <?php //CLD: 2026-11-28T10:00:00Z: the figures loaded again when a task of this project changes (app.live: tasks::changed) or the live events were away ?>
-    <?php \V::app()->cs->addPageScript(<<<'JS'
-(() => {
-    const el = document.getElementById('qflows-overview');
-    const overview = new app.Overview(el, { url: '/site/overview' });
-    app.live.on(el, 'tasks::changed live::resync', (data, type) => {
-	const mine = app.live.claims();
-	if (type === 'tasks::changed' && mine && data.project && data.project !== mine.project)
-	    return;
-	overview.load();
-    });
-})();
-JS); ?>
+    <?php \V::app()->cs->addPageScript("new app.Overview(document.getElementById('qflows-overview'), { url: '/site/overview' });"); ?>
 </div>

@@ -358,9 +358,9 @@ class WfExecution extends \sys\BaseModel {
 	self::deleteStored($drop);
 	if ($ok instanceof \Throwable)
 	    throw $ok;
-	//CLD: 2026-11-28T10:00:00Z: the project's open pages told (the designer's Executions panel and canvas: app.wfexecutions); while it runs at most SAVE_RATE a second (run)
+	//CLD: 2026-11-28T10:00:00Z: the project's open pages told (the designer's Executions panel and canvas: app.wfexecutions; the Overview, not of a test); while it runs at most SAVE_RATE a second (run)
 	if ($ok === true)
-	    \util\Daemon::push('execution::changed', [ 'aid' => $this->aid, 'project' => $this->project ], [ 'wf' => (string)$this->wf, 'execution' => (string)$this->_id, 'state' => (string)$this->state ]);
+	    \util\Daemon::push('execution::changed', [ 'aid' => $this->aid, 'project' => $this->project ], [ 'wf' => (string)$this->wf, 'execution' => (string)$this->_id, 'state' => (string)$this->state, 'test' => !empty($this->test_run) ]);
 	return $ok;
     }
 
@@ -672,7 +672,7 @@ class WfExecution extends \sys\BaseModel {
 	    return false;
 	$this->state = 'cancel';
 	//CLD: 2026-11-28T10:00:00Z: the project's open pages told (app.wfexecutions)
-	\util\Daemon::push('execution::changed', [ 'aid' => $this->aid, 'project' => $this->project ], [ 'wf' => (string)$this->wf, 'execution' => (string)$this->_id, 'state' => (string)$this->state ]);
+	\util\Daemon::push('execution::changed', [ 'aid' => $this->aid, 'project' => $this->project ], [ 'wf' => (string)$this->wf, 'execution' => (string)$this->_id, 'state' => (string)$this->state, 'test' => !empty($this->test_run) ]);
 
 	$query = [ 'job_data.exe' => (string)$this->_id, 'job_spec' => [ '$in' => [ '\\util\\Scheduler::start', '\\util\\Scheduler::resume' ] ], 'state' => [ '$in' => [ 'new', 'run' ] ] ];
 	foreach(\V::app()->om->find('Job', $query, [ 'arrays' => true, 'projection' => [ '_id' => 1, 'state' => 1 ] ]) as $job) {
@@ -735,7 +735,7 @@ class WfExecution extends \sys\BaseModel {
 	    $exe->error = (string)$reason;
 	    $ended++;
 	    //CLD: 2026-11-28T10:00:00Z: the project's open pages told (app.wfexecutions)
-	    \util\Daemon::push('execution::changed', [ 'aid' => $exe->aid, 'project' => $exe->project ], [ 'wf' => (string)$exe->wf, 'execution' => (string)$exe->_id, 'state' => (string)$exe->state ]);
+	    \util\Daemon::push('execution::changed', [ 'aid' => $exe->aid, 'project' => $exe->project ], [ 'wf' => (string)$exe->wf, 'execution' => (string)$exe->_id, 'state' => (string)$exe->state, 'test' => !empty($exe->test_run) ]);
 
 	    $outer = \models\ExecutionLog::$execution;
 	    \models\ExecutionLog::$execution = $exe;
