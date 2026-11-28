@@ -292,10 +292,11 @@ window.app.FormDesigner = (function() {
 		+ '<div class="small text-uppercase text-muted fw-semibold mt-3 mb-2">Design</div>'
 		+ Object.keys(TYPES).filter((t) => !TYPES[t].input).map(button).join('');
 	    //fill: the columns take the height left, each scrolling
+	    //CLD: 2026-11-28T17:45:00+02:00: no border in the step's dialog (fill: the designer is the dialog's body, as other steps' fields), else bordered
 	    const fill = !!this.o.fill;
 	    const scroll = fill ? 'height:100%; overflow:auto' : 'max-height:70vh; overflow:auto';
 	    this.container.innerHTML = `
-		<div class="fd border rounded ${fill ? 'd-flex flex-column flex-grow-1' : ''}" style="${fill ? 'min-height:0' : ''}">
+		<div class="fd ${fill ? 'd-flex flex-column flex-grow-1' : 'border rounded'}" style="${fill ? 'min-height:0' : ''}">
 		    <div class="d-flex flex-wrap gap-1 align-items-center p-2 border-bottom bg-body-tertiary flex-shrink-0">
 			<div class="btn-group btn-group-sm me-2" role="group">
 			    <button type="button" class="btn ${this.mode === 'build' ? 'btn-primary' : 'btn-outline-primary'} fd-mode" data-mode="build"><i class="bi bi-tools me-1"></i>Build</button>

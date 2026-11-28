@@ -1815,9 +1815,14 @@ window.app.Workflow = (function() {
 		//designer stretches (flex column, min-height 0)
 		const body = el.querySelector('.modal-body');
 		body.style.cssText += 'display:flex; flex-direction:column; overflow:hidden';
+		//CLD: 2026-11-28T17:45:00+02:00: margin-bottom 0 as important (the field's wrapper has Bootstrap's mb-3, !important); the body has no padding: the
+		//designer (no border here) runs edge to edge, the field's problem / help text padded as the body was
+		body.style.padding = '0';
 		[ el.querySelector('.wf-editor-form'), root, top, designerField.designer.container ].forEach((n) => {
-		    n.style.cssText += 'display:flex; flex-direction:column; flex:1 1 auto; min-height:0; margin-bottom:0';
+		    n.style.cssText += 'display:flex; flex-direction:column; flex:1 1 auto; min-height:0';
+		    n.style.setProperty('margin-bottom', '0', 'important');
 		});
+		designerField.el.querySelectorAll(':scope > .invalid-feedback, :scope > .form-text').forEach((n) => n.classList.add('px-3'));
 		designerField.designer.o.fill = true;
 		//the PDF designer's preview (WorkflowController::pdf_preview)
 		designerField.designer.o.previewUrl = this.options.pdfPreviewUrl || null;

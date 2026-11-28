@@ -244,7 +244,8 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
     //the markup of one designer; A(name): data-pd + id (unique: the labels' for)
     //CLD: 2026-11-28T16:00:00+02:00: the toolbar fits one line at 1440 px: Header / Footer, Page setup, Sample data and Checks are icons (their names in title +
     //aria-label), Preview PDF is Preview; Page setup is grouped with Header / Footer, read-only (the formatting toolbar hidden) with Sample data / Checks (its
-    //fields disabled); in the step's dialog (fill) the columns' row does not wrap from md up, so the page scrolls in its column (a wrapping row took the page's height)
+    //fields disabled); in the step's dialog (fill) the columns' row does not wrap from md up, so the page scrolls in its column (a wrapping row took the page's height),
+    //and there is no border (the designer is the dialog's body, as other steps' fields)
     function markup(P, ro, fill) {
 	const A = (n) => `data-pd="${n}" id="${P}${n}"`;
 	const D = (n) => `data-pd="${n}"`;
@@ -256,7 +257,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 	    <div class="card-footer d-flex justify-content-end gap-2">${footer}</div></div></div>`;
 	const fonts = Object.entries(FONTS).map(([k, f]) => `<option value="${k}">${app.utils.escapeHtml(f[0])}</option>`).join('');
 	return `
-<div class="pd border rounded ${fill ? 'd-flex flex-column flex-grow-1' : ''}" style="${fill ? 'min-height:0' : ''}">
+<div class="pd ${fill ? 'd-flex flex-column flex-grow-1' : 'border rounded'}" style="${fill ? 'min-height:0' : ''}">
   <div class="p-2 border-bottom bg-body-tertiary flex-shrink-0 vstack gap-2 position-relative" ${D('editPanel')}>
     <div class="d-flex flex-wrap gap-2 align-items-center">
       <div class="btn-toolbar gap-2 pd-toolbar" ${D('toolbar')} role="toolbar" aria-label="Formatting" ${ro ? 'hidden' : ''}>

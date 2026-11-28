@@ -98,10 +98,11 @@ window.app.EmailDesigner = (function() {
 
 	render() {
 	    const ro = !!this.o.readonly;
+	    //CLD: 2026-11-28T17:45:00+02:00: no border in the step's dialog (fill: the designer is the dialog's body, as other steps' fields), else bordered
 	    const fill = !!this.o.fill;
 	    const scroll = fill ? 'height:100%; overflow:auto' : 'max-height:70vh; overflow:auto';
 	    this.container.innerHTML = `
-		<div class="ed border rounded ${fill ? 'd-flex flex-column flex-grow-1' : ''}" style="${fill ? 'min-height:0' : ''}">
+		<div class="ed ${fill ? 'd-flex flex-column flex-grow-1' : 'border rounded'}" style="${fill ? 'min-height:0' : ''}">
 		    <div class="d-flex flex-wrap gap-1 align-items-center p-2 border-bottom bg-body-tertiary flex-shrink-0">
 			${ro ? '' : `<span class="small text-muted me-1">Add</span>
 			<button type="button" class="btn btn-sm btn-outline-primary ed-add" data-type="html"><i class="bi bi-text-paragraph me-1"></i>Text</button>
