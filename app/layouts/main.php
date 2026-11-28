@@ -3,6 +3,21 @@
 //the app's scripts are registered by layouts/_scripts.php (shared with layouts/form.php)
 require(dirname(__FILE__) . '/_scripts.php');
 
+//the daemon's live events for this page (app.live): its ticket, a new one from SiteController::live_ticket; none without APP_SECRET
+try {
+    $liveTicket = \util\Daemon::pushToken([ 'aid' => \V::app()->var('rt.account')->_id ?? null, 'project' => \V::app()->user->crtProject, 'user' => \V::app()->user->_id ]);
+    $params = \util\JSON::encode([ 'ticket' => $liveTicket, 'renew' => '/site/live_ticket' ]);
+    \V::app()->cs->addPageScript("app.live.start({$params});");
+} catch (\ErrorException $e) {
+}
+
+//SIDEBAR
+//the width kept for the user (User prefs sidebar_width, set by the resize handle: app.sidebar)
+$sidebarW = (int)(\V::app()->var('rt.prefs')['sidebar_width'] ?? 0);
+//collapsed: User prefs sidebar_collapsed; the width limits (data-min-width / data-max-width: data\Constants) for app.sidebar
+$sidebarClass = 'sidebar' . (empty(\V::app()->var('rt.prefs')['sidebar_collapsed']) ? '' : ' collapsed');
+
+
 ob_start();
 ?>
 
@@ -10,13 +25,10 @@ ob_start();
 <?php \V::app()->hooks->applyHook('layout:page-top'); ?>
 <main class="app-shell">
     <!-- SIDEBAR -->
-    <?php //the width kept for the user (User prefs sidebar_width, set by the resize handle: app.sidebar) ?>
-    <?php $sidebarW = (int)(\V::app()->var('rt.prefs')['sidebar_width'] ?? 0); ?>
-    <?php //collapsed: User prefs sidebar_collapsed; the width limits (data-min-width / data-max-width: data\Constants) for app.sidebar ?>
-    <aside class="sidebar<?= empty(\V::app()->var('rt.prefs')['sidebar_collapsed']) ? '' : ' collapsed' ?>" data-min-width="<?= \data\Constants::SIDEBAR_MIN_W ?>" data-max-width="<?= \data\Constants::SIDEBAR_MAX_W ?>"<?= $sidebarW ? ' style="--sidebar-w: ' . min(max($sidebarW, \data\Constants::SIDEBAR_MIN_W), \data\Constants::SIDEBAR_MAX_W) . 'px" data-width="' . $sidebarW . '"' : '' ?>>
+    <aside class="<?= $sidebarClass ?>" data-min-width="<?= \data\Constants::SIDEBAR_MIN_W ?>" data-max-width="<?= \data\Constants::SIDEBAR_MAX_W ?>"<?= $sidebarW ? ' style="--sidebar-w: ' . min(max($sidebarW, \data\Constants::SIDEBAR_MIN_W), \data\Constants::SIDEBAR_MAX_W) . 'px" data-width="' . $sidebarW . '"' : '' ?>>
 	<?php require(dirname(__FILE__) . '/main_aside.php') ?>
     </aside>
-    <?php //behind the sidebar when it is a drawer (small screens, theme local/_app.scss); a click closes it (app.sidebar) ?>
+    <!-- behind the sidebar when it is a drawer (small screens, theme local/_app.scss); a click closes it (app.sidebar) -->
     <div class="sidebar-backdrop"></div>
 
     <!-- MAIN -->
@@ -25,21 +37,13 @@ ob_start();
     </div>
 </main>
 
-<?php
-//CLD: 2026-11-28T10:00:00Z: the daemon's live events for this page (app.live): its ticket, a new one from SiteController::live_ticket; none without APP_SECRET
-try {
-    $liveTicket = \util\Daemon::pushToken([ 'aid' => \V::app()->var('rt.account')->_id ?? null, 'project' => \V::app()->user->crtProject, 'user' => \V::app()->user->_id ]);
-    \V::app()->cs->addPageScript('app.live.start(' . \util\JSON::encode([ 'ticket' => $liveTicket, 'renew' => '/site/live_ticket' ]) . ');');
-} catch (\ErrorException $e) {
-}
-?>
 
 <!-- toasts -->
-<?php //CLD: 2026-11-15T15:00:00+02:00: the stack fixed at the window's bottom right (was absolute at the page's end); each toast announces itself (app.utils.toast) ?>
 <div class="toast-container position-fixed bottom-0 end-0 p-3">
 </div>
 
 
 <?php
 $content = ob_get_clean();
+
 echo $this->renderFile('/layouts/_webpage', compact('content'));
