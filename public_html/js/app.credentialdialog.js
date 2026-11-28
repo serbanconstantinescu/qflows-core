@@ -8,8 +8,6 @@
 window.app.credentialDialog = (function() {
     'use strict';
 
-    const esc = (s) => app.utils.escapeHtml(String(s ?? ''));
-
     //a pjax request: a page answers { content, script, meta }, an inline action its JSON
     function request(url, formData) {
 	const options = { url: url, type: formData ? 'POST' : 'GET', headers: { 'X-PJAX': 'true', 'X-Csrf-Token': app.utils.csrf() } };
@@ -114,7 +112,7 @@ window.app.credentialDialog = (function() {
 	    body.innerHTML = html;
 	    footer.innerHTML = buttons;
 	};
-	const status = (ok, message) => `<div class="alert alert-${ok ? 'success' : 'danger'} mb-0"><i class="bi ${ok ? 'bi-check-circle' : 'bi-exclamation-triangle'} me-2"></i>${esc(message)}</div>`;
+	const status = (ok, message) => `<div class="alert alert-${ok ? 'success' : 'danger'} mb-0"><i class="bi ${ok ? 'bi-check-circle' : 'bi-exclamation-triangle'} me-2"></i>${app.utils.escapeHtml(message)}</div>`;
 	const done = `<button type="button" class="btn btn-primary" data-bs-dismiss="modal">Done</button>`;
 	const later = `<p class="small text-body-secondary mt-3 mb-0">It is chosen in the step; you can test it, or fix it, later on the Credentials page.</p>`;
 

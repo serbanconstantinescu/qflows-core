@@ -403,10 +403,7 @@ window.app.Overview = (function() {
 	    box.querySelectorAll('button').forEach((b) => { b.disabled = true; });
 	    try {
 		const url = '/workflow/execution_kill?id=' + encodeURIComponent(box.dataset.wf) + '&execution=' + encodeURIComponent(box.dataset.id);
-		const res = await fetch(url, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-Csrf-Token': app.utils.csrf(), Accept: 'application/json' } });
-		const body = await res.json().catch(() => ({}));
-		if (!res.ok)
-		    throw new Error(body.error || 'the server answered ' + res.status);
+		await app.utils.post(url);
 		app.utils.toastText('success', 'Killed', 'The execution was stopped');
 	    } catch (err) {
 		app.utils.toastText('error', 'Not killed', err.message);

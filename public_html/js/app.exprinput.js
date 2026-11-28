@@ -162,17 +162,7 @@ window.app.ExprInput = (function() {
 	    const body = new URLSearchParams();
 	    Object.keys(fields).forEach((k) => body.set(k, fields[k]));
 	    try {
-		const res = await fetch(url, {
-		    method: 'POST',
-		    body: body,
-		    credentials: 'same-origin',
-		    signal: signal,
-		    //X-Requested-With: the server reads the CSRF token from the header only for AJAX / pjax requests
-		    headers: { 'X-Csrf-Token': app.utils.csrf(), 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
-		});
-		if (!res.ok)
-		    return null;
-		return await res.json();
+		return await app.utils.post(url, body, { signal: signal });
 	    } catch (err) {
 		return null;
 	    }
@@ -215,8 +205,7 @@ window.app.ExprInput = (function() {
 		return;
 	    }
 	    if (!this.panel || !this.panel.isConnected) {
-		this.panel = document.createElement('div');
-		this.panel.className = 'expr-problems small mt-1';
+		this.panel = app.utils.el('div', 'expr-problems small mt-1');
 		this.input.insertAdjacentElement('afterend', this.panel);
 	    }
 	    //in a table cell (e.g. an edit grid row) only the icons, the message as their tooltip
@@ -245,8 +234,7 @@ window.app.ExprInput = (function() {
 	    this.replace = completion.replace || 0;
 	    this.active = 0;
 	    if (!this.menu) {
-		this.menu = document.createElement('ul');
-		this.menu.className = 'dropdown-menu show shadow-sm py-1 small expr-menu';
+		this.menu = app.utils.el('ul', 'dropdown-menu show shadow-sm py-1 small expr-menu');
 		this.menu.style.position = 'fixed';
 		this.menu.style.zIndex = 2000;
 		this.menu.style.maxHeight = '16rem';

@@ -133,8 +133,7 @@ window.app.EmailDesigner = (function() {
 	    const col = document.createElement('div');
 	    col.style.cssText = `max-width:${WIDTH}px; margin:16px auto; background:#ffffff; box-shadow:0 1px 3px rgba(0,0,0,.08)`;
 	    //the preview text (the line after the subject in the inbox)
-	    const pre = document.createElement('div');
-	    pre.className = 'px-3 pt-2';
+	    const pre = app.utils.el('div', 'px-3 pt-2');
 	    pre.innerHTML = `<input type="text" class="form-control form-control-sm border-0 border-bottom rounded-0 text-muted ed-preheader" placeholder="Preview text (shown after the subject in the inbox)" ${ro ? 'disabled' : ''}>`;
 	    const preInput = pre.querySelector('input');
 	    preInput.value = this.preheader;
@@ -161,8 +160,7 @@ window.app.EmailDesigner = (function() {
 
 	//a thin line with a + between blocks: Text / Image inserted there
 	insertLine(at) {
-	    const el = document.createElement('div');
-	    el.className = 'ed-insert d-flex align-items-center justify-content-center';
+	    const el = app.utils.el('div', 'ed-insert d-flex align-items-center justify-content-center');
 	    el.style.cssText = 'height:14px; opacity:.35';
 	    el.innerHTML = `<div class="dropdown"><button type="button" class="btn btn-sm btn-light border rounded-circle p-0 lh-1" style="width:20px;height:20px" data-bs-toggle="dropdown" title="Insert a block here"><i class="bi bi-plus"></i></button>
 		<ul class="dropdown-menu dropdown-menu-sm"><li><button type="button" class="dropdown-item small" data-type="html"><i class="bi bi-text-paragraph me-1"></i>Text</button></li>
@@ -176,8 +174,7 @@ window.app.EmailDesigner = (function() {
 	renderBlock(b, i) {
 	    const ro = !!this.o.readonly;
 	    const sel = this.selected === b._id;
-	    const el = document.createElement('div');
-	    el.className = 'ed-block position-relative';
+	    const el = app.utils.el('div', 'ed-block position-relative');
 	    el.style.cssText = `outline:${sel ? '2px solid var(--bs-primary)' : '1px dashed transparent'}; outline-offset:-1px`;
 	    el.addEventListener('mouseenter', () => { if (!sel) el.style.outline = '1px dashed var(--bs-secondary-border-subtle)'; });
 	    el.addEventListener('mouseleave', () => { if (!sel) el.style.outline = '1px dashed transparent'; });
@@ -205,8 +202,7 @@ window.app.EmailDesigner = (function() {
 		el.addEventListener('click', () => { if (this.selected !== b._id) this.select(b._id); });
 	    }
 	    if (!ro) {
-		const tools = document.createElement('div');
-		tools.className = 'position-absolute top-0 end-0 m-1 btn-group btn-group-sm shadow-sm ed-tools';
+		const tools = app.utils.el('div', 'position-absolute top-0 end-0 m-1 btn-group btn-group-sm shadow-sm ed-tools');
 		tools.style.cssText = `z-index:2; ${sel ? '' : 'display:none'}`;
 		tools.innerHTML = `<button type="button" class="btn btn-light border" data-act="up" title="Move up" ${i === 0 ? 'disabled' : ''}><i class="bi bi-arrow-up"></i></button>
 		    <button type="button" class="btn btn-light border" data-act="down" title="Move down" ${i === this.blocks.length - 1 ? 'disabled' : ''}><i class="bi bi-arrow-down"></i></button>

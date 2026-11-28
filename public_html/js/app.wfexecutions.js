@@ -275,8 +275,8 @@ window.app.WfExecutions = (function() {
 	}
 
 	start() {
-	    $.ajax({ url: this.o.urls.run, method: 'POST', dataType: 'json', headers: { 'X-Csrf-Token': app.utils.csrf() } })
-		.done((resp) => {
+	    app.utils.post(this.o.urls.run)
+		.then((resp) => {
 		    //nothing started (e.g. no new mail) -> the reason; several executions (one per message) -> the first is shown
 		    if (!resp.execution) {
 			app.utils.toastText('info', 'Nothing started', resp.message || 'Nothing was started');
@@ -287,7 +287,7 @@ window.app.WfExecutions = (function() {
 		    this.open();
 		    this.select(resp.execution);
 		})
-		.fail((xhr) => app.utils.toastText('error', 'Not started', (xhr.responseJSON && xhr.responseJSON.error) || 'The workflow could not be started'));
+		.catch((err) => app.utils.toastText('error', 'Not started', err.data?.error || 'The workflow could not be started'));
 	}
 
 	/* ---------------- the panel ---------------- */
@@ -696,9 +696,9 @@ window.app.WfExecutions = (function() {
 	    if (!id || !this.o.urls.saveCase)
 		return;
 	    const url = this.o.urls.saveCase + (this.o.urls.saveCase.includes('?') ? '&' : '?') + 'execution=' + encodeURIComponent(id);
-	    $.ajax({ url: url, method: 'POST', dataType: 'json', headers: { 'X-CSRF-Token': app.utils.csrf() } })
-		.done((resp) => this.o.onCaseSaved(resp.case))
-		.fail((xhr) => app.utils.toastText('error', 'Not saved', (xhr.responseJSON && xhr.responseJSON.error) || 'The test case could not be saved'));
+	    app.utils.post(url)
+		.then((resp) => this.o.onCaseSaved(resp.case))
+		.catch((err) => app.utils.toastText('error', 'Not saved', err.data?.error || 'The test case could not be saved'));
 	}
 
 	//the selected execution's inputs, as a new execution, once the changes are saved (the change to compare); it is shown
@@ -710,14 +710,14 @@ window.app.WfExecutions = (function() {
 		return;
 	    const url = this.o.urls.again + (this.o.urls.again.includes('?') ? '&' : '?') + 'execution=' + encodeURIComponent(id);
 	    this.o.whenSaved(() => {
-		$.ajax({ url: url, method: 'POST', dataType: 'json', headers: { 'X-Csrf-Token': app.utils.csrf() } })
-		    .done((resp) => {
+		app.utils.post(url)
+		    .then((resp) => {
 			app.utils.toastText('success', 'Started', 'Running again with the same inputs');
 			this.select(resp.execution);
 			this.refresh();
 			this.ensureTimer();
 		    })
-		    .fail((xhr) => app.utils.toastText('error', 'Not started', (xhr.responseJSON && xhr.responseJSON.error) || 'The execution could not be run again'));
+		    .catch((err) => app.utils.toastText('error', 'Not started', err.data?.error || 'The execution could not be run again'));
 	    });
 	}
 
@@ -743,10 +743,10 @@ window.app.WfExecutions = (function() {
 	    if (!id)
 		return;
 	    const url = this.o.urls.kill + (this.o.urls.kill.includes('?') ? '&' : '?') + 'execution=' + encodeURIComponent(id);
-	    $.ajax({ url: url, method: 'POST', dataType: 'json', headers: { 'X-Csrf-Token': app.utils.csrf() } })
-		.done(() => app.utils.toastText('success', 'Killed', 'The execution was stopped'))
-		.fail((xhr) => app.utils.toastText('error', 'Not killed', (xhr.responseJSON && xhr.responseJSON.error) || 'The execution could not be killed'))
-		.always(() => this.refresh());
+	    app.utils.post(url)
+		.then(() => app.utils.toastText('success', 'Killed', 'The execution was stopped'))
+		.catch((err) => app.utils.toastText('error', 'Not killed', err.data?.error || 'The execution could not be killed'))
+		.finally(() => this.refresh());
 	}
 
 	/* ---------------- delete ---------------- */
@@ -770,8 +770,8 @@ window.app.WfExecutions = (function() {
 	    if (!id)
 		return;
 	    const url = this.o.urls.del + (this.o.urls.del.includes('?') ? '&' : '?') + 'execution=' + encodeURIComponent(id);
-	    $.ajax({ url: url, method: 'POST', dataType: 'json', headers: { 'X-Csrf-Token': app.utils.csrf() } })
-		.done(() => {
+	    app.utils.post(url)
+		.then(() => {
 		    this.list = this.list.filter((e) => e.id !== id);
 		    //off the canvas
 		    if (this.shown === id)
@@ -781,8 +781,8 @@ window.app.WfExecutions = (function() {
 		    this.renderList();
 		    app.utils.toastText('success', 'Deleted', 'Execution deleted');
 		})
-		.fail((xhr) => {
-		    app.utils.toastText('error', 'Not deleted', (xhr.responseJSON && xhr.responseJSON.error) || 'The execution could not be deleted');
+		.catch((err) => {
+		    app.utils.toastText('error', 'Not deleted', err.data?.error || 'The execution could not be deleted');
 		    this.renderDetail();
 		});
 	}
@@ -804,8 +804,8 @@ window.app.WfExecutions = (function() {
 
 	//deletes all finished executions of the draft; the list is reloaded, the details cleared when the selected one is gone
 	removeAll() {
-	    $.ajax({ url: this.o.urls.delAll, method: 'POST', dataType: 'json', headers: { 'X-Csrf-Token': app.utils.csrf() } })
-		.done((resp) => {
+	    app.utils.post(this.o.urls.delAll)
+		.then((resp) => {
 		    this.restoreDeleteAll();
 		    if (this.detail && this.deletable(this.detail))
 			this.clearDetail();
@@ -816,9 +816,9 @@ window.app.WfExecutions = (function() {
 		    const n = resp.deleted || 0;
 		    app.utils.toastText('success', 'Deleted', (n === 1 ? '1 execution deleted' : n + ' executions deleted') + (resp.kept ? ', ' + resp.kept + ' kept (running / sleeping or of a published version)' : ''));
 		})
-		.fail((xhr) => {
+		.catch((err) => {
 		    this.restoreDeleteAll();
-		    app.utils.toastText('error', 'Not deleted', (xhr.responseJSON && xhr.responseJSON.error) || 'The executions could not be deleted');
+		    app.utils.toastText('error', 'Not deleted', err.data?.error || 'The executions could not be deleted');
 		});
 	}
     }

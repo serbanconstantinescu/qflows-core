@@ -249,9 +249,8 @@ app.live = (function() {
 	const here = new URL(window.location.href);
 	if (data.wf && here.pathname === '/workflow/index' && here.searchParams.get('id') === data.wf)
 	    return;
-	const esc = app.utils.escapeHtml;
-	const link = data.url ? ' <a href="' + esc(data.url) + '" class="ms-1"' + (data.full ? ' no-pjax' : '') + '>' + esc(data.label || 'Open') + '</a>' : '';
-	app.utils.toast({ type: data.level || 'info', title: esc(data.title || ''), body: esc(data.body || '') + link, delay: 8000 });
+	const link = data.url ? ' <a href="' + app.utils.escapeHtml(data.url) + '" class="ms-1"' + (data.full ? ' no-pjax' : '') + '>' + app.utils.escapeHtml(data.label || 'Open') + '</a>' : '';
+	app.utils.toast({ type: data.level || 'info', title: app.utils.escapeHtml(data.title || ''), body: app.utils.escapeHtml(data.body || '') + link, delay: 8000 });
     });
 
     //the sidebar's "My tasks" count (the tasks of the whole account: TaskController::count)

@@ -212,8 +212,7 @@ window.app.Workflow = (function() {
 	    const issue = d.nodeIssues[this.wfid];
 	    if (issue) {
 		const isError = issue.level === 'error';
-		const marker = document.createElement('i');
-		marker.className = 'bi ' + (isError ? 'bi-exclamation-circle-fill text-danger' : 'bi-exclamation-triangle-fill text-warning');
+		const marker = app.utils.el('i', 'bi ' + (isError ? 'bi-exclamation-circle-fill text-danger' : 'bi-exclamation-triangle-fill text-warning'));
 		marker.title = issue.messages.join('\n');
 		Object.assign(marker.style, {
 		    position: 'absolute',
@@ -229,8 +228,7 @@ window.app.Workflow = (function() {
 	    //scheduled steps (nodeDefs[..].scheduled, WfNode::$scheduled) get a small clock at the bottom-right, left of the problem
 	    //marker if any: the daemon starts them on their schedule (util\Scheduler)
 	    if (def.scheduled) {
-		const marker = document.createElement('i');
-		marker.className = 'bi bi-alarm text-muted';
+		const marker = app.utils.el('i', 'bi bi-alarm text-muted');
 		marker.title = 'Runs on its schedule while the workflow is published';
 		Object.assign(marker.style, {
 		    position: 'absolute',
@@ -248,16 +246,14 @@ window.app.Workflow = (function() {
 	    const runDef = run && RUN_STATUS[run.status];
 	    if (runDef) {
 		el.classList.add('run-' + run.status);
-		const badge = document.createElement('span');
-		badge.className = 'run-badge run-badge-' + run.status;
+		const badge = app.utils.el('span', 'run-badge run-badge-' + run.status);
 		badge.innerHTML = `<i class="bi ${runDef.icon}"></i>`;
 		badge.title = runDef.title + (run.runs > 1 ? ` (${run.runs} runs)` : '');
 		(el.querySelector('.node-box') || el).appendChild(badge);
 	    }
 
     	    if(isSelected && !d.options.readonly) {
-    		const toolbar = document.createElement('div');
-    		toolbar.className='node-toolbar';
+    		const toolbar = app.utils.el('div', 'node-toolbar');
     		//type="button": the canvas is inside a <form>, so a plain button also submitted it (app.pjax then posted the page and closed the dialogs)
     		toolbar.innerHTML = `
         	<div class="btn-group btn-group-sm shadow-sm bg-white border rounded-2">
@@ -281,8 +277,7 @@ window.app.Workflow = (function() {
     	    // ports
     	    for(let i=0;i<def.inputs;i++){
     		const p = this.portPos(true, i);
-    		const port = document.createElement('div');
-    		port.className='port in';
+    		const port = app.utils.el('div', 'port in');
     		port.style.left=(p.x - this.geometry.x - 1.5)+'px';
     		port.style.top=(p.y - this.geometry.y-8)+'px';
     		port.dataset.node = this.wfid;
@@ -292,8 +287,7 @@ window.app.Workflow = (function() {
     	    }
     	    for(let i=0;i<outs.count;i++){
     		const p = this.portPos(false, i);
-    		const port = document.createElement('div');
-    		port.className='port out';
+    		const port = app.utils.el('div', 'port out');
     		port.style.left=(p.x - this.geometry.x-5.5)+'px';
     		port.style.top=(p.y - this.geometry.y-5.5)+'px';
     		port.dataset.node = this.wfid;
@@ -301,8 +295,7 @@ window.app.Workflow = (function() {
     		port.dataset.index=i;
     		el.querySelector('.node-box').appendChild(port);
     		if(outs.labels){
-        	    const lbl = document.createElement('div');
-        	    lbl.className='port-label';
+        	    const lbl = app.utils.el('div', 'port-label');
         	    lbl.textContent = outs.labels[i];
         	    lbl.style.left = (p.x - this.geometry.x+9)+'px';
         	    lbl.style.top = (p.y - this.geometry.y-6)+'px';
@@ -312,8 +305,7 @@ window.app.Workflow = (function() {
 
     	    // resize handle (bottom-right corner of the box)
     	    if (!d.options.readonly) {
-    		const handle = document.createElement('div');
-    		handle.className = 'resize-handle';
+    		const handle = app.utils.el('div', 'resize-handle');
     		handle.addEventListener('pointerdown', (e)=>{
     		    e.stopPropagation();
     		    d.startNodeResize(e, this);
@@ -1770,8 +1762,7 @@ window.app.Workflow = (function() {
 		//the named sections' fields
 		advanced.concat(fields, ...Object.values(sections)).forEach(f => f.editable = false);
 
-	    const el = document.createElement('div');
-	    el.className = 'modal fade wf-editor';
+	    const el = app.utils.el('div', 'modal fade wf-editor');
 	    //two sizes: nearly full screen with a designer (.modal-near-fullscreen: a margin all around; the whole screen on phones,
 	    //modal-fullscreen-sm-down: theme local/_modal.scss), else extra-large
 	    //CLD: 2026-11-15T16:00:00+02:00: only a designer always shown (Send email, Form, Human task) makes the dialog the designer; one shown for some settings (the email
@@ -1815,8 +1806,7 @@ window.app.Workflow = (function() {
 		let top = designerField.el;
 		while (top && top.parentElement !== root)
 		    top = top.parentElement;
-		stepPanel = document.createElement('div');
-		stepPanel.className = 'fd-step-settings';
+		stepPanel = app.utils.el('div', 'fd-step-settings');
 		[ ...root.children ].forEach((c) => { if (c !== top) stepPanel.appendChild(c); });
 		stepPanel.querySelectorAll('[class*="col-md-"]').forEach((c) => { c.className = c.className.replace(/\bcol-md-\d+\b/g, 'col-md-12'); });
 		if (designerField.labelEl)
@@ -2008,9 +1998,8 @@ window.app.Workflow = (function() {
 		fitPicker(picker);
 		search.trigger('focus');
 		//kept for the user by /site/prefs (User prefs hide_advanced_steps)
-		$.ajax({ url: '/site/prefs', method: 'POST', data: { hide_advanced_steps: this.options.showAdvancedSteps ? 0 : 1 }, dataType: 'json',
-		    headers: { 'X-Csrf-Token': app.utils.csrf(), 'X-Requested-With': 'XMLHttpRequest' } })
-		    .fail((xhr) => console.warn('app.Workflow: the steps view was not saved', xhr.status));
+		app.utils.post('/site/prefs', { hide_advanced_steps: this.options.showAdvancedSteps ? 0 : 1 })
+		    .catch((err) => console.warn('app.Workflow: the steps view was not saved', err.status));
 	    });
 	    filter();
 

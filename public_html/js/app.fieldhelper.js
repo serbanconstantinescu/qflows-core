@@ -60,8 +60,7 @@ window.app.DatePicker = (function() {
 	    this.input.name = '';
 	    this.input.insertAdjacentElement('afterend', this.hiddenInput);
 
-	    this.popup = document.createElement('div');
-	    this.popup.className = 'dp-popup card p-2';
+	    this.popup = app.utils.el('div', 'dp-popup card p-2');
 	    //kept next to the input while closed; while open it is moved out of any clipping container (see open)
 	    this.input.parentElement.appendChild(this.popup);
 	    this._onReposition = () => this._place();
@@ -236,8 +235,7 @@ window.app.DatePicker = (function() {
 	}
 
 	_renderDays() {
-	    const header = document.createElement('div');
-	    header.className = 'dp-header card-header d-flex align-items-center mb-2 p-0 border-0';
+	    const header = app.utils.el('div', 'dp-header card-header d-flex align-items-center mb-2 p-0 border-0');
 
 	    const prev = document.createElement('button');
 	    prev.type = 'button';
@@ -266,12 +264,10 @@ window.app.DatePicker = (function() {
 	    header.append(prev, title, next);
 	    this.popup.appendChild(header);
 
-	    const grid = document.createElement('div');
-	    grid.className = 'dp-grid';
+	    const grid = app.utils.el('div', 'dp-grid');
 
 	    DOW.forEach(d => {
-    		const el = document.createElement('div');
-    		el.className = 'dp-dow';
+    		const el = app.utils.el('div', 'dp-dow');
     		el.textContent = d;
     		grid.appendChild(el);
 	    });
@@ -316,8 +312,7 @@ window.app.DatePicker = (function() {
 	}
 
 	_renderMonths() {
-	    const header = document.createElement('div');
-	    header.className = 'dp-header card-header d-flex align-items-center gap-2 mb-2 p-0 bg-white border-0';
+	    const header = app.utils.el('div', 'dp-header card-header d-flex align-items-center gap-2 mb-2 p-0 bg-white border-0');
 
 	    const prev = document.createElement('button');
 	    prev.type = 'button';
@@ -346,8 +341,7 @@ window.app.DatePicker = (function() {
 	    header.append(prev, title, next);
 	    this.popup.appendChild(header);
 
-	    const grid = document.createElement('div');
-	    grid.className = 'dp-months';
+	    const grid = app.utils.el('div', 'dp-months');
 
 	    MONTHS.forEach((m, idx) => {
     		const btn = document.createElement('button');
@@ -372,8 +366,7 @@ window.app.DatePicker = (function() {
 	_renderYears() {
 	    const startYear = Math.floor(this.viewDate.getFullYear() / 12) * 12;
 
-	    const header = document.createElement('div');
-	    header.className = 'dp-header card-header d-flex align-items-center gap-2 mb-2 p-0 bg-white border-0';
+	    const header = app.utils.el('div', 'dp-header card-header d-flex align-items-center gap-2 mb-2 p-0 bg-white border-0');
 
 	    const prev = document.createElement('button');
 	    prev.type = 'button';
@@ -384,8 +377,7 @@ window.app.DatePicker = (function() {
     		this._render();
 	    });
 
-	    const title = document.createElement('span');
-	    title.className = 'dp-title btn btn-sm btn-light';
+	    const title = app.utils.el('span', 'dp-title btn btn-sm btn-light');
 	    title.textContent = `${startYear} – ${startYear + 11}`;
 
 	    const next = document.createElement('button');
@@ -400,8 +392,7 @@ window.app.DatePicker = (function() {
 	    header.append(prev, title, next);
 	    this.popup.appendChild(header);
 
-	    const grid = document.createElement('div');
-	    grid.className = 'dp-years';
+	    const grid = app.utils.el('div', 'dp-years');
 
 	    for (let i = 0; i < 12; i++) {
     		const y = startYear + i;
@@ -425,11 +416,9 @@ window.app.DatePicker = (function() {
 	}
 
 	_renderTime() {
-	    const wrap = document.createElement('div');
-	    wrap.className = 'dp-time d-flex align-items-center justify-content-center gap-2 mt-2 pt-2';
+	    const wrap = app.utils.el('div', 'dp-time d-flex align-items-center justify-content-center gap-2 mt-2 pt-2');
 
-	    const hourSel = document.createElement('select');
-	    hourSel.className = 'form-select form-select-sm';
+	    const hourSel = app.utils.el('select', 'form-select form-select-sm');
 	    for (let h = 0; h < 24; h++) {
     		const opt = document.createElement('option');
     		opt.value = h;
@@ -444,12 +433,10 @@ window.app.DatePicker = (function() {
     		    this._select(this.value);
 	    });
 
-	    const colon = document.createElement('span');
-	    colon.className = 'dp-colon';
+	    const colon = app.utils.el('span', 'dp-colon');
 	    colon.textContent = ':';
 
-	    const minSel = document.createElement('select');
-	    minSel.className = 'form-select form-select-sm';
+	    const minSel = app.utils.el('select', 'form-select form-select-sm');
 	    [0, 15, 30, 45].forEach(m => {
     		const opt = document.createElement('option');
     		opt.value = m;
@@ -469,8 +456,7 @@ window.app.DatePicker = (function() {
 	}
 
 	_renderFooter() {
-	    const footer = document.createElement('div');
-	    footer.className = 'card-footer d-flex justify-content-between align-items-center mt-2';
+	    const footer = app.utils.el('div', 'card-footer d-flex justify-content-between align-items-center mt-2');
 
 	    const todayBtn = document.createElement('button');
 	    todayBtn.type = 'button';
@@ -564,7 +550,6 @@ window.app.SelectPlus = (function() {
 	transport: null,            // optional: async ({ term, page }, abortSignal) => json — replaces fetch entirely
     };
 
-    let uid = 0;
     const norm = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const toItem = (r) => ({
 	...r,
@@ -583,7 +568,7 @@ window.app.SelectPlus = (function() {
 
     	    this.select = select;
     	    this.multiple = select.multiple;
-    	    this.id = 'sp-' + (++uid);
+    	    this.id = app.utils.uid('sp');
 
     	    // data-* attributes, overridden by JS options
     	    const ds = select.dataset, fromData = {};

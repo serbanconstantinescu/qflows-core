@@ -148,8 +148,7 @@ window.app.smartform = (function() {
 	/** Build the wrapper + label + input, wire up events, return the wrapper element. */
 	render() {
     	    const horizontal = this.direction() === 'horizontal';
-    	    const wrapper = document.createElement('div');
-    	    wrapper.className = 'field-wrapper mb-3' + (horizontal ? ' row' : '');
+    	    const wrapper = app.utils.el('div', 'field-wrapper mb-3' + (horizontal ? ' row' : ''));
     	    wrapper.dataset.key = this.key || '';
     	    wrapper.dataset.type = this.schema.type || '';
     	    this.el = wrapper;
@@ -162,8 +161,7 @@ window.app.smartform = (function() {
     	    this.labelEl = label;
     	    this._appendRequiredMark();
 
-    	    const inputHolder = document.createElement('div');
-    	    inputHolder.className = horizontal ? 'col-sm-9' : '';
+    	    const inputHolder = app.utils.el('div', horizontal ? 'col-sm-9' : '');
 
     	    const control = this.renderInput();
     	    this.inputEl = control;
@@ -171,14 +169,12 @@ window.app.smartform = (function() {
 	    this._applyName(control);
     	    inputHolder.appendChild(control);
 
-    	    const feedback = document.createElement('div');
-    	    feedback.className = 'invalid-feedback';
+    	    const feedback = app.utils.el('div', 'invalid-feedback');
     	    this.feedbackEl = feedback;
     	    inputHolder.appendChild(feedback);
 
     	    if (this.schema.helpText) {
-    		const help = document.createElement('div');
-    		help.className = 'form-text';
+    		const help = app.utils.el('div', 'form-text');
     		help.textContent = this.schema.helpText;
     		inputHolder.appendChild(help);
 	    }
@@ -203,8 +199,7 @@ window.app.smartform = (function() {
     	    let mark = this.labelEl.querySelector('.text-danger');
     	    if (this._required) {
     		if (!mark) {
-        	    mark = document.createElement('span');
-        	    mark.className = 'text-danger ms-1';
+        	    mark = app.utils.el('span', 'text-danger ms-1');
         	    mark.textContent = '*';
         	    this.labelEl.appendChild(mark);
     		}
@@ -224,8 +219,7 @@ window.app.smartform = (function() {
 	 * is set to the returned holder so applyConditions()/validate() still work.
 	 */
 	renderBare() {
-    	    const holder = document.createElement('div');
-	    holder.className = 'position-relative';
+    	    const holder = app.utils.el('div', 'position-relative');
     	    holder.dataset.key = this.key || '';
 
     	    const control = this.renderInput();
@@ -233,8 +227,7 @@ window.app.smartform = (function() {
     	    this.inputEl = control;
     	    holder.appendChild(control);
 
-    	    const feedback = document.createElement('div');
-    	    feedback.className = 'invalid-feedback';
+    	    const feedback = app.utils.el('div', 'invalid-feedback');
     	    this.feedbackEl = feedback;
     	    holder.appendChild(feedback);
 
@@ -366,14 +359,12 @@ window.app.smartform = (function() {
 	/** Shared render for checkbox/switch: bootstrap `.form-check` block. */
 	render() {
     	    const horizontal = this.direction() === 'horizontal';
-    	    const wrapper = document.createElement('div');
-    	    wrapper.className = 'field-wrapper mb-3' + (horizontal ? ' row' : '');
+    	    const wrapper = app.utils.el('div', 'field-wrapper mb-3' + (horizontal ? ' row' : ''));
     	    wrapper.dataset.key = this.key || '';
     	    wrapper.dataset.type = this.schema.type || '';
     	    this.el = wrapper;
 
-    	    const checkWrap = document.createElement('div');
-    	    checkWrap.className = 'form-check' + (this._switchClass() ? ' ' + this._switchClass() : '');
+    	    const checkWrap = app.utils.el('div', 'form-check' + (this._switchClass() ? ' ' + this._switchClass() : ''));
 
     	    const input = document.createElement('input');
     	    input.type = 'checkbox';
@@ -386,9 +377,7 @@ window.app.smartform = (function() {
     	    input.addEventListener('change', () => this.handleInput(input.checked));
     	    this.inputEl = input;
 
-    	    const label = document.createElement('label');
-    	    label.className = 'form-check-label';
-    	    label.setAttribute('for', this.id);
+    	    const label = app.utils.el('label', 'form-check-label', { for: this.id });
     	    label.textContent = this.label();
     	    this.labelEl = label;
     	    this._appendRequiredMark();
@@ -408,23 +397,19 @@ window.app.smartform = (function() {
     	    checkWrap.appendChild(input);
     	    checkWrap.appendChild(label);
 
-    	    const feedback = document.createElement('div');
-    	    feedback.className = 'invalid-feedback';
+    	    const feedback = app.utils.el('div', 'invalid-feedback');
     	    this.feedbackEl = feedback;
     	    checkWrap.appendChild(feedback);
 
     	    if (this.schema.helpText) {
-    		const help = document.createElement('div');
-    		help.className = 'form-text';
+    		const help = app.utils.el('div', 'form-text');
     		help.textContent = this.schema.helpText;
     		checkWrap.appendChild(help);
     	    }
 
     	    if (horizontal) {
-    		const spacer = document.createElement('div');
-    		spacer.className = 'col-sm-3';
-    		const holder = document.createElement('div');
-    		holder.className = 'col-sm-9';
+    		const spacer = app.utils.el('div', 'col-sm-3');
+    		const holder = app.utils.el('div', 'col-sm-9');
     		holder.appendChild(checkWrap);
     		wrapper.appendChild(spacer);
     		wrapper.appendChild(holder);
@@ -463,12 +448,10 @@ window.app.smartform = (function() {
 
 	/** Compact table-cell rendering: bare checkbox/switch, centered, no label. */
 	renderBare() {
-    	    const holder = document.createElement('div');
-    	    holder.className = 'position-relative d-flex justify-content-center';
+    	    const holder = app.utils.el('div', 'position-relative d-flex justify-content-center');
     	    holder.dataset.key = this.key || '';
 
-    	    const checkWrap = document.createElement('div');
-    	    checkWrap.className = 'form-check' + (this._switchClass() ? ' ' + this._switchClass() + ' mb-0' : ' mb-0');
+    	    const checkWrap = app.utils.el('div', 'form-check' + (this._switchClass() ? ' ' + this._switchClass() + ' mb-0' : ' mb-0'));
 
     	    const input = document.createElement('input');
     	    input.type = 'checkbox';
@@ -480,8 +463,7 @@ window.app.smartform = (function() {
     	    checkWrap.appendChild(input);
     	    holder.appendChild(checkWrap);
 
-    	    const feedback = document.createElement('div');
-    	    feedback.className = 'invalid-feedback text-center';
+    	    const feedback = app.utils.el('div', 'invalid-feedback text-center');
     	    this.feedbackEl = feedback;
     	    holder.appendChild(feedback);
 
@@ -900,12 +882,10 @@ window.app.smartform = (function() {
 	    };
 	    const openType = (type) => window.app.credentialDialog.open(type, { onChoice: onChoice });
 
-	    const row = document.createElement('div');
-	    row.className = 'd-flex align-items-baseline gap-2';
+	    const row = app.utils.el('div', 'd-flex align-items-baseline gap-2');
 	    this.labelEl.replaceWith(row);
 	    row.appendChild(this.labelEl);
-	    const holder = document.createElement('div');
-	    holder.className = 'ms-auto dropdown';
+	    const holder = app.utils.el('div', 'ms-auto dropdown');
 	    row.appendChild(holder);
 	    const btn = document.createElement('button');
 	    btn.type = 'button';
@@ -920,9 +900,7 @@ window.app.smartform = (function() {
 		btn.addEventListener('click', () => openType(types[0].type));
 		return;
 	    }
-	    const esc = (s) => window.app.utils.escapeHtml(String(s ?? ''));
-	    const menu = document.createElement('ul');
-	    menu.className = 'dropdown-menu dropdown-menu-end pt-0 overflow-y-auto';
+	    const menu = app.utils.el('ul', 'dropdown-menu dropdown-menu-end pt-0 overflow-y-auto');
 	    menu.style.maxHeight = '60vh';
 	    menu.style.minWidth = '16rem';
 	    let html = types.length > 8 ? `<li class="sticky-top bg-body px-2 pt-1 pb-2 border-bottom"><input type="search" class="form-control form-control-sm" placeholder="Search types..." autocomplete="off" aria-label="Search credential types"></li>` : '';
@@ -930,9 +908,9 @@ window.app.smartform = (function() {
 	    types.forEach((t) => {
 		if (t.group !== group) {
 		    group = t.group;
-		    html += `<li data-group="${esc(group)}"><h6 class="dropdown-header">${esc(group)}</h6></li>`;
+		    html += `<li data-group="${app.utils.escapeHtml(group)}"><h6 class="dropdown-header">${app.utils.escapeHtml(group)}</h6></li>`;
 		}
-		html += `<li data-type-group="${esc(group)}" data-search="${esc((t.label + ' ' + t.group).toLowerCase())}"><a class="dropdown-item" href="#" no-pjax data-type="${esc(t.type)}"><i class="bi ${esc(t.icon)} me-2"></i>${esc(t.label)}</a></li>`;
+		html += `<li data-type-group="${app.utils.escapeHtml(group)}" data-search="${app.utils.escapeHtml((t.label + ' ' + t.group).toLowerCase())}"><a class="dropdown-item" href="#" no-pjax data-type="${app.utils.escapeHtml(t.type)}"><i class="bi ${app.utils.escapeHtml(t.icon)} me-2"></i>${app.utils.escapeHtml(t.label)}</a></li>`;
 	    });
 	    menu.innerHTML = html;
 	    holder.appendChild(menu);
@@ -1057,11 +1035,9 @@ window.app.smartform = (function() {
 	}
 
 	render() {
-    	    const row = document.createElement('div');
-    	    row.className = 'row g-3 mb-1';
+    	    const row = app.utils.el('div', 'row g-3 mb-1');
     	    (this.schema.columns || []).forEach((colSchema) => {
-    		const colEl = document.createElement('div');
-    		colEl.className = 'col-12 col-md-' + (colSchema.width || Math.floor(12 / (this.schema.columns.length || 1)));
+    		const colEl = app.utils.el('div', 'col-12 col-md-' + (colSchema.width || Math.floor(12 / (this.schema.columns.length || 1))));
     		this.formRenderer._buildNodes(colSchema.fields || [], colEl);
     		row.appendChild(colEl);
     	    });
@@ -1093,8 +1069,7 @@ window.app.smartform = (function() {
 
 	render() {
 	    const collapsed = this.schema.collapsed !== false;
-	    const wrapper = document.createElement('div');
-	    wrapper.className = 'form-section mb-3';
+	    const wrapper = app.utils.el('div', 'form-section mb-3');
 	    wrapper.dataset.type = 'section';
 	    this.el = wrapper;
 
@@ -1113,11 +1088,9 @@ window.app.smartform = (function() {
 	    };
 	    wrapper.appendChild(toggle);
 
-	    const body = document.createElement('div');
-	    body.className = 'collapse' + (collapsed ? '' : ' show');
+	    const body = app.utils.el('div', 'collapse' + (collapsed ? '' : ' show'));
 	    body.id = id;
-	    const inner = document.createElement('div');
-	    inner.className = 'pt-3';
+	    const inner = app.utils.el('div', 'pt-3');
 	    body.appendChild(inner);
 	    wrapper.appendChild(body);
 	    this.bodyEl = body;
@@ -1234,17 +1207,14 @@ window.app.smartform = (function() {
 	render() {
     	    if (this.schema.layout === 'rows')
     		return this._renderRowsLayout();
-    	    const wrapper = document.createElement('div');
-    	    wrapper.className = 'field-wrapper edit-grid mb-4';
+    	    const wrapper = app.utils.el('div', 'field-wrapper edit-grid mb-4');
     	    wrapper.dataset.key = this.key || '';
     	    wrapper.dataset.type = 'editgrid';
     	    this.el = wrapper;
 
-    	    const header = document.createElement('div');
-    	    header.className = 'd-flex justify-content-between align-items-center mb-2';
+    	    const header = app.utils.el('div', 'd-flex justify-content-between align-items-center mb-2');
 
-    	    const label = document.createElement('span');
-    	    label.className = 'fw-semibold';
+    	    const label = app.utils.el('span', 'fw-semibold');
     	    label.textContent = this.label();
     	    this.labelEl = label;
     	    this._appendRequiredMark();
@@ -1262,15 +1232,12 @@ window.app.smartform = (function() {
 
     	    wrapper.appendChild(header);
 
-    	    this.feedbackEl = document.createElement('div');
-    	    this.feedbackEl.className = 'text-danger small mb-2 d-none';
+    	    this.feedbackEl = app.utils.el('div', 'text-danger small mb-2 d-none');
     	    wrapper.appendChild(this.feedbackEl);
 
-    	    const tableResponsive = document.createElement('div');
-    	    tableResponsive.className = 'table-responsive';
+    	    const tableResponsive = app.utils.el('div', 'table-responsive');
 
-    	    const table = document.createElement('table');
-    	    table.className = 'table table-sm table-bordered align-middle mb-0 edit-grid-table';
+    	    const table = app.utils.el('table', 'table table-sm table-bordered align-middle mb-0 edit-grid-table');
 
     	    const thead = document.createElement('thead');
     	    thead.appendChild(this._buildHeaderRow());
@@ -1288,34 +1255,28 @@ window.app.smartform = (function() {
 
 	//layout `rows` (as the data grid filter): label, the rows, the help, a green + at the right
 	_renderRowsLayout() {
-    	    const wrapper = document.createElement('div');
-    	    wrapper.className = 'field-wrapper edit-grid edit-grid-rows mb-3';
+    	    const wrapper = app.utils.el('div', 'field-wrapper edit-grid edit-grid-rows mb-3');
     	    wrapper.dataset.key = this.key || '';
     	    wrapper.dataset.type = 'editgrid';
     	    this.el = wrapper;
 
     	    if (this.label()) {
-    		const label = document.createElement('div');
-    		label.className = 'form-label';
+    		const label = app.utils.el('div', 'form-label');
     		label.textContent = this.label();
     		this.labelEl = label;
     		this._appendRequiredMark();
     		wrapper.appendChild(label);
     	    }
 
-    	    this.feedbackEl = document.createElement('div');
-    	    this.feedbackEl.className = 'text-danger small mb-2 d-none';
+    	    this.feedbackEl = app.utils.el('div', 'text-danger small mb-2 d-none');
     	    wrapper.appendChild(this.feedbackEl);
 
     	    //renderRows / setValue fill it as the tbody of the table layout
-    	    this.tbodyEl = document.createElement('div');
-    	    this.tbodyEl.className = 'edit-grid-row-list';
+    	    this.tbodyEl = app.utils.el('div', 'edit-grid-row-list');
     	    wrapper.appendChild(this.tbodyEl);
 
-    	    const footer = document.createElement('div');
-    	    footer.className = 'd-flex align-items-start gap-2';
-    	    const help = document.createElement('div');
-    	    help.className = 'form-text mt-0 flex-fill';
+    	    const footer = app.utils.el('div', 'd-flex align-items-start gap-2');
+    	    const help = app.utils.el('div', 'form-text mt-0 flex-fill');
     	    help.textContent = this.schema.helpText || '';
     	    footer.appendChild(help);
     	    if (!this.isGridReadOnly()) {
@@ -1337,20 +1298,17 @@ window.app.smartform = (function() {
 
 	_buildHeaderRow() {
     	    const tr = document.createElement('tr');
-    	    const indexTh = document.createElement('th');
-    	    indexTh.className = 'text-muted small fw-normal';
+    	    const indexTh = app.utils.el('th', 'text-muted small fw-normal');
     	    //compact: narrow columns (# and actions)
     	    indexTh.style.width = this.schema.compact ? '1.5rem' : '3rem';
     	    indexTh.textContent = '#';
     	    tr.appendChild(indexTh);
 
     	    (this.schema.components || []).forEach((compSchema) => {
-    		const th = document.createElement('th');
-    		th.className = 'small';
+    		const th = app.utils.el('th', 'small');
     		th.textContent = compSchema.label || compSchema.key || '';
     		if (compSchema.required) {
-        	    const mark = document.createElement('span');
-        	    mark.className = 'text-danger ms-1';
+        	    const mark = app.utils.el('span', 'text-danger ms-1');
         	    mark.textContent = '*';
         	    th.appendChild(mark);
     		}
@@ -1359,8 +1317,7 @@ window.app.smartform = (function() {
     		tr.appendChild(th);
     	    });
 
-    	    const actionsTh = document.createElement('th');
-    	    actionsTh.className = 'text-end small fw-normal';
+    	    const actionsTh = app.utils.el('th', 'text-end small fw-normal');
     	    actionsTh.style.width = this.schema.compact ? '2.5rem' : '9rem';
     	    actionsTh.textContent = this.schema.compact ? '' : 'Actions';
     	    tr.appendChild(actionsTh);
@@ -1373,8 +1330,7 @@ window.app.smartform = (function() {
 
     	    //layout `rows`: a line of text when there are none
     	    if (this.rows.length === 0 && this.schema.layout === 'rows') {
-    		const hint = document.createElement('div');
-    		hint.className = 'text-muted small text-center p-2';
+    		const hint = app.utils.el('div', 'text-muted small text-center p-2');
     		hint.textContent = this.schema.emptyText || 'No entries yet.';
     		tbody.appendChild(hint);
     		this._updateAddButtonState();
@@ -1402,8 +1358,7 @@ window.app.smartform = (function() {
     	    if (row.readOnly)
     		tr.className = 'table-light';
 
-    	    const indexTd = document.createElement('td');
-    	    indexTd.className = 'text-muted small';
+    	    const indexTd = app.utils.el('td', 'text-muted small');
     	    indexTd.textContent = String(index + 1);
 
     	    //if (row.readOnly) {
@@ -1432,10 +1387,8 @@ window.app.smartform = (function() {
     		tr.appendChild(td);
     	    });
 
-    	    const actionsTd = document.createElement('td');
-    	    actionsTd.className = 'text-end';
-    	    const actions = document.createElement('div');
-    	    actions.className = 'btn-group btn-group-sm';
+    	    const actionsTd = app.utils.el('td', 'text-end');
+    	    const actions = app.utils.el('div', 'btn-group btn-group-sm');
 
     	    //if (!this.isGridReadOnly() && this.allowLock()) {
     	    //	const lockBtn = document.createElement('button');
@@ -1453,8 +1406,7 @@ window.app.smartform = (function() {
     		delBtn.type = 'button';
     		delBtn.className = 'btn btn-sm btn-outline-danger';
     		//delBtn.textContent = 'Remove';
-    		const delIcon = document.createElement('i');
-    		delIcon.className = 'bi bi-trash';
+    		const delIcon = app.utils.el('i', 'bi bi-trash');
     		delBtn.appendChild(delIcon);
     		delBtn.addEventListener('click', () => this.removeRow(row.id));
     		actions.appendChild(delBtn);
@@ -1467,8 +1419,7 @@ window.app.smartform = (function() {
 
 	//layout `rows`: one line: the fields (sized by their width, 1-12) and an x (disabled at minRows)
 	_buildFlatRow(row) {
-    	    const line = document.createElement('div');
-    	    line.className = 'edit-grid-row d-flex align-items-start gap-2 mb-1';
+    	    const line = app.utils.el('div', 'edit-grid-row d-flex align-items-start gap-2 mb-1');
 
     	    row.fieldInstances = {};
     	    const rowApi = this._buildRowApi(row);
@@ -1659,29 +1610,25 @@ window.app.smartform = (function() {
 	}
 
 	render() {
-    	    const wrapper = document.createElement('fieldset');
-    	    wrapper.className = 'field-wrapper nested-field border rounded px-3 pt-2 mb-3';
+    	    const wrapper = app.utils.el('fieldset', 'field-wrapper nested-field border rounded px-3 pt-2 mb-3');
     	    wrapper.dataset.key = this.key || '';
     	    wrapper.dataset.type = 'nested';
     	    this.el = wrapper;
 
     	    if (this.label()) {
-    		const legend = document.createElement('legend');
-    		legend.className = 'form-label fs-6 fw-semibold float-none w-auto px-1 mb-1';
+    		const legend = app.utils.el('legend', 'form-label fs-6 fw-semibold float-none w-auto px-1 mb-1');
     		legend.textContent = this.label();
     		this.labelEl = legend;
     		this._appendRequiredMark();
     		wrapper.appendChild(legend);
     	    }
     	    if (this.schema.helpText) {
-    		const help = document.createElement('div');
-    		help.className = 'form-text mt-0 mb-2';
+    		const help = app.utils.el('div', 'form-text mt-0 mb-2');
     		help.textContent = this.schema.helpText;
     		wrapper.appendChild(help);
     	    }
 
-    	    this.bodyEl = document.createElement('div');
-    	    this.bodyEl.className = 'row';
+    	    this.bodyEl = app.utils.el('div', 'row');
     	    wrapper.appendChild(this.bodyEl);
     	    this._renderFields();
     	    return wrapper;
@@ -1702,8 +1649,7 @@ window.app.smartform = (function() {
     		fieldInstance.setValue(this.data[c.key], true);
     		if (!this.isEditable())
     		    fieldInstance._forceDisabled = true;
-    		const col = document.createElement('div');
-    		col.className = 'col-12 col-md-' + (c.width && c.width >= 1 && c.width <= 12 ? c.width : 12);
+    		const col = app.utils.el('div', 'col-12 col-md-' + (c.width && c.width >= 1 && c.width <= 12 ? c.width : 12));
     		col.appendChild(fieldInstance.render());
     		fieldInstance._applyEditableState();
     		fieldInstance.applyConditions(this.childApi.getContext());
@@ -1804,8 +1750,7 @@ window.app.smartform = (function() {
 	}
 
 	render() {
-    	    const wrapper = document.createElement('div');
-    	    wrapper.className = 'field-wrapper title-block mb-3';
+    	    const wrapper = app.utils.el('div', 'field-wrapper title-block mb-3');
     	    wrapper.dataset.type = 'title';
     	    this.el = wrapper;
 
@@ -1816,8 +1761,7 @@ window.app.smartform = (function() {
     	    wrapper.appendChild(heading);
 
     	    if (this.schema.subtitle) {
-    		const subtitle = document.createElement('div');
-    		subtitle.className = 'text-muted small mb-2';
+    		const subtitle = app.utils.el('div', 'text-muted small mb-2');
     		subtitle.textContent = this.schema.subtitle;
     		wrapper.appendChild(subtitle);
     	    }
@@ -1857,8 +1801,7 @@ window.app.smartform = (function() {
     //design nodes: a paragraph of text (textContent; line breaks kept) and a divider line; no data, conditions apply (as TitleField)
     class ParagraphField extends TitleField {
 	render() {
-    	    const wrapper = document.createElement('div');
-    	    wrapper.className = 'field-wrapper paragraph-block mb-3';
+    	    const wrapper = app.utils.el('div', 'field-wrapper paragraph-block mb-3');
     	    wrapper.dataset.type = 'paragraph';
     	    wrapper.style.whiteSpace = 'pre-line';
     	    wrapper.textContent = this.schema.text || '';
@@ -1869,8 +1812,7 @@ window.app.smartform = (function() {
 
     class DividerField extends TitleField {
 	render() {
-    	    const wrapper = document.createElement('div');
-    	    wrapper.className = 'field-wrapper divider-block';
+    	    const wrapper = app.utils.el('div', 'field-wrapper divider-block');
     	    wrapper.dataset.type = 'divider';
     	    wrapper.appendChild(document.createElement('hr'));
     	    this.el = wrapper;
@@ -1897,14 +1839,12 @@ window.app.smartform = (function() {
 	}
 
 	render() {
-    	    const wrapper = document.createElement('div');
-    	    wrapper.className = 'field-wrapper mb-3';
+    	    const wrapper = app.utils.el('div', 'field-wrapper mb-3');
     	    wrapper.dataset.key = this.key || '';
     	    wrapper.dataset.type = this.schema.type;
     	    this.el = wrapper;
     	    if (this.label()) {
-    		const label = document.createElement('div');
-    		label.className = 'form-label';
+    		const label = app.utils.el('div', 'form-label');
     		label.textContent = this.label();
     		this.labelEl = label;
     		this._appendRequiredMark();
@@ -1917,12 +1857,10 @@ window.app.smartform = (function() {
     	    wrapper.appendChild(hidden);
     	    const holder = document.createElement('div');
     	    wrapper.appendChild(holder);
-    	    this.feedbackEl = document.createElement('div');
-    	    this.feedbackEl.className = 'invalid-feedback d-block';
+    	    this.feedbackEl = app.utils.el('div', 'invalid-feedback d-block');
     	    wrapper.appendChild(this.feedbackEl);
     	    if (this.schema.helpText) {
-    		const help = document.createElement('div');
-    		help.className = 'form-text';
+    		const help = app.utils.el('div', 'form-text');
     		help.textContent = this.schema.helpText;
     		wrapper.appendChild(help);
     	    }
@@ -2130,30 +2068,24 @@ window.app.smartform = (function() {
 	// ---- rendering
 
 	render() {
-	    const wrapper = document.createElement('div');
-	    wrapper.className = 'field-wrapper mb-3';
+	    const wrapper = app.utils.el('div', 'field-wrapper mb-3');
 	    wrapper.dataset.type = 'tools';
 	    this.el = wrapper;
-	    const label = document.createElement('div');
-	    label.className = 'form-label';
+	    const label = app.utils.el('div', 'form-label');
 	    label.textContent = this.label();
 	    this.labelEl = label;
 	    wrapper.appendChild(label);
 
-	    const box = document.createElement('div');
-	    box.className = 'border rounded d-flex overflow-hidden';
+	    const box = app.utils.el('div', 'border rounded d-flex overflow-hidden');
 	    box.style.height = '17rem';
-	    this.listEl = document.createElement('div');
-	    this.listEl.className = 'list-group list-group-flush border-end overflow-auto flex-shrink-0 small';
+	    this.listEl = app.utils.el('div', 'list-group list-group-flush border-end overflow-auto flex-shrink-0 small');
 	    this.listEl.style.width = '15rem';
-	    this.paneEl = document.createElement('div');
-	    this.paneEl.className = 'd-flex flex-column flex-grow-1';
+	    this.paneEl = app.utils.el('div', 'd-flex flex-column flex-grow-1');
 	    this.paneEl.style.minWidth = '0';
 	    box.append(this.listEl, this.paneEl);
 	    wrapper.appendChild(box);
 	    if (this.schema.helpText) {
-		const help = document.createElement('div');
-		help.className = 'form-text';
+		const help = app.utils.el('div', 'form-text');
 		help.textContent = this.schema.helpText;
 		wrapper.appendChild(help);
 	    }
@@ -2187,8 +2119,7 @@ window.app.smartform = (function() {
 		const s = this.sources[id];
 		if (s.group !== group) {
 		    group = s.group;
-		    const h = document.createElement('div');
-		    h.className = 'px-3 pt-2 pb-1 text-body-secondary text-uppercase fw-semibold';
+		    const h = app.utils.el('div', 'px-3 pt-2 pb-1 text-body-secondary text-uppercase fw-semibold');
 		    h.style.fontSize = '.7rem';
 		    h.textContent = group;
 		    this.listEl.appendChild(h);
@@ -2197,18 +2128,15 @@ window.app.smartform = (function() {
 		const b = document.createElement('button');
 		b.type = 'button';
 		b.className = 'list-group-item list-group-item-action d-flex align-items-center gap-2 py-1 px-3' + (id === this.current ? ' active' : '');
-		const name = document.createElement('span');
-		name.className = 'text-truncate flex-grow-1';
+		const name = app.utils.el('span', 'text-truncate flex-grow-1');
 		name.textContent = s.label;
 		const cred = s.fields.credential && !s.isPublic ? normalizeChoices(s.fields.credential.choices).find((c) => c.value === String(this.values[s.fields.credential.key] || '')) : null;
 		if (cred) {
-		    const c = document.createElement('span');
-		    c.className = id === this.current ? '' : 'text-body-secondary';
+		    const c = app.utils.el('span', id === this.current ? '' : 'text-body-secondary');
 		    c.textContent = ' · ' + cred.label;
 		    name.appendChild(c);
 		}
-		const count = document.createElement('span');
-		count.className = 'badge rounded-pill ' + (n ? 'text-bg-primary' : 'text-bg-light border text-body-secondary');
+		const count = app.utils.el('span', 'badge rounded-pill ' + (n ? 'text-bg-primary' : 'text-bg-light border text-body-secondary'));
 		count.textContent = n ? String(n) : '–';
 		b.append(name, count);
 		b.addEventListener('click', () => {
@@ -2230,8 +2158,7 @@ window.app.smartform = (function() {
 	    const head = document.createElement('div');
 	    //CLD: 2026-11-28T15:00:00+02:00: one line for every source: the name and help shrink (cut, whole on hover), the controls keep their size
 	    head.className = 'd-flex flex-nowrap align-items-center gap-2 px-3 py-2 border-bottom';
-	    const title = document.createElement('div');
-	    title.className = 'me-auto';
+	    const title = app.utils.el('div', 'me-auto');
 	    title.style.minWidth = '0';
 	    title.innerHTML = '<div class="fw-semibold text-truncate"></div><div class="small text-body-secondary text-truncate"></div>';
 	    title.children[0].textContent = s.label;
@@ -2242,9 +2169,7 @@ window.app.smartform = (function() {
 	    //an integration: its credential (a public service has none: used while one of its tools is)
 	    if (s.fields.credential && !s.isPublic) {
 		const cf = s.fields.credential;
-		const sel = document.createElement('select');
-		sel.className = 'form-select form-select-sm w-auto flex-shrink-0';
-		sel.setAttribute('aria-label', 'Credential');
+		const sel = app.utils.el('select', 'form-select form-select-sm w-auto flex-shrink-0', { 'aria-label': 'Credential' });
 		[ { value: '', label: 'Not used' } ].concat(normalizeChoices(cf.choices)).forEach((c) => {
 		    const o = document.createElement('option');
 		    o.value = c.value;
@@ -2262,12 +2187,10 @@ window.app.smartform = (function() {
 	    //MCP and tool servers: one approval setting for both
 	    if ((s.id === 'mcp' || s.id === 'servers') && this.serversMode) {
 		const f = this.serversMode;
-		const wrap = document.createElement('label');
-		wrap.className = 'd-flex align-items-center gap-2 small mb-0 flex-shrink-0';
+		const wrap = app.utils.el('label', 'd-flex align-items-center gap-2 small mb-0 flex-shrink-0');
 		wrap.title = f.helpText || '';
 		wrap.innerHTML = '<span class="text-nowrap">Ask for approval</span>';
-		const sel = document.createElement('select');
-		sel.className = 'form-select form-select-sm w-auto';
+		const sel = app.utils.el('select', 'form-select form-select-sm w-auto');
 		normalizeChoices(f.choices).forEach((c) => {
 		    const o = document.createElement('option');
 		    o.value = c.value;
@@ -2283,8 +2206,7 @@ window.app.smartform = (function() {
 	    const items = this._items(s);
 	    const off = this._off(s);
 	    if (!off && items.length) {
-		const btns = document.createElement('div');
-		btns.className = 'btn-group btn-group-sm flex-shrink-0';
+		const btns = app.utils.el('div', 'btn-group btn-group-sm flex-shrink-0');
 		const quick = [ [ 'All', () => items.map((i) => i.value) ], [ 'None', () => [] ] ];
 		if (s.writes.length && s.id !== 'workflows')
 		    quick.splice(0, 0, [ 'Read only', () => items.filter((i) => !i.writes).map((i) => i.value) ]);
@@ -2317,8 +2239,7 @@ window.app.smartform = (function() {
 		head.appendChild(q);
 	    }
 	    this.paneEl.appendChild(head);
-	    this.rowsEl = document.createElement('div');
-	    this.rowsEl.className = 'flex-grow-1 overflow-auto';
+	    this.rowsEl = app.utils.el('div', 'flex-grow-1 overflow-auto');
 	    this.paneEl.appendChild(this.rowsEl);
 	    this._renderRows(s);
 	}
@@ -2327,8 +2248,7 @@ window.app.smartform = (function() {
 	    const scroll = this.rowsEl.scrollTop;
 	    this.rowsEl.innerHTML = '';
 	    const empty = (text) => {
-		const p = document.createElement('div');
-		p.className = 'p-3 small text-body-secondary';
+		const p = app.utils.el('div', 'p-3 small text-body-secondary');
 		p.textContent = text;
 		this.rowsEl.appendChild(p);
 	    };
@@ -2343,8 +2263,7 @@ window.app.smartform = (function() {
 	    const used = this._used(s);
 	    const asking = this._asking(s);
 	    const q = this.filter.trim().toLowerCase();
-	    const table = document.createElement('table');
-	    table.className = 'table table-sm table-hover align-middle small mb-0';
+	    const table = app.utils.el('table', 'table table-sm table-hover align-middle small mb-0');
 	    table.innerHTML = '<thead class="sticky-top"><tr><th class="ps-3" style="width:3.5rem">Use</th>' + (hasAsk ? '<th style="width:3.5rem" title="Ask a person for approval before it runs">Ask</th>' : '')
 		+ '<th>' + (s.fields.credential ? 'Operation' : (s.id === 'workflows' ? 'Workflow' : (s.id === 'project' ? 'Tool' : 'Name'))) + '</th><th style="width:6rem"></th></tr></thead><tbody></tbody>';
 	    const body = table.querySelector('tbody');
@@ -2422,8 +2341,7 @@ window.app.smartform = (function() {
 	    this.sections = [];
     	    this.data = {};
 
-    	    const form = document.createElement('form');
-    	    form.className = 'form-renderer-root needs-validation';
+    	    const form = app.utils.el('form', 'form-renderer-root needs-validation');
     	    form.noValidate = true;
     	    form.id = this.schema.id || window.app.utils.uid('form');
     	    form.action = this.schema.action || '';
@@ -2454,8 +2372,7 @@ window.app.smartform = (function() {
 	_buildNodes(nodeList, targetEl) {
 	    /** Wrap an element in a Bootstrap column div of the given width (1-12). */
 	    function colWrap(el, width) {
-		const col = document.createElement('div');
-		col.className = 'col-12 col-md-' + (width && width >= 1 && width <= 12 ? width : 12);
+		const col = app.utils.el('div', 'col-12 col-md-' + (width && width >= 1 && width <= 12 ? width : 12));
 		col.appendChild(el);
 		return col;
 	    }
@@ -2516,8 +2433,7 @@ window.app.smartform = (function() {
 	    //a new line in the same row: a line break (Bootstrap's w-100 column; a new .row g-3 overlapped the line above by its negative margin)
 	    //no gutter of its own; shown / hidden with the field's column (flowColVisible)
 	    if (isFlowRow && newRow) {
-		const br = document.createElement('div');
-		br.className = 'w-100 mt-0 p-0';
+		const br = app.utils.el('div', 'w-100 mt-0 p-0');
 		lastRow.appendChild(br);
 		colEl._flowBreak = br;
 	    }

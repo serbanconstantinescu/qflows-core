@@ -442,10 +442,6 @@ window.app.WfTests = (function() {
 	    });
 	}
 
-	post(url, data) {
-	    return $.ajax({ url: url, method: 'POST', dataType: 'json', data: data || {}, headers: { 'X-Csrf-Token': app.utils.csrf() } });
-	}
-
 	saveCase() {
 	    this.readForm();
 	    const c = this.editing;
@@ -458,43 +454,43 @@ window.app.WfTests = (function() {
 		app.utils.toastText('error', 'Not saved', 'Inputs and Recorded tool results must be valid JSON: ' + e.message);
 		return;
 	    }
-	    this.post(this.o.urls.save, { case_id: c.id || '', case: JSON.stringify({ name: c.name, vars: vars, tools: c.tools, mocks: mocks, checks: c.checks }) })
-		.done(() => {
+	    app.utils.post(this.o.urls.save, { case_id: c.id || '', case: JSON.stringify({ name: c.name, vars: vars, tools: c.tools, mocks: mocks, checks: c.checks }) })
+		.then(() => {
 		    app.utils.toastText('success', 'Saved', 'The test case is saved');
 		    this.editing = null;
 		    this.refresh();
 		})
-		.fail((xhr) => app.utils.toastText('error', 'Not saved', (xhr.responseJSON && xhr.responseJSON.error) || 'The test case could not be saved'));
+		.catch((err) => app.utils.toastText('error', 'Not saved', err.data?.error || 'The test case could not be saved'));
 	}
 
 	deleteCase() {
 	    const url = this.o.urls.del + (this.o.urls.del.includes('?') ? '&' : '?') + 'case=' + encodeURIComponent(this.editing.id);
-	    this.post(url).done(() => {
+	    app.utils.post(url).then(() => {
 		this.editing = null;
 		this.refresh();
-	    }).fail((xhr) => app.utils.toastText('error', 'Not deleted', (xhr.responseJSON && xhr.responseJSON.error) || 'The test case could not be deleted'));
+	    }).catch((err) => app.utils.toastText('error', 'Not deleted', err.data?.error || 'The test case could not be deleted'));
 	}
 
 	/* ---------------- a run ---------------- */
 	//once the changes are saved: what runs is the saved draft
 	start() {
 	    this.o.whenSaved(() => {
-		this.post(this.o.urls.start).done((resp) => {
+		app.utils.post(this.o.urls.start).then((resp) => {
 		    this.runId = resp.run.id;
 		    this.editing = null;
 		    this.detail = null;
 		    this.refresh();
-		}).fail((xhr) => app.utils.toastText('error', 'Not started', (xhr.responseJSON && xhr.responseJSON.error) || 'The tests could not be started'));
+		}).catch((err) => app.utils.toastText('error', 'Not started', err.data?.error || 'The tests could not be started'));
 	    });
 	}
 
 	stop() {
 	    const url = this.o.urls.stop + (this.o.urls.stop.includes('?') ? '&' : '?') + 'run=' + encodeURIComponent((this.data.runs[0] || {}).id || '');
-	    this.post(url).always(() => this.refresh());
+	    app.utils.post(url).catch(() => {}).finally(() => this.refresh());
 	}
 
 	setRequired(on) {
-	    this.post(this.o.urls.required, { required: on ? 1 : 0 }).fail((xhr) => app.utils.toastText('error', 'Not changed', (xhr.responseJSON && xhr.responseJSON.error) || 'The setting could not be changed')).always(() => this.refresh());
+	    app.utils.post(this.o.urls.required, { required: on ? 1 : 0 }).catch((err) => app.utils.toastText('error', 'Not changed', err.data?.error || 'The setting could not be changed')).finally(() => this.refresh());
 	}
     }
 

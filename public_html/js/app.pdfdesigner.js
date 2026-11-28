@@ -95,7 +95,6 @@ window.app.PdfDesigner = (function() {
     const PH_LABEL = { '{PAGE}': 'Page no.', '{PAGES}': 'Page count' };
     const BLOCK_TAG_RE = /<(p|div|table|h[1-6]|ul|ol|hr|blockquote|pre)\b/i;
 
-    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const decodeEnt = (s) => { const t = document.createElement('textarea'); t.innerHTML = s; return t.value; };
     const num = (v) => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
     const fmt = (n) => (Math.round(n * 10) / 10).toString();
@@ -251,7 +250,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 	    <div class="card-header d-flex align-items-center"><span class="fw-semibold" ${D(n + 'Title')}>${title}</span><button type="button" class="btn-close ms-auto" data-close aria-label="Close"></button></div>
 	    <div class="card-body vstack gap-3">${body}</div>
 	    <div class="card-footer d-flex justify-content-end gap-2">${footer}</div></div></div>`;
-	const fonts = Object.entries(FONTS).map(([k, f]) => `<option value="${k}">${esc(f[0])}</option>`).join('');
+	const fonts = Object.entries(FONTS).map(([k, f]) => `<option value="${k}">${app.utils.escapeHtml(f[0])}</option>`).join('');
 	return `
 <div class="pd border rounded ${fill ? 'd-flex flex-column flex-grow-1' : ''}" style="${fill ? 'min-height:0' : ''}">
   <div class="p-2 border-bottom bg-body-tertiary flex-shrink-0 vstack gap-2 position-relative" ${D('editPanel')}>
@@ -601,10 +600,10 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 				if (p === 'font-family' && !FONTS[v.replace(/["']/g, '').trim().toLowerCase()]) { dropped.push(p); return; }
 				(PROPS.has(p) && !/url\s*\(|[<>"\\]/i.test(v) ? kept : dropped).push(p + ':' + v);
 			    });
-			    dropped.forEach((d) => warn.add(`Dropped CSS <code>${esc(d.split(':')[0])}</code>; tc-lib-pdf ignores it.`));
+			    dropped.forEach((d) => warn.add(`Dropped CSS <code>${app.utils.escapeHtml(d.split(':')[0])}</code>; tc-lib-pdf ignores it.`));
 			    if (kept.length) n.setAttribute('style', kept.join(';')); else n.removeAttribute('style');
 			} else if (!ATTRS.has(name)) {
-			    if (!NOISE_ATTRS.test(name)) warn.add(`Removed attribute <code>${esc(name)}</code>.`);
+			    if (!NOISE_ATTRS.test(name)) warn.add(`Removed attribute <code>${app.utils.escapeHtml(name)}</code>.`);
 			    n.removeAttribute(a.name);
 			} else if (name === 'face' && !FONTS[a.value.trim().toLowerCase()]) {
 			    n.removeAttribute(a.name);
@@ -640,7 +639,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 		const d = JSON.parse(src);
 		if (d && typeof d === 'object' && !Array.isArray(d)) return d;
 		dataError = 'Sample data must be a JSON object, like <code>{"invoice": { … }}</code>.';
-	    } catch (e) { dataError = 'Sample data isn\'t valid JSON (' + esc(e.message) + ').'; }
+	    } catch (e) { dataError = 'Sample data isn\'t valid JSON (' + app.utils.escapeHtml(e.message) + ').'; }
 	    return {};
 	}
 	//the lists in the sample data (paths, three levels deep at most): [ { path, fields } ]
@@ -663,7 +662,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 	/* ---------- Conditions: {{#if expr}} … {{else}} … {{/if}} ---------- */
 	function condMarkup(expr, body, elseBody, inline) {
 	    const t = inline ? 'span' : 'div';
-	    return `<${t} class="cond${inline ? ' cond-inline' : ''}" data-expr="${esc(decodeEnt(expr).trim())}">`
+	    return `<${t} class="cond${inline ? ' cond-inline' : ''}" data-expr="${app.utils.escapeHtml(decodeEnt(expr).trim())}">`
 		+ `<${t} class="cond-bar" contenteditable="false"></${t}><${t} class="cond-body">${body}</${t}>`
 		+ (elseBody != null ? `<${t} class="cond-bar cond-else" contenteditable="false"></${t}><${t} class="cond-body">${elseBody}</${t}>` : '')
 		+ `</${t}>`;
@@ -688,7 +687,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 		    const b = document.createElement(t); b.className = 'cond-bar'; b.contentEditable = 'false'; el.prepend(b);
 		}
 		const kids = [ ...el.children ];
-		kids[0].innerHTML = `<span class="cond-tag">IF</span><span class="cond-expr">${esc(el.dataset.expr || '(no condition)')}</span>`;
+		kids[0].innerHTML = `<span class="cond-tag">IF</span><span class="cond-expr">${app.utils.escapeHtml(el.dataset.expr || '(no condition)')}</span>`;
 		kids[0].title = ro ? 'Shown when this is not empty' : 'Click to change the condition';
 		kids.slice(1).forEach((k) => { if (k.classList.contains('cond-bar')) k.innerHTML = '<span class="cond-tag">OTHERWISE</span>'; });
 	    });
@@ -696,8 +695,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 
 	/* ---------- Placeholders: expressions as chips, stored as text ---------- */
 	function chip(ph) {
-	    const s = document.createElement('span');
-	    s.className = 'ph'; s.contentEditable = 'false'; s.dataset.ph = ph;
+	    const s = app.utils.el('span', 'ph'); s.contentEditable = 'false'; s.dataset.ph = ph;
 	    if (PH_LABEL[ph]) { s.classList.add('ph-page'); s.textContent = PH_LABEL[ph]; s.title = ph + ' · filled in when the PDF is made'; }
 	    else { s.textContent = ph.slice(2, -2).trim() || ' '; s.title = ph; }
 	    return s;
@@ -810,15 +808,15 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 	    rows.forEach((m) => {
 		if (!bare(decodeEnt(m[1]))) checks.push([ 'err', 'A repeating row has no list: put the cursor in it and set the list above the page.' ]);
 		const as = (m[0].match(/\bdata-as="([^"]*)"/) || [ '', 'item' ])[1];
-		if (!/^[A-Za-z_$][\w$]*$/.test(as)) checks.push([ 'err', `A repeating row's item name <code>${esc(as)}</code> must be letters, digits or underscore.` ]);
+		if (!/^[A-Za-z_$][\w$]*$/.test(as)) checks.push([ 'err', `A repeating row's item name <code>${app.utils.escapeHtml(as)}</code> must be letters, digits or underscore.` ]);
 	    });
 	    if (rows.length) checks.push([ 'ok', `${rows.length} row${rows.length > 1 ? 's' : ''} repeated for each item of a list.` ]);
 	    if (opens) checks.push([ 'ok', `${opens} conditional block${opens > 1 ? 's' : ''}.` ]);
 	    if (CORE_FONTS.includes(p.font)) {
 		const tmp = document.createElement('div'); tmp.innerHTML = all.replace(PH_RE, '');
 		const odd = [ ...new Set((tmp.textContent.match(/[Ā-ɏͰ-ϿЀ-ӿ]/g) || []).filter((ch) => !'ŠšŽžŒœŸƒ'.includes(ch))) ];
-		if (odd.length) checks.push([ 'warn', `Core font "${esc(FONTS[p.font][0])}" can't print ${esc(odd.slice(0, 6).join(' '))}. Choose a DejaVu or Free font in Page setup.` ]);
-		else checks.push([ 'ok', `Core font "${esc(FONTS[p.font][0])}": values with letters outside Western European ones (ș, ț, Greek, Cyrillic) won't print.` ]);
+		if (odd.length) checks.push([ 'warn', `Core font "${app.utils.escapeHtml(FONTS[p.font][0])}" can't print ${app.utils.escapeHtml(odd.slice(0, 6).join(' '))}. Choose a DejaVu or Free font in Page setup.` ]);
+		else checks.push([ 'ok', `Core font "${app.utils.escapeHtml(FONTS[p.font][0])}": values with letters outside Western European ones (ș, ț, Greek, Cyrillic) won't print.` ]);
 	    }
 	    new Set([ ...c.header.warn, ...c.body.warn, ...c.footer.warn ]).forEach((w) => checks.push([ 'warn', w ]));
 	    if (!checks.some((x) => x[0] !== 'ok')) checks.unshift([ 'ok', 'Layout fits: the header, body and footer don\'t overlap.' ]);
@@ -1057,7 +1055,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 		b.type = 'button';
 		b.className = 'btn p-0 border';
 		b.title = im.name;
-		b.innerHTML = `<img src="/file/content/${esc(im.id)}" alt="" style="width:72px; height:72px; object-fit:cover; display:block">`;
+		b.innerHTML = `<img src="/file/content/${app.utils.escapeHtml(im.id)}" alt="" style="width:72px; height:72px; object-fit:cover; display:block">`;
 		b.addEventListener('click', () => insertImage(im.id));
 		box.appendChild(b);
 	    });
@@ -1068,7 +1066,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 	    img.onload = () => {
 		const w = r2(Math.min(img.naturalWidth / PT, 170, contentWidthPt())); //at most about 60 mm
 		const h = r2(w * img.naturalHeight / img.naturalWidth);
-		exec('insertHTML', `<img src="/file/content/${esc(id)}" width="${w}pt" height="${h}pt" style="width:${w}pt;height:${h}pt" alt="">`);
+		exec('insertHTML', `<img src="/file/content/${app.utils.escapeHtml(id)}" width="${w}pt" height="${h}pt" style="width:${w}pt;height:${h}pt" alt="">`);
 	    };
 	    img.onerror = () => toast('That image could not be loaded.');
 	    img.src = '/file/content/' + id;
@@ -1545,8 +1543,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 		acc += w[i];
 		let x = r.left + r.width * acc / 100;
 		for (const row of g.rows) { const c = row.cells.find((y) => y.start + y.span - 1 === i); if (c) { x = c.cell.getBoundingClientRect().right; break; } }
-		const h = document.createElement('div');
-		h.className = 'colh'; h.dataset.i = i;
+		const h = app.utils.el('div', 'colh'); h.dataset.i = i;
 		h.style.left = (x - ox) + 'px'; h.style.top = oy + 'px'; h.style.height = r.height + 'px';
 		h.innerHTML = `<span class="tip">${fmt(w[i])}% | ${fmt(w[i + 1])}%</span>`;
 		h.title = 'Drag to resize columns';
@@ -1823,8 +1820,8 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 	    const label = (f) => f.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
 	    const ed = active(), before = new Set(ed.querySelectorAll('table'));
 	    exec('insertHTML', '<table border="1" cellpadding="4" width="100%"><thead><tr>'
-		+ fields.map((f, i) => `<th width="${ws[i]}%" align="left" bgcolor="#e6eeed"><b>${esc(label(f))}</b></th>`).join('')
-		+ `</tr></thead><tr data-each="${esc(list)}" data-as="item">`
+		+ fields.map((f, i) => `<th width="${ws[i]}%" align="left" bgcolor="#e6eeed"><b>${app.utils.escapeHtml(label(f))}</b></th>`).join('')
+		+ `</tr></thead><tr data-each="${app.utils.escapeHtml(list)}" data-as="item">`
 		+ fields.map((f, i) => `<td width="${ws[i]}%">{{ item.${f} }}</td>`).join('')
 		+ '</tr></table><p><br></p>');
 	    const tb = [ ...ed.querySelectorAll('table') ].find((x) => !before.has(x));
@@ -1889,7 +1886,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 	    const r = await window.app.ExprInput.request(e.url, Object.assign({ text: '', before: '', mode: 'name', usage: '' }, e.params ? e.params() : {}));
 	    const items = (r && r.completion && r.completion.items) || [];
 	    menu.innerHTML = page + '<li><hr class="dropdown-divider"></li><li><h6 class="dropdown-header">Variables</h6></li>'
-		+ (items.length ? items.map((it) => `<li><button type="button" class="dropdown-item" data-ins="{{ ${esc(it.label)} }}"><code>${esc(it.label)}</code><span class="text-muted ms-2 text-truncate">${esc(it.detail || '')}</span></button></li>`).join('')
+		+ (items.length ? items.map((it) => `<li><button type="button" class="dropdown-item" data-ins="{{ ${app.utils.escapeHtml(it.label)} }}"><code>${app.utils.escapeHtml(it.label)}</code><span class="text-muted ms-2 text-truncate">${app.utils.escapeHtml(it.detail || '')}</span></button></li>`).join('')
 		    : '<li class="dropdown-item-text text-muted">No variables before this step</li>');
 	}
 	$('varsMenu').addEventListener('click', (e) => {

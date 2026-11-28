@@ -18,9 +18,7 @@ window.app.sidebar = (function() {
     };
     //the collapsed state (User prefs sidebar_collapsed; rendered by the layout: aside.collapsed); storeWidth saves both (a drag expands the sidebar)
     const store = (data) => {
-	$.ajax({ url: '/site/prefs', method: 'POST', data: data, dataType: 'json',
-	    headers: { 'X-Csrf-Token': app.utils.csrf(), 'X-Requested-With': 'XMLHttpRequest' } })
-	    .fail((xhr) => console.warn('app.sidebar: the state was not saved', xhr.status));
+	app.utils.post('/site/prefs', data).catch((err) => console.warn('app.sidebar: the state was not saved', err.status));
     };
     const storeWidth = (w) => {
 	w = Math.round(w);
@@ -305,14 +303,9 @@ window.app.sidebar = (function() {
 		    const order = ids();
 		    if (order === before)
 			return;
-		    const body = new FormData();
-		    body.append('order', order);
-		    //an ajax request: the CSRF token in its header (sys\BaseController::validateRequest)
-		    fetch(list.dataset.orderUrl, { method: 'POST', body: body,
-			headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-Token': $('meta[name=csrf-token]').attr('content') || '' } })
-			.then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); })
+		    app.utils.post(list.dataset.orderUrl, { order: order })
 			.catch((err) => {
-			    app.utils.toast({ type: 'error', title: 'Order not saved', body: String(err.message || err) });
+			    app.utils.toastText('error', 'Order not saved', err.message);
 			    app.events.dispatch({ type: 'sidebar::refresh', data: {} });
 			});
 		};
@@ -503,6 +496,32 @@ app.utils = (function() {
 	//the page's CSRF token (<meta name=csrf-token>), for the X-Csrf-Token header of a POST
 	csrf: function() {
 	    return document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || '';
+	},
+
+	//CLD: 2026-11-28T16:00:00+02:00: a POST to the app as an ajax request (the CSRF token in the X-Csrf-Token header, with X-Requested-With: sys\BaseController::validateRequest),
+	//its JSON answer. data: FormData, URLSearchParams or a string as they are, an object as a form (jQuery.param: nested values as a[b]=...); options: signal (an AbortController's).
+	//Resolves with the answer ({} when empty); rejects with an Error whose message is the answer's `error` (else 'the server answered <status>'), with status and data (the
+	//answer, {} when none) on it; an aborted one rejects with the AbortError
+	post: async function(url, data, options) {
+	    const headers = { 'X-Csrf-Token': app.utils.csrf(), 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' };
+	    let body = data;
+	    if (data && typeof data === 'object' && !(data instanceof FormData) && !(data instanceof URLSearchParams)) {
+		body = $.param(data);
+		headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+	    }
+	    const res = await fetch(url, { method: 'POST', body: body, credentials: 'same-origin', signal: options && options.signal, headers: headers });
+	    const text = await res.text();
+	    let answer = null;
+	    try {
+		answer = text ? JSON.parse(text) : {};
+	    } catch (e) {}
+	    if (!res.ok || answer === null || typeof answer !== 'object') {
+		const err = new Error((answer && answer.error) || (res.ok ? 'the server did not answer JSON' : 'the server answered ' + res.status));
+		err.status = res.status;
+		err.data = answer && typeof answer === 'object' ? answer : {};
+		throw err;
+	    }
+	    return answer;
 	},
 
 	//a Bootstrap badge: <span class='badge text-bg-COLOR'>label</span>, the label escaped; color: success, danger, primary, info, warning, secondary

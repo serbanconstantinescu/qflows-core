@@ -136,13 +136,7 @@ window.app.WfAssistant = (function() {
 		this.state.messages = this.state.messages.slice(-MAX_KEPT);
 	    if (!m || !this.o.chatUrl)
 		return;
-	    $.ajax({
-		url: this.o.chatUrl,
-		method: 'POST',
-		dataType: 'json',
-		headers: { 'X-Csrf-Token': app.utils.csrf() },
-		data: { message: JSON.stringify(m) },
-	    }).fail((x) => console.warn('Assistant: the message was not kept', x.status));
+	    app.utils.post(this.o.chatUrl, { message: JSON.stringify(m) }).catch((err) => console.warn('Assistant: the message was not kept', err.status));
 	}
 
 	messageHtml(m) {
@@ -248,15 +242,10 @@ window.app.WfAssistant = (function() {
 	    this.add({ role: 'user', text: text });
 	    this.root.querySelector('.wfa-input').value = '';
 
-	    const req = this.xhr = $.ajax({
-		url: this.o.url,
-		method: 'POST',
-		dataType: 'json',
-		headers: { 'X-Csrf-Token': app.utils.csrf() },
-		data: { message: text, history: JSON.stringify(turns), nodes: sent },
-	    });
+	    //this.xhr: the request under way (its abort(): Stop, destroy)
+	    const req = this.xhr = new AbortController();
 	    this.render();
-	    req.done((resp) => {
+	    app.utils.post(this.o.url, { message: text, history: JSON.stringify(turns), nodes: sent }, { signal: req.signal }).then((resp) => {
 		//dropped (another page was opened: destroy)
 		if (this.xhr !== req)
 		    return;
@@ -291,14 +280,14 @@ window.app.WfAssistant = (function() {
 		    m.text = 'No change.';
 		this.xhr = null;
 		this.add(m);
-	    }).fail((x, status) => {
+	    }, (err) => {
 		if (this.xhr !== req)
 		    return;
 		this.xhr = null;
-		if (status === 'abort')
+		if (err.name === 'AbortError')
 		    this.add({ role: 'assistant', error: true, text: 'Stopped.' });
 		else
-		    this.add({ role: 'assistant', error: true, text: (x.responseJSON && x.responseJSON.error) || 'The assistant could not be reached (' + (x.status || status) + ')' });
+		    this.add({ role: 'assistant', error: true, text: err.data?.error || 'The assistant could not be reached (' + (err.status || err.message) + ')' });
 	    });
 	}
 
@@ -320,8 +309,7 @@ window.app.WfAssistant = (function() {
 		this.state.messages = [];
 		//on the server too (AssistantController::chat_clear)
 		if (this.o.clearUrl)
-		    $.ajax({ url: this.o.clearUrl, method: 'POST', dataType: 'json', headers: { 'X-Csrf-Token': app.utils.csrf() } })
-			.fail((x) => console.warn('Assistant: the conversation was not cleared', x.status));
+		    app.utils.post(this.o.clearUrl).catch((err) => console.warn('Assistant: the conversation was not cleared', err.status));
 		this.render();
 	    });
 	    root.querySelector('.wfa-messages').addEventListener('click', (e) => {

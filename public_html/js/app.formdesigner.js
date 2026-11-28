@@ -347,12 +347,10 @@ window.app.FormDesigner = (function() {
 
 	//a list of nodes as cards in a flow row (widths side by side)
 	renderZone(list, zone) {
-	    const row = document.createElement('div');
-	    row.className = 'row g-2 fd-zone';
+	    const row = app.utils.el('div', 'row g-2 fd-zone');
 	    row.dataset.zone = zone;
 	    if (!list.length) {
-		const empty = document.createElement('div');
-		empty.className = 'col-12 fd-empty text-center text-muted small rounded p-4';
+		const empty = app.utils.el('div', 'col-12 fd-empty text-center text-muted small rounded p-4');
 		empty.style.border = '2px dashed var(--bs-border-color)';
 		//the palette is on the left
 		empty.innerHTML = zone === 'root' ? '<i class="bi bi-ui-checks-grid d-block fs-4 mb-1"></i>The form is empty: click or drag a field from the list on the left' : 'Drop fields here';
@@ -364,12 +362,10 @@ window.app.FormDesigner = (function() {
 
 	renderCard(n) {
 	    const t = TYPES[n.type];
-	    const col = document.createElement('div');
-	    col.className = 'fd-item col-12' + (n.width && n.width < 12 ? ' col-md-' + n.width : '');
+	    const col = app.utils.el('div', 'fd-item col-12' + (n.width && n.width < 12 ? ' col-md-' + n.width : ''));
 	    col.dataset.id = n._id;
 	    const selected = n._id === this.selected;
-	    const card = document.createElement('div');
-	    card.className = 'fd-card rounded p-2 bg-body h-100 ' + (selected ? 'border border-2 border-primary' : 'border');
+	    const card = app.utils.el('div', 'fd-card rounded p-2 bg-body h-100 ' + (selected ? 'border border-2 border-primary' : 'border'));
 	    card.draggable = !this.o.readonly;
 	    card.style.cursor = this.o.readonly ? 'default' : 'pointer';
 	    card.innerHTML = `
@@ -385,11 +381,9 @@ window.app.FormDesigner = (function() {
 		</div>`;
 	    const body = document.createElement('div');
 	    if (n.type === 'columns') {
-		const inner = document.createElement('div');
-		inner.className = 'row g-2';
+		const inner = app.utils.el('div', 'row g-2');
 		n.columns.forEach((c, i) => {
-		    const cc = document.createElement('div');
-		    cc.className = 'col-12 col-md-' + (c.width || 6);
+		    const cc = app.utils.el('div', 'col-12 col-md-' + (c.width || 6));
 		    const zone = this.renderZone(c.fields, n._id + ':' + i);
 		    zone.classList.add('rounded', 'p-1', 'bg-body-tertiary');
 		    cc.appendChild(zone);
@@ -442,8 +436,7 @@ window.app.FormDesigner = (function() {
 	setupDrop() {
 	    if (this.o.readonly)
 		return;
-	    const bar = document.createElement('div');
-	    bar.className = 'col-12 fd-drop';
+	    const bar = app.utils.el('div', 'col-12 fd-drop');
 	    bar.innerHTML = '<div class="bg-primary rounded" style="height:4px"></div>';
 	    this.bar = bar;
 	    this.canvas.addEventListener('dragover', (e) => {

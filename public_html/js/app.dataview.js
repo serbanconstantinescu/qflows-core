@@ -278,12 +278,10 @@ window.app.BaseDataView = (function() {
 	}
 
 	buildFilterRow(row) {
-	    const wrap = document.createElement("div");
-	    wrap.className = "filter-row d-flex align-items-center gap-2 mb-1";
+	    const wrap = app.utils.el("div", "filter-row d-flex align-items-center gap-2 mb-1");
 
 	    // field select
-	    const fieldSelect = document.createElement("select");
-	    fieldSelect.className = "form-select form-select-sm filter-field-select";
+	    const fieldSelect = app.utils.el("select", "form-select form-select-sm filter-field-select");
 	    fieldSelect.style.width = '8rem';
 	    for (const key of this.parent.schema.getColumnNames()) {
 		const col = this.parent.schema.column(key);
@@ -308,8 +306,7 @@ window.app.BaseDataView = (function() {
 	    wrap.appendChild(fieldSelect);
 
 	    // operator select
-	    const opSelect = document.createElement("select");
-	    opSelect.className = "form-select form-select-sm filter-op-select";
+	    const opSelect = app.utils.el("select", "form-select form-select-sm filter-op-select");
 	    opSelect.style.width = '6rem';
 	    opSelect.style.minWidth = '6rem';
 	    //get the type of field from schema
@@ -330,8 +327,7 @@ window.app.BaseDataView = (function() {
 	    // value input
 	    switch(fieldType) {
 		case "select":
-	    	    const f_select = document.createElement("select");
-		    f_select.className = "form-select form-select-sm filter-value-input";
+	    	    const f_select = app.utils.el("select", "form-select form-select-sm filter-value-input");
 		    this.parent.schema.column(row.field).choices.forEach((opt) => {
     			const o = document.createElement("option");
     			o.value = opt;
@@ -348,8 +344,7 @@ window.app.BaseDataView = (function() {
     		    break;
 		case "checkbox":
 		case "switch":
-    		    const b_select = document.createElement("select");
-    		    b_select.className = "form-select form-select-sm filter-value-input";
+    		    const b_select = app.utils.el("select", "form-select form-select-sm filter-value-input");
     		    [["true", "Yes"], ["false", "No"]].forEach(([val, label]) => {
 			const o = document.createElement("option");
     			o.value = val;
@@ -362,8 +357,7 @@ window.app.BaseDataView = (function() {
     		    break;
 
 		default:
-		    const input = document.createElement("input");
-		    input.className = "form-control form-control-sm filter-value-input";
+		    const input = app.utils.el("input", "form-control form-control-sm filter-value-input");
 		    //input.type = fieldType def.type === "number" ? "number" : def.type === "date" ? "date" : "text";
 		    //if (def.type === "text")
 		    //    input.placeholder = "Value";
@@ -391,8 +385,7 @@ window.app.BaseDataView = (function() {
 	renderFilterRows() {
 	    this.filterRows.innerHTML = "";
 	    if (!this.draftFilter.length) {
-    		const hint = document.createElement("div");
-    		hint.className = "text-center p-2";
+    		const hint = app.utils.el("div", "text-center p-2");
     		hint.textContent = "No filters yet — add one below.";
     		this.filterRows.appendChild(hint);
     		return;
@@ -432,21 +425,13 @@ window.app.BaseDataView = (function() {
 
 	//a request to the views' URLs: the answer's JSON, or an Error with its `error`
 	async viewsRequest(url, body) {
-	    const opts = { headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' } };
-	    if (body) {
-		opts.method = 'POST';
-		opts.headers['X-Csrf-Token'] = app.utils.csrf();
-		opts.body = body;
-	    }
-	    const res = await fetch(url, opts);
+	    if (body)
+		return app.utils.post(url, body);
+	    const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' } });
 	    const data = await res.json().catch(() => ({}));
 	    if (!res.ok)
 		throw new Error(data.error || 'the server answered ' + res.status);
 	    return data;
-	}
-
-	viewsToast(type, title, body) {
-	    app.utils.toast({ type: type, title: app.utils.escapeHtml(title), body: app.utils.escapeHtml(body), delay: 5000 });
 	}
 
 	//the views' list (loaded each time the dropdown opens: views saved by others are seen)
@@ -471,8 +456,7 @@ window.app.BaseDataView = (function() {
 		return;
 	    }
 	    this.viewList.forEach((view) => {
-		const row = document.createElement('div');
-		row.className = 'd-flex align-items-center';
+		const row = app.utils.el('div', 'd-flex align-items-center');
 
 		const a = document.createElement('a');
 		a.href = '#';
@@ -526,7 +510,7 @@ window.app.BaseDataView = (function() {
 			this.viewsWrap.querySelector('.filter-view-name').textContent = 'View';
 		    }
 		} catch (err) {
-		    this.viewsToast('error', 'View not deleted', err.message);
+		    app.utils.toastText('error', 'View not deleted', err.message);
 		}
 		this.loadViews();
 	    });
@@ -541,7 +525,7 @@ window.app.BaseDataView = (function() {
 		return;
 	    }
 	    if (!this.crtFilter.length) {
-		this.viewsToast('warning', 'Nothing to save', 'Apply a filter first, then save it as a view');
+		app.utils.toastText('warning', 'Nothing to save', 'Apply a filter first, then save it as a view');
 		return;
 	    }
 	    const body = new URLSearchParams();
@@ -552,9 +536,9 @@ window.app.BaseDataView = (function() {
 		input.value = '';
 		this.crtView = data.view;
 		this.viewsWrap.querySelector('.filter-view-name').textContent = data.view.name;
-		this.viewsToast('success', 'OK', 'View saved!');
+		app.utils.toastText('success', 'OK', 'View saved!');
 	    } catch (err) {
-		this.viewsToast('error', 'View not saved', err.message);
+		app.utils.toastText('error', 'View not saved', err.message);
 	    }
 	    this.loadViews();
 	}
@@ -929,8 +913,7 @@ window.app.BaseDataView = (function() {
 	    }
 
 	    //add spinner, hidden
-	    this.spinner = document.createElement('div');
-	    this.spinner.className = "spinner-border text-primary d-none";
+	    this.spinner = app.utils.el('div', "spinner-border text-primary d-none");
 	    this.spinner.role = "status";
 	    this.spinner.innerHTML = `<span class="visually-hidden">Loading...</span>`;
 
@@ -1057,8 +1040,7 @@ window.app.GridView = (function() {
 
 	    let bar = this.container.querySelector('.grid-select-bar');
 	    if (!bar) {
-		bar = document.createElement('div');
-		bar.className = 'grid-select-bar d-flex flex-wrap align-items-center gap-3 small bg-body-tertiary rounded px-2 py-1 mb-2';
+		bar = app.utils.el('div', 'grid-select-bar d-flex flex-wrap align-items-center gap-3 small bg-body-tertiary rounded px-2 py-1 mb-2');
 		this.container.querySelector('.datagrid-wrap').before(bar);
 	    }
 	    const n = this.allFound ? this.nRecords : this.selected.size;
@@ -1130,8 +1112,7 @@ window.app.GridView = (function() {
     	headerRow.innerHTML = "";
 
 	if (this.select) {
-	    const th = document.createElement('th');
-	    th.className = 'col-th sticky-top p-0 text-center align-middle';
+	    const th = app.utils.el('th', 'col-th sticky-top p-0 text-center align-middle');
 	    th.style.width = '2rem';
 	    const box = document.createElement('input');
 	    box.type = 'checkbox';
@@ -1152,24 +1133,20 @@ window.app.GridView = (function() {
     	    if (col.show === false || col.hide === true)
     		return;
 
-    	    const th = document.createElement("th");
-    	    th.className = "col-th sticky-top p-0";
+    	    const th = app.utils.el("th", "col-th sticky-top p-0");
     	    //th.style.width = col.width + "px";
     	    //last column does not have width
     	    th.style.width = "150px";
 
-    	    const wrap = document.createElement("div");
-    	    wrap.className = "col-header d-flex align-items-center justify-content-between gap-2 px-2 py-1 text-dark";
+    	    const wrap = app.utils.el("div", "col-header d-flex align-items-center justify-content-between gap-2 px-2 py-1 text-dark");
 
     /*
-        	    const typeIcon = document.createElement("span");
-        	    typeIcon.className = "col-type-icon";
+        	    const typeIcon = app.utils.el("span", "col-type-icon");
         	    typeIcon.textContent = COLUMN_TYPES[col.type].icon;
         	    typeIcon.title = COLUMN_TYPES[col.type].label;
         	    wrap.appendChild(typeIcon);
     */
-    	    const nameSpan = document.createElement("span");
-    	    nameSpan.className = "col-name text-truncate flex-fill";
+    	    const nameSpan = app.utils.el("span", "col-name text-truncate flex-fill");
     	    nameSpan.textContent = col.label;
     	    nameSpan.title = colName;
 	    if (this.sort) {
@@ -1178,9 +1155,7 @@ window.app.GridView = (function() {
 		nameSpan.style.cursor = 'pointer';
 		nameSpan.addEventListener('click', () => this.sortBy(colName));
 		if (this.sort.field === colName) {
-		    const arrow = document.createElement('i');
-		    arrow.className = 'bi ms-1 ' + (this.sort.dir === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down');
-		    arrow.setAttribute('aria-hidden', 'true');
+		    const arrow = app.utils.el('i', 'bi ms-1 ' + (this.sort.dir === 'asc' ? 'bi-arrow-up' : 'bi-arrow-down'), { 'aria-hidden': 'true' });
 		    nameSpan.appendChild(arrow);
 		    th.setAttribute('aria-sort', this.sort.dir === 'asc' ? 'ascending' : 'descending');
 		}
@@ -1195,16 +1170,14 @@ window.app.GridView = (function() {
     		const columnUrl = (tpl) => tpl.replace('__KEY__', encodeURIComponent(colName));
         		if (col.edit && this.schema.updateColumnUrl) {
         		    editLi = document.createElement("li");
-        		    const editA = document.createElement("a");
-        		    editA.className = "dropdown-item";
+        		    const editA = app.utils.el("a", "dropdown-item");
         		    editA.href = columnUrl(this.schema.updateColumnUrl);
         		    editA.textContent = "Edit column";
         		    editLi.appendChild(editA);
     		}
     		if (col.delete && this.schema.deleteColumnUrl) {
         		    delLi = document.createElement("li");
-        		    const delA = document.createElement("a");
-        		    delA.className = "dropdown-item text-danger";
+        		    const delA = app.utils.el("a", "dropdown-item text-danger");
         		    delA.href = columnUrl(this.schema.deleteColumnUrl);
         		    delA.dataset.confirm = 'Delete column "' + app.utils.escapeHtml(col.label || colName) + '" and its values in all rows?';
         		    delA.dataset.method = 'post';
@@ -1213,19 +1186,16 @@ window.app.GridView = (function() {
     		}
 
     		if (editLi || delLi) {
-        		    const menuWrap = document.createElement("div");
-        		    menuWrap.className = "dropdown";
+        		    const menuWrap = app.utils.el("div", "dropdown");
 
-        		    const menuBtn = document.createElement("button");
-        		    menuBtn.className = "col-menu-btn";
+        		    const menuBtn = app.utils.el("button", "col-menu-btn");
         		    menuBtn.type = "button";
         		    menuBtn.setAttribute("data-bs-toggle", "dropdown");
         		    menuBtn.setAttribute("aria-expanded", "false");
         		    menuBtn.innerHTML = '<i class="bi bi-three-dots-vertical"></i>';
         		    menuWrap.appendChild(menuBtn);
 
-        		    const menuList = document.createElement("ul");
-        		    menuList.className = "dropdown-menu dropdown-menu-end";
+        		    const menuList = app.utils.el("ul", "dropdown-menu dropdown-menu-end");
 
     		    if (editLi)
         			menuList.appendChild(editLi);
@@ -1240,8 +1210,7 @@ window.app.GridView = (function() {
 
         	    th.appendChild(wrap);
 
-        	    const handle = document.createElement("div");
-        	    handle.className = "col-resize-handle";
+        	    const handle = app.utils.el("div", "col-resize-handle");
         	    //attachColumnResize(handle, col, th);
     	    handle.addEventListener("mousedown", (e) => {
         		e.preventDefault();
@@ -1271,15 +1240,13 @@ window.app.GridView = (function() {
     	});
 
 
-    	const addTh = document.createElement("th");
-    	addTh.className = "col-th sticky-top p-0";
+    	const addTh = app.utils.el("th", "col-th sticky-top p-0");
     	//as wide as the add-column button
     	addTh.style.width = "48px";
 
     	//show the add-column button only when there is a URL for it
         	if (!this.schema.readonly && this.schema.createColumnUrl) {
-        	    const btn = document.createElement('button');
-        	    btn.className = 'btn btn-sm btn-circle-xs btn-outline-primary mx-2 my-1';
+        	    const btn = app.utils.el('button', 'btn btn-sm btn-circle-xs btn-outline-primary mx-2 my-1');
         	    btn.innerHTML = '<i class="bi bi-plus-lg"></i>';
         	    btn.title = 'Add column';
     	    btn.addEventListener("click", () => {
@@ -1298,8 +1265,7 @@ window.app.GridView = (function() {
 
 
     	if (this.data.length == 0) {
-    	    const emptyTd = document.createElement("td");
-    	    emptyTd.className = "p-0";
+    	    const emptyTd = app.utils.el("td", "p-0");
     	    emptyTd.style.cursor = "pointer";
     	    emptyTd.colSpan = this.schema.getVisibleColumnNames().length + 1 + this.selectCols();
     	    emptyTd.innerHTML = this.renderEmpty(); //app.template.compile(this.emptyLayout)();
@@ -1307,8 +1273,7 @@ window.app.GridView = (function() {
     	    emptyTd.style.verticalAlign = 'middle';
     	    emptyTd.style.setProperty('--bs-table-bg-state', 'transparent');
 
-        	    const tr = document.createElement("tr");
-    	    tr.className = 'grid-empty';
+        	    const tr = app.utils.el("tr", 'grid-empty');
         	    tr.appendChild(emptyTd);
         	    gridBody.appendChild(tr);
     	} else {
@@ -1317,8 +1282,7 @@ window.app.GridView = (function() {
         		tr.dataset.row = row._id;
 
 		if (this.select) {
-		    const td = document.createElement('td');
-		    td.className = 'p-0 text-center align-middle';
+		    const td = app.utils.el('td', 'p-0 text-center align-middle');
 		    const box = document.createElement('input');
 		    box.type = 'checkbox';
 		    box.className = 'form-check-input m-0 grid-select-row';
@@ -1344,14 +1308,12 @@ window.app.GridView = (function() {
         		    //td.style.width = col.width + "px";
 
         		    //boolean columns (checkbox / switch) shown as text, as any other field
-        		    const content = document.createElement("div");
-        		    content.className = "cell-content px-2 py-1 text-truncate w-100 h-100";
+        		    const content = app.utils.el("div", "cell-content px-2 py-1 text-truncate w-100 h-100");
 		    //CLD: 2026-11-21T11:00:00+02:00: col.link (a template, {{item}} = the row): the value as a link, e.g. a list's name opening the item
 		    //CLD: 2026-11-27T10:00:00+02:00: col.icon (a template giving Bootstrap icon classes, e.g. a folder's or a file's): an icon before the value
 		    const icon = col.icon ? app.template.compile(col.icon)({ item: row }).trim() : '';
 		    const iconEl = () => {
-			const i = document.createElement('i');
-			i.className = 'bi ' + icon + ' me-2';
+			const i = app.utils.el('i', 'bi ' + icon + ' me-2');
 			return i;
 		    };
 		    if (col.link) {
@@ -1383,8 +1345,7 @@ window.app.GridView = (function() {
         		    tr.appendChild(td);
         		});
 
-        		const opsTd = document.createElement("td");
-        		opsTd.className = "tools-wrap";
+        		const opsTd = app.utils.el("td", "tools-wrap");
 
     		if (this.gridOptions.rowActions && Object.keys(this.gridOptions.rowActions).length) {
     		    const rowActionsTpl = {};
@@ -1396,8 +1357,7 @@ window.app.GridView = (function() {
     		    });
     		    //in a panel floating over the right edge of the visible part of the table (the cell is sticky); no panel when this row has no actions
     		    if (rowActionsHtml.trim() !== '') {
-    			const actions = document.createElement("div");
-    			actions.className = "row-actions";
+    			const actions = app.utils.el("div", "row-actions");
     			actions.innerHTML = rowActionsHtml;
     			opsTd.appendChild(actions);
     		    }
@@ -1411,14 +1371,12 @@ window.app.GridView = (function() {
 
     	if (this.gridOptions.createRowUrl) {
     	    const addTr = document.createElement("tr");
-    	    const addTd = document.createElement("td");
-    	    addTd.className = "p-0";
+    	    const addTd = app.utils.el("td", "p-0");
     	    addTd.style.cursor = "pointer";
 
     	    addTd.colSpan = this.schema.getVisibleColumnNames().length + 1 + this.selectCols();
 
-        	    const btn = document.createElement('button');
-        	    btn.className = 'btn btn-sm btn-circle-xs btn-outline-primary mx-2 my-1';
+        	    const btn = app.utils.el('button', 'btn btn-sm btn-circle-xs btn-outline-primary mx-2 my-1');
         	    btn.innerHTML = '<i class="bi bi-plus-lg"></i>';
         	    btn.title = 'Add row';
     	    //the button had no handler; open the add-row form (modal) like the add-column button
@@ -1452,15 +1410,12 @@ window.app.GridView = (function() {
     	}).length + 1 + this.selectCols();
 
     	for (let i = 0; i < missing; i++) {
-    	    const tr = document.createElement('tr');
-    	    tr.className = 'grid-filler';
-    	    tr.setAttribute('aria-hidden', 'true');
+    	    const tr = app.utils.el('tr', 'grid-filler', { 'aria-hidden': 'true' });
     	    tr.style.pointerEvents = 'none';
     	    if (height)
     		tr.style.height = height.toFixed(3) + 'px';
     	    for (let c = 0; c < cols; c++) {
-    		const td = document.createElement('td');
-    		td.className = 'p-0';
+    		const td = app.utils.el('td', 'p-0');
     		//no hover highlight (Bootstrap's table-hover sets this variable on the cells of the hovered row)
     		td.style.setProperty('--bs-table-bg-state', 'transparent');
     		td.innerHTML = '<div class="cell-content px-2 py-1">&nbsp;</div>';
