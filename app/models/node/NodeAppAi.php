@@ -405,7 +405,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 		'choices' => $servers,
 		'label' => 'Tool servers',
 		'default' => [],
-		'help' => 'Installed with qflows and enabled for the account, e.g. a web browser',
+		'help' => 'Enabled for the account, e.g. a web browser',
 		'ui' => [ 'tools' => [ 'source' => 'servers', 'label' => 'Tool servers', 'group' => 'Servers', 'role' => 'use' ] ],
 	    ],
 	    [

@@ -275,7 +275,7 @@ class AgentTools {
 		'label' => "{$fam['label']}: operations",
 		'choices' => array_map(fn($o) => $o['short'], $ops),
 		'default' => self::readTools($key),
-		'help' => 'Its operations the model may use; at first those that only read',
+		'help' => 'The operations the model may use',
 		'ui' => [ 'tools' => $picker + [ 'role' => 'use', 'writes' => array_keys(array_filter($ops, fn($o) => $o['writes'])) ] ],
 	    ];
 	    //the operations that wait for a person's approval (the others run without; those not offered are never used): the write ones, all,

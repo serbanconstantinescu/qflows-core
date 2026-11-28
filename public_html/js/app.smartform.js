@@ -2228,19 +2228,22 @@ window.app.smartform = (function() {
 		return;
 	    const editable = this.isEditable();
 	    const head = document.createElement('div');
-	    head.className = 'd-flex flex-wrap align-items-center gap-2 px-3 py-2 border-bottom';
+	    //CLD: 2026-11-28T15:00:00+02:00: one line for every source: the name and help shrink (cut, whole on hover), the controls keep their size
+	    head.className = 'd-flex flex-nowrap align-items-center gap-2 px-3 py-2 border-bottom';
 	    const title = document.createElement('div');
 	    title.className = 'me-auto';
-	    title.innerHTML = '<div class="fw-semibold"></div><div class="small text-body-secondary"></div>';
+	    title.style.minWidth = '0';
+	    title.innerHTML = '<div class="fw-semibold text-truncate"></div><div class="small text-body-secondary text-truncate"></div>';
 	    title.children[0].textContent = s.label;
 	    title.children[1].textContent = s.help || '';
+	    title.title = s.help || '';
 	    head.appendChild(title);
 
 	    //an integration: its credential (a public service has none: used while one of its tools is)
 	    if (s.fields.credential && !s.isPublic) {
 		const cf = s.fields.credential;
 		const sel = document.createElement('select');
-		sel.className = 'form-select form-select-sm w-auto';
+		sel.className = 'form-select form-select-sm w-auto flex-shrink-0';
 		sel.setAttribute('aria-label', 'Credential');
 		[ { value: '', label: 'Not used' } ].concat(normalizeChoices(cf.choices)).forEach((c) => {
 		    const o = document.createElement('option');
@@ -2260,7 +2263,7 @@ window.app.smartform = (function() {
 	    if ((s.id === 'mcp' || s.id === 'servers') && this.serversMode) {
 		const f = this.serversMode;
 		const wrap = document.createElement('label');
-		wrap.className = 'd-flex align-items-center gap-2 small mb-0';
+		wrap.className = 'd-flex align-items-center gap-2 small mb-0 flex-shrink-0';
 		wrap.title = f.helpText || '';
 		wrap.innerHTML = '<span class="text-nowrap">Ask for approval</span>';
 		const sel = document.createElement('select');
@@ -2281,7 +2284,7 @@ window.app.smartform = (function() {
 	    const off = this._off(s);
 	    if (!off && items.length) {
 		const btns = document.createElement('div');
-		btns.className = 'btn-group btn-group-sm';
+		btns.className = 'btn-group btn-group-sm flex-shrink-0';
 		const quick = [ [ 'All', () => items.map((i) => i.value) ], [ 'None', () => [] ] ];
 		if (s.writes.length && s.id !== 'workflows')
 		    quick.splice(0, 0, [ 'Read only', () => items.filter((i) => !i.writes).map((i) => i.value) ]);
@@ -2303,7 +2306,8 @@ window.app.smartform = (function() {
 	    if (!off && items.length > 8) {
 		const q = document.createElement('input');
 		q.type = 'search';
-		q.className = 'form-control form-control-sm w-auto';
+		q.className = 'form-control form-control-sm flex-shrink-0';
+		q.style.width = '9rem';
 		q.placeholder = 'Filter';
 		q.value = this.filter;
 		q.addEventListener('input', () => {
