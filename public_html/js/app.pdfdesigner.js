@@ -243,7 +243,7 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 
     //the markup of one designer; A(name): data-pd + id (unique: the labels' for)
     //CLD: 2026-11-28T16:00:00+02:00: the toolbar fits one line at 1440 px: Header / Footer, Page setup, Sample data and Checks are icons (their names in title +
-    //aria-label), Preview PDF is Preview; in the step's dialog (fill) the columns' row does not wrap from md up, so the page scrolls in its column (a wrapping
+    //aria-label), Preview PDF is Preview; Page setup is grouped with Header / Footer (the formatting toolbar: hidden when read-only, as they are); in the step's dialog (fill) the columns' row does not wrap from md up, so the page scrolls in its column (a wrapping
     //row took the page's height)
     function markup(P, ro, fill) {
 	const A = (n) => `data-pd="${n}" id="${P}${n}"`;
@@ -306,7 +306,8 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
 	  <button class="btn btn-light border" type="button" data-cmd="removeFormat" title="Clear formatting">${SVG('<path d="M4 3h8M8 3l-2 10M3 13l10-10"/>')}</button>
 	  <button class="btn btn-light border font-monospace" type="button" data-cmd="source" title="Edit the HTML of the section you are in">&lt;/&gt;</button>
 	</div>
-	<div class="btn-group btn-group-sm" role="group" aria-label="Page sections">
+	<div class="btn-group btn-group-sm" role="group" aria-label="Page">
+	  <button class="btn btn-light border" type="button" ${D('pageBtn')} title="Page setup: size, orientation, margins, font" aria-label="Page setup"><i class="bi bi-file-earmark-ruled"></i></button>
 	  <button class="btn btn-light border" type="button" ${D('headerTgl')} aria-pressed="true" title="Header: show or hide it on every page" aria-label="Header">${SVG('<rect x="3" y="1.5" width="10" height="13" rx="1"/><path d="M3.5 2h9v3.5h-9z" fill="currentColor" stroke="none" opacity=".5"/><path d="M5.5 8.5h5M5.5 11h5"/>')}</button>
 	  <button class="btn btn-light border" type="button" ${D('footerTgl')} aria-pressed="true" title="Footer: show or hide it on every page" aria-label="Footer">${SVG('<rect x="3" y="1.5" width="10" height="13" rx="1"/><path d="M3.5 10.5h9V14h-9z" fill="currentColor" stroke="none" opacity=".5"/><path d="M5.5 5h5M5.5 7.5h5"/>')}</button>
 	</div>
@@ -314,7 +315,6 @@ body.pd-resizing,body.pd-resizing *{cursor:ns-resize!important;user-select:none!
       <div class="d-flex flex-wrap gap-2 ms-auto">
 	<select class="form-select form-select-sm w-auto" ${D('zoomSel')} aria-label="Zoom" title="Zoom"><option value="fit">Fit width</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option></select>
 	<div class="btn-group btn-group-sm" role="group" aria-label="Document">
-	  <button class="btn btn-light border" type="button" ${D('pageBtn')} title="Page setup: size, orientation, margins, font" aria-label="Page setup"><i class="bi bi-file-earmark-ruled"></i></button>
 	  <button class="btn btn-light border" type="button" ${D('dataBtn')} title="Sample data: the variables of the preview, as JSON" aria-label="Sample data"><i class="bi bi-braces"></i></button>
 	  <button class="btn btn-light border" type="button" ${D('checksBtn')} title="Layout checks" aria-label="Layout checks"><i class="bi bi-clipboard-check"></i></button>
 	</div>
