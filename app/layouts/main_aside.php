@@ -287,7 +287,8 @@ $dd_items = implode('', $dd_items);
 	<!-- two-level menu, pinned to the bottom of the sidebar -->
 	<div class="sidebar-bottom-menu">
 	    <div class="d-flex align-items-center justify-content-between px-2 py-2">
-		<span class="small text-muted">v<?= \V::app()->html->escape(\data\Version::NUMBER) ?></span>
+		<?php //CLD: 2026-11-28T10:00:00Z: beside the version, whether the live updates are connected (app.live paints [data-live-status]: on, connecting, down, off) ?>
+		<span class="small text-muted">v<?= \V::app()->html->escape(\data\Version::NUMBER) ?><span class="qf-live-status text-secondary ms-2" data-live-status title="Live updates: off" role="img" aria-label="Live updates: off"><i class="bi bi-circle-fill" style="font-size: .5rem; vertical-align: .15em" aria-hidden="true"></i></span></span>
 		<?php //CLD: 2026-11-21T10:00:00+02:00: the documentation (opens the sidebar's Documentation view, as Settings) and the theme, one button that goes auto > light > dark
 		//(app.theme; the icon shown follows the choice, theme _app.scss), on the version line ?>
 		<a href="/docs/index" class="btn btn-sm btn-outline-secondary py-0 ms-auto me-1 open-docs-menu" title="Documentation"><i class="bi bi-book" aria-hidden="true"></i><span class="visually-hidden">Documentation</span></a>

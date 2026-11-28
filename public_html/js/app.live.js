@@ -5,6 +5,7 @@
  *                                            where a new one is asked (SiteController::live_ticket) when it expires or the daemon was away
  *   app.live.on(el, 'a::b c::d', fn)         fn(data, type) for these events while `el` is on the page (pjax replaced it: dropped); el = null: always
  *   app.live.connected()                     whether the stream is open (a page polls while it is not)
+ *   app.live.paint()                         the status dots ([data-live-status], beside the version in the sidebar) painted again (app.sidebar.reload: new ones)
  *   app.live.grid(container, types, accept)  an app.GridView loaded again on these events (data tables, Files): see grid() below
  *
  * An event only says what changed ({ type, data }: ids, no records): the handlers load what they show themselves. The same event and data within
@@ -26,6 +27,29 @@ app.live = (function() {
     let retryTimer = null;
     const handlers = [];
     const pending = {};
+    //the stream's state for the status dots: off (no stream on this page, signed out), connecting, on, down (a new ticket asked later)
+    let state = 'off';
+    const STATES = {
+	off: [ 'text-secondary', 'Live updates: off' ],
+	connecting: [ 'text-warning', 'Live updates: connecting' ],
+	on: [ 'text-success', 'Live updates: on' ],
+	down: [ 'text-danger', 'Live updates: not connected, trying again (the pages update less often meanwhile)' ],
+    };
+
+    function paint() {
+	const [ cls, text ] = STATES[state];
+	document.querySelectorAll('[data-live-status]').forEach((el) => {
+	    el.classList.remove('text-secondary', 'text-warning', 'text-success', 'text-danger');
+	    el.classList.add(cls);
+	    el.title = text;
+	    el.setAttribute('aria-label', text);
+	});
+    }
+
+    function setState(s) {
+	state = s;
+	paint();
+    }
 
     function decode(t) {
 	try {
@@ -72,8 +96,10 @@ app.live = (function() {
 	close();
 	clearTimeout(retryTimer);
 	source = new EventSource('/push?t=' + encodeURIComponent(ticket));
+	setState('connecting');
 	source.onopen = () => {
 	    failures = 0;
+	    setState('on');
 	    //again after a break (the browser reconnected by itself, or a new ticket)
 	    if (opened)
 		queue('live::resync', {});
@@ -99,12 +125,16 @@ app.live = (function() {
 	    if (source && source.readyState === EventSource.CLOSED) {
 		close();
 		later();
+	    } else {
+		//the browser connects again by itself
+		setState('connecting');
 	    }
 	};
     }
 
     function later() {
 	failures++;
+	setState('down');
 	clearTimeout(retryTimer);
 	retryTimer = setTimeout(renew, Math.min(MAX_WAIT, 1000 * Math.pow(2, failures)));
     }
@@ -117,8 +147,10 @@ app.live = (function() {
 		credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' },
 	    });
 	    //signed out: no more events on this page
-	    if (r.status === 401 || r.status === 403)
+	    if (r.status === 401 || r.status === 403) {
+		setState('off');
 		return;
+	    }
 	    const data = await r.json();
 	    if (!r.ok || !data.ticket)
 		throw new Error('no ticket');
@@ -148,6 +180,8 @@ app.live = (function() {
 	claims: function() {
 	    return claims;
 	},
+
+	paint: paint,
 
 	//whether the stream is open now (else the pages poll as before)
 	connected: function() {

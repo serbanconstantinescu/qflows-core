@@ -133,6 +133,9 @@ window.app.sidebar = (function() {
 			    again.scrollTop = top;
 		    }
 		    api.highlight();
+		    //the new live status dot
+		    if (app.live)
+			app.live.paint();
 		})
 		.catch((err) => console.log('app.sidebar.reload:', err));
 	},
