@@ -256,7 +256,7 @@ class Expression {
 	return array_keys($names);
     }
 
-    //the names template $text uses (util\AgentGuard: which values come from the workflow's variables); none when it does not parse
+    //the names template $text uses (util\agent\Guard: which values come from the workflow's variables); none when it does not parse
     public static function namesIn($text) {
 	$parsed = self::parse($text);
 	return $parsed->hasErrors() ? [] : array_map('strval', array_keys(self::usedNames($parsed)));

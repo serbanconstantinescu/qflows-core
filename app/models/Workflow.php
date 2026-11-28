@@ -129,7 +129,7 @@ class Workflow extends \sys\BaseModel {
 		'showInForms' => false,
 	    ],
 
-	    //Tests must pass to publish (util\AgentEval::gate; EvalController::required)
+	    //Tests must pass to publish (util\agent\TestRuns::gate; EvalController::required)
 	    [
 		'key' => 'tests_required',
 		'type' => 'checkbox',
@@ -733,7 +733,7 @@ class Workflow extends \sys\BaseModel {
 	    }
 	    //an AI step whose spending cannot be counted (it may still run)
 	    $class = \V::app()->om->getObjectClass($d['objectName']);
-	    if (is_subclass_of($class, \models\node\NodeAppAi::class) && ($warning = \util\AgentGuard::priceWarning($class::CAPABILITY, (array)($nodes[$id]['config'] ?? []), $this->aid)))
+	    if (is_subclass_of($class, \models\node\NodeAppAi::class) && ($warning = \util\agent\Guard::priceWarning($class::CAPABILITY, (array)($nodes[$id]['config'] ?? []), $this->aid)))
 		self::addIssue($issues, 'warning', $id, $warning);
 	}
 

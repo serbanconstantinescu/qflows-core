@@ -1,11 +1,11 @@
 <?php
 
 /*
-    a test case of a workflow (the designer's Tests panel, util\AgentEval): the inputs of a run and what its AI steps must do with them.
+    a test case of a workflow (the designer's Tests panel, util\agent\TestRuns): the inputs of a run and what its AI steps must do with them.
 	input    { vars: { name: value } }: the first variables, as a trigger gives them
-	tools    mock: every tool call answered from `mocks`, no tool runs; real: the tools that only read run for real, the others are answered from `mocks` or refused (util\AgentEvalContext)
+	tools    mock: every tool call answered from `mocks`, no tool runs; real: the tools that only read run for real, the others are answered from `mocks` or refused (util\agent\EvalContext)
 	mocks    [ { node, tool, arguments (object), result (text), error, cut } ]: the recorded tool results (of the source execution's traces, or written by hand)
-	steps    { wfid: { title, variables, ports } }: what the steps that do not run in a test (util\AgentEvalContext::runs) gave in the source execution
+	steps    { wfid: { title, variables, ports } }: what the steps that do not run in a test (util\agent\EvalContext::runs) gave in the source execution
 	checks   [ { type, ... } ]: normalize() says what each type has
 	source, trigger, chat: the execution it was saved from, the type of its trigger (another one now: the inputs would not fit), whether a conversation started it (a chat's message is the request)
 	notes    what could not be recorded

@@ -25,7 +25,7 @@ class NodeAppSynoBackup extends NodeAppSynology {
 	'run' => 'Back up now',
 	'cancel' => 'Cancel a backup',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'run', 'cancel' ];
     const LISTS = [ 'tasks' ];
     const ADDITIONAL = [ 'last_bkp_time', 'next_bkp_time', 'last_bkp_result', 'is_modified', 'last_bkp_progress', 'last_bkp_success_time' ];

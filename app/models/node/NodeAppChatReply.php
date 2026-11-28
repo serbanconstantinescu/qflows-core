@@ -2,7 +2,7 @@
 
 /*
     Reply to chat - the workflow answers in the conversation that started the run (models\agent\AgentConversation), as text or Markdown, with optional buttons: the button chosen
-	comes back as the next message (its value). In a chat page it appears at once; in a conversation by email or Teams it is sent there (util\AgentChannels; buttons: a line saying what to answer).
+	comes back as the next message (its value). In a chat page it appears at once; in a conversation by email or Teams it is sent there (util\agent\Channels; buttons: a line saying what to answer).
 	A run with no conversation (Run in the designer, a workflow started otherwise) sends nothing: the answer is logged. A Run again sends nothing either: the person has had the answer.
     The variable (default `reply`): { sent, text, message: its number }
 */
@@ -109,7 +109,7 @@ class NodeAppChatReply extends \models\wf\WfNode {
 		$result = [ 'sent' => false, 'text' => $text, 'message' => null ];
 	    } else {
 		[ $conv ] = $where;
-		\util\AgentChannels::deliver($conv, $this->exec, $text, $format, $buttons);
+		\util\agent\Channels::deliver($conv, $this->exec, $text, $format, $buttons);
 		$seq = \models\agent\AgentConversation::reply($conv, $this->exec, $text, $format, $buttons);
 		$this->exec->log($this->wfid, 'Reply to chat: message ' . $seq . (count($buttons) ? ', ' . count($buttons) . ' button(s)' : ''));
 		$result = [ 'sent' => true, 'text' => $text, 'message' => $seq ];

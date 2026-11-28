@@ -32,7 +32,7 @@ class NodeAppSynoStorage extends NodeAppSynology {
 	'createShare' => 'Create a shared folder',
 	'deleteShare' => 'Delete a shared folder',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'createShare', 'deleteShare' ];
     const LISTS = [ 'volumes', 'pools', 'disks', 'shares' ];
     //a status that is a problem (DSM's words: degraded, crashed, failing, warning, abnormal, read-only, ...); rebuilding / repairing: busy, not a problem

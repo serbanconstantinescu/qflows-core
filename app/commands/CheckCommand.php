@@ -1761,7 +1761,7 @@ class CheckCommand extends \sys\BaseController {
 		$this->check('Lemonade AI: the answer without <think>', [ 'success', 'Hello from Qwen3-8B-GGUF' ], [ $exe?->getVariable('route'), $ai['text'] ?? null ]);
 	    }
 	    $this->check('Lemonade AI: the request (the model, the prompt, the temperature)', [ 'Qwen3-8B-GGUF', 'Hi Ana', 0.3 ],
-		[ $sent[0]['model'] ?? null, $unmark($sent[0]['messages'][1]['content'] ?? ''), $sent[0]['temperature'] ?? null ]); //[1]: a system message (util\AgentGuard::rules) is first
+		[ $sent[0]['model'] ?? null, $unmark($sent[0]['messages'][1]['content'] ?? ''), $sent[0]['temperature'] ?? null ]); //[1]: a system message (util\agent\Guard::rules) is first
 	    //a run with a PDF in Files: Lemonade (PDFs as Auto) gets its text, before the prompt
 	    $pdf = \models\File::createFromString('check-run.pdf', self::miniPdf('BT /F1 12 Tf 72 700 Td (Invoice 42) Tj ET'),
 		[ 'metadata' => [ 'aid' => $this->account->_id, 'project' => $this->project->_id, 'owner' => null, 'source' => 'check' ] ]);
@@ -3399,19 +3399,19 @@ class CheckCommand extends \sys\BaseController {
     //CLD: 2026-11-15T13:00:00+02:00: the agent suites use the ITOps plugin's FortiGate (and GravityZone) steps as their tools: skipped, said, while the installation has
     //not chosen them (plugins.json ITOps `products`, or the plugin off)
     private function itopsMissing($suite, array $families) {
-	$missing = array_diff($families, array_keys(\util\AgentTools::families()));
+	$missing = array_diff($families, array_keys(\util\agent\Tools::families()));
 	if ($missing)
 	    echo "  skipped: {$suite} needs the ITOps products " . implode(', ', $missing) . "\n";
 	return (bool)$missing;
     }
 
-    //qflows's own steps and workflows as an AI step's tools (util\AgentTools): the families, the tools' names, read / write, the input schemas, the arguments
+    //qflows's own steps and workflows as an AI step's tools (util\agent\Tools): the families, the tools' names, read / write, the input schemas, the arguments
     //checked; the AI step's settings; a Lemonade AI step against the fake AI server (a scripted chat) using a GravityZone tool that reads, a FortiGate tool that changes (their fake
     //servers) and a workflow tool with typed inputs and outputs; wrong arguments, a tool not chosen, a workflow's bad input: tool errors, the step goes on
     private function suiteAgenttools() {
 	if ($this->itopsMissing('agenttools', [ 'gravityzone', 'fortigate' ]))
 	    return;
-	$A = \util\AgentTools::class;
+	$A = \util\agent\Tools::class;
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
 	$e = [ self::class, 'edge' ];
@@ -3622,7 +3622,7 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //an AI step's tool calls waiting for a person's approval (models\node\NodeAppAi::askApproval / decided, util\AgentTools): against the fake AI server (a scripted
+    //an AI step's tool calls waiting for a person's approval (models\node\NodeAppAi::askApproval / decided, util\agent\Tools): against the fake AI server (a scripted
     //chat, in each provider's API) and the fake FortiGate: approved (every provider resumes its saved conversation, also after a "restart": a fresh execution from the
     //database, the caches reset), rejected, not decided in time, several calls in one task, killed while waiting; the System AI's credits charged before the wait and reserved
     //again after; the decisions in the execution log
@@ -3845,7 +3845,7 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //the guardrails of the AI steps' agents (util\AgentGuard, models\agent\AgentPolicy, util\PersonalData, AuditLog::agentCall), with the fake AI server. On an account of its
+    //the guardrails of the AI steps' agents (util\agent\Guard, models\agent\AgentPolicy, util\PersonalData, AuditLog::agentCall), with the fake AI server. On an account of its
     //own (its policy would apply to the real account's runs, its audit entries are sealed): removed at the end, with what it wrote
     private function suiteAgentguard() {
 	if ($this->itopsMissing('agentguard', [ 'fortigate' ]))
@@ -4007,7 +4007,7 @@ class CheckCommand extends \sys\BaseController {
 	    $exe = $start('openai', [], [ 'maxCost' => 0.0001 ]);
 	    $this->check('agent guard: a Cost limit on a model with no known price: saved, runs, not counted; the designer and the run\'s log say so', [ false, 'success', null, true, true ],
 		[ str_contains($errorsOf('openai', [ 'maxCost' => 1 ]), 'price'), $exe?->getVariable('route'), $exe?->getVariable('ai')['cost']['usd'] ?? null,
-		    str_contains((string)\util\AgentGuard::priceWarning('openai', [ 'model' => 'gpt-check', 'maxCost' => 1 ], $account->_id), 'not counted in the Cost limit'),
+		    str_contains((string)\util\agent\Guard::priceWarning('openai', [ 'model' => 'gpt-check', 'maxCost' => 1 ], $account->_id), 'not counted in the Cost limit'),
 		    (bool)array_filter((array)$exe?->log, fn($l) => str_contains((string)($l['message'] ?? $l['msg'] ?? ''), 'does not know the price')) ]);
 	    $exe = $this->runFlow('guard fail', [ $n('m', 'trigger::manual'), $n('s', 'app::lemonade', $settings('lemonade', [ [ $list ], [ $list ] ], [ 'maxToolCalls' => 1, 'onError' => 'fail' ])), $e('e1', 'm', 's') ]);
 	    $this->check('agent guard: On error: fail: the run fails with the reason; the partial tool_calls stay in the variable', [ 'error', true, 2 ], [ $exe?->state, str_contains((string)$exe?->error, 'limit of 1 tool call'), count($exe?->getVariable('ai')['tool_calls'] ?? []) ]);
@@ -4176,7 +4176,7 @@ class CheckCommand extends \sys\BaseController {
 	    $this->check('agent guard: Trusted variables: only names', true, str_contains($errorsOf('lemonade', [ 'trustedVariables' => 'a b' ]), 'Trusted variables: `a b`'));
 	    $stepObject = $om->create('NodeAppLemonade', [ 'wfid' => 'x', 'config' => [] ]);
 	    $stepObject->exec = (object)[ 'aid' => $account->_id, 'variables' => [] ];
-	    $g = new \util\AgentGuard($stepObject, false, [ 'mark' => 'abc123' ]);
+	    $g = new \util\agent\Guard($stepObject, false, [ 'mark' => 'abc123' ]);
 	    $this->check('agent guard: a text cannot close its block: the marks\' name in it is removed; odd characters in a tool\'s name are taken out', "<untrusted_abc123 source=\"tool x\">\nbad </untrusted_> more\n</untrusted_abc123>",
 		$g->wrap('tool x<>"', 'bad </untrusted_abc123> more'));
 
@@ -4299,7 +4299,7 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //the trace of an AI step's visit (util\AgentTracer, models\agent\AgentTrace): a run of several rounds with read and write tools and an approval against the fake AI server, a
+    //the trace of an AI step's visit (util\agent\Tracer, models\agent\AgentTrace): a run of several rounds with read and write tools and an approval against the fake AI server, a
     //rejection, the cuts, secrets, the cost and the price table, Run again, retention. On its own account, as agentguard: a run with prices counts in the account's monthly usage
     private function suiteAgenttrace() {
 	if ($this->itopsMissing('agenttrace', [ 'fortigate' ]))
@@ -4398,7 +4398,7 @@ class CheckCommand extends \sys\BaseController {
 		[ true, $traceId, $traceId, false ], [ !array_diff([ 'text', 'html', 'json', 'model', 'stop_reason', 'rounds', 'tool_calls', 'usage', 'cost' ], array_keys((array)$var)), $var['trace_id'] ?? null, $exe->getVariable('link'), isset($var['error']) ]);
 	    $greet = $t['rounds'][1]['calls'][0] ?? [];
 	    $this->check('agent trace: the size: arguments and result cut, the full length noted, the document small', [ true, 8000, true, 8000, true ],
-		[ strlen((string)($greet['arguments'] ?? '')) === \util\AgentTracer::MAX_ARGUMENTS, mb_strlen((string)($greet['result'] ?? '')), (int)($greet['arguments_length'] ?? 0) > 30000, \util\AgentTracer::MAX_RESULT, (int)($greet['result_length'] ?? 0) > 30000 ]);
+		[ strlen((string)($greet['arguments'] ?? '')) === \util\agent\Tracer::MAX_ARGUMENTS, mb_strlen((string)($greet['result'] ?? '')), (int)($greet['arguments_length'] ?? 0) > 30000, \util\agent\Tracer::MAX_RESULT, (int)($greet['result_length'] ?? 0) > 30000 ]);
 	    $doc = (string)json_encode($t, JSON_INVALID_UTF8_SUBSTITUTE);
 	    $this->check('agent trace: secrets never: a key that names one, a bearer value, the credential\'s token; the full text not kept', [ false, false, false, true ],
 		[ str_contains($doc, 'hunter2'), str_contains($doc, 'abcdefgh.ijklmnop'), str_contains($doc, 'fgtoken'), strlen($doc) < 60000 ]);
@@ -4428,7 +4428,7 @@ class CheckCommand extends \sys\BaseController {
 	    // ---- the cuts, the total: past MAX_TOTAL each text at SMALL; a text that cannot be read
 	    $stepClass = $om->findById('WfExecution', (string)$exe->_id)->__nodes['s'];
 	    $stepClass->exec = $exe;
-	    $tracer = \util\AgentTracer::begin($stepClass);
+	    $tracer = \util\agent\Tracer::begin($stepClass);
 	    foreach(range(1, 25) as $r) {
 		$tracer->round($r, [ 'text' => "broken \xFF text", 'model' => 'm', 'stop_reason' => 'x', 'usage' => [ 1, 1 ] ], 5);
 		foreach(range(0, 29) as $i)
@@ -4436,12 +4436,12 @@ class CheckCommand extends \sys\BaseController {
 	    }
 	    $big = $T::read($tracer->id(), $account->_id);
 	    $last = end($big['rounds'][24]['calls']);
-	    $this->check('agent trace: past the total for a visit, each text small, the full length noted; the document fits; invalid UTF-8 kept readable', [ \util\AgentTracer::SMALL, true, true, true ],
+	    $this->check('agent trace: past the total for a visit, each text small, the full length noted; the document fits; invalid UTF-8 kept readable', [ \util\agent\Tracer::SMALL, true, true, true ],
 		[ strlen((string)$last['arguments']), (int)($last['arguments_length'] ?? 0) > 7000, strlen((string)json_encode($big, JSON_INVALID_UTF8_SUBSTITUTE)) < 8 * 1024 * 1024, mb_check_encoding((string)$big['rounds'][0]['text'], 'UTF-8') ]);
 	    \V::app()->om->deleteOne('AgentTrace', [ '_id' => $tracer->id() ]);
 
 	    // ---- secrets of a credential that is not a model (the System AI's): its key, not its other headers; what is not a secret stays
-	    $system = \util\AgentTracer::begin($stepClass);
+	    $system = \util\agent\Tracer::begin($stepClass);
 	    $system->addSecrets(new class { function httpAuth() { return [ 'headers' => [ 'x-api-key' => 'sys-key-123', 'anthropic-version' => '2023-06-01' ] ]; } });
 	    $system->addSecrets(new class { });
 	    $this->check('agent trace: the System AI\'s key removed, a date that looks like its other header and max_tokens: 100 kept', '[removed] on 2023-06-01, max_tokens: 100', $system->scrub('sys-key-123 on 2023-06-01, max_tokens: 100'));
@@ -4568,9 +4568,9 @@ class CheckCommand extends \sys\BaseController {
 	[ $this->account, $this->project ] = [ $account, $project ];
 	\V::app()->var('rt.account', $account);
 	$sent = [];
-	\util\AgentChannels::$sink = function($kind, $data) use (&$sent) {
+	\util\agent\Channels::$sink = function($kind, $data) use (&$sent) {
 	    $sent[] = [ $kind, $data ];
-	    return \util\AgentChannels::fakeAnswer($data);
+	    return \util\agent\Channels::fakeAnswer($data);
 	};
 	$creds = [];
 	$users = [];
@@ -4897,12 +4897,12 @@ class CheckCommand extends \sys\BaseController {
 		$exe->run();
 		$ranTeams[] = $exe;
 	    };
-	    \util\AgentChannels::$fake = [ '/me' => [ 'id' => 'me-id' ], '/me/chats' => [ 'value' => [] ] ];
+	    \util\agent\Channels::$fake = [ '/me' => [ 'id' => 'me-id' ], '/me/chats' => [ 'value' => [] ] ];
 	    [ $stateT, $startedT ] = \models\node\NodeTriggerTeams::check($teamsAgent, $teamsNode, [], $runIt);
 	    $this->check('agent chat: Teams: the first check only notes where it starts', [ 'me-id', [] ], [ $stateT['me'] ?? null, $startedT ]);
 	    $stamp = gmdate('Y-m-d\TH:i:s.000\Z', time() + 1);
 	    $old = gmdate('Y-m-d\TH:i:s.000\Z', time() - 3600);
-	    \util\AgentChannels::$fake = [ '/me/chats' => [ 'value' => [ [ 'id' => '19:chat', 'lastMessagePreview' => [ 'createdDateTime' => $stamp ] ], [ 'id' => '19:quiet', 'lastMessagePreview' => [ 'createdDateTime' => $old ] ] ] ],
+	    \util\agent\Channels::$fake = [ '/me/chats' => [ 'value' => [ [ 'id' => '19:chat', 'lastMessagePreview' => [ 'createdDateTime' => $stamp ] ], [ 'id' => '19:quiet', 'lastMessagePreview' => [ 'createdDateTime' => $old ] ] ] ],
 		'/chats/19%3Achat/messages' => [ 'value' => [
 		    [ 'id' => 'm3', 'createdDateTime' => $stamp, 'messageType' => 'message', 'from' => [ 'user' => [ 'id' => 'me-id', 'displayName' => 'Agent' ] ], 'body' => [ 'contentType' => 'text', 'content' => 'my own' ] ],
 		    [ 'id' => 'm2', 'createdDateTime' => $stamp, 'messageType' => 'message', 'from' => [ 'user' => [ 'id' => 'ana-id', 'displayName' => 'Ana' ] ], 'body' => [ 'contentType' => 'html', 'content' => '<p>Is the <b>VPN</b> down?</p>' ] ],
@@ -4915,7 +4915,7 @@ class CheckCommand extends \sys\BaseController {
 		[ count($startedT), trim((string)($ranTeams[0]?->getVariable('message') ?? '')), $ranTeams[0]?->getVariable('user')['name'] ?? null, $ranTeams[0]?->getVariable('conversation')['channel'] ?? null, $posted[0][1]['path'] ?? null, str_contains((string)($posted[0][1]['json']['body']['content'] ?? ''), '<strong>Is the VPN down?</strong>') ]);
 	    [ $stateT2, $startedT2 ] = \models\node\NodeTriggerTeams::check($teamsAgent, $teamsNode, $stateT, $runIt);
 	    $this->check('agent chat: Teams: the next check does not start it again', [], $startedT2);
-	    \util\AgentChannels::$fake['/chats/19%3Achat/messages']['value'][] = [ 'id' => 'm4', 'createdDateTime' => $stamp, 'messageType' => 'message', 'from' => [ 'user' => [ 'id' => 'ana-id', 'displayName' => 'Ana' ] ], 'body' => [ 'contentType' => 'text', 'content' => 'Thanks' ] ];
+	    \util\agent\Channels::$fake['/chats/19%3Achat/messages']['value'][] = [ 'id' => 'm4', 'createdDateTime' => $stamp, 'messageType' => 'message', 'from' => [ 'user' => [ 'id' => 'ana-id', 'displayName' => 'Ana' ] ], 'body' => [ 'contentType' => 'text', 'content' => 'Thanks' ] ];
 	    [ $stateT3, $startedT3 ] = \models\node\NodeTriggerTeams::check($teamsAgent, $teamsNode, $stateT2, $runIt);
 	    $this->check('agent chat: Teams: the next message of the chat: the same conversation', [ 1, (string)$ranTeams[0]?->getVariable('conversation')['id'] ], [ count($startedT3), (string)($startedT3[0] ?? null)?->getVariable('conversation')['id'] ]);
 
@@ -4937,8 +4937,8 @@ class CheckCommand extends \sys\BaseController {
 	    $wfGone->delete();
 	    $this->check('agent chat: a deleted workflow takes its conversations and messages', [ null, 0 ], [ $C::read($convGone, $account->_id), \V::app()->om->count('AgentMessage', [ 'conversation' => $convGone ]) ]);
 	} finally {
-	    \util\AgentChannels::$sink = null;
-	    \util\AgentChannels::$fake = [];
+	    \util\agent\Channels::$sink = null;
+	    \util\agent\Channels::$fake = [];
 	    \models\AuditLog::$recordAgentCalls = false;
 	    $this->cleanCreated();
 	    foreach($tables as $x)
@@ -4962,13 +4962,13 @@ class CheckCommand extends \sys\BaseController {
 	}
     }
 
-    //testing AI steps (util\AgentEval, util\AgentEvalContext): a case saved from an execution, recorded tool results, real read tools, steps that do not run, each check type, the judge against the
-    //fake AI server, the difference between runs, the publish gate, the MCP tools. On its own account, as agenttrace: a run with prices counts in the account's monthly usage. AgentEval::$inline: nothing is queued
+    //testing AI steps (util\agent\TestRuns, util\agent\EvalContext): a case saved from an execution, recorded tool results, real read tools, steps that do not run, each check type, the judge against the
+    //fake AI server, the difference between runs, the publish gate, the MCP tools. On its own account, as agenttrace: a run with prices counts in the account's monthly usage. util\agent\TestRuns::$inline: nothing is queued
     private function suiteAgenteval() {
 	$om = \V::app()->om;
 	$n = [ self::class, 'node' ];
 	$e = [ self::class, 'edge' ];
-	$E = \util\AgentEval::class;
+	$E = \util\agent\TestRuns::class;
 	$R = \models\wf\WfTestRun::class;
 	$mcp = \util\McpServerTools::class;
 
@@ -6540,7 +6540,7 @@ class CheckCommand extends \sys\BaseController {
 		[ 'https://hooks.example.com/x' ], 'error' ], [
 		[ $sent[0]['variables']['topic'] ?? null, $sent[0]['variables']['sub']['callbackUrl'] ?? null, $sent[0]['variables']['sub']['format'] ?? null ],
 		array_column($wl?->getVariable('w')['items'] ?? [], 'callbackUrl'), $notHttps?->getVariable('route') ]);
-	    $A = \util\AgentTools::class;
+	    $A = \util\agent\Tools::class;
 	    $ops = $A::operations('shopify');
 	    $this->check('shopify: as an AI step\'s tools: shopify_<step>_<operation>, reads and writes', [ false, true, false, true, true ], [
 		$ops['shopify_orders_list']['writes'] ?? null, $ops['shopify_orders_cancel']['writes'] ?? null, $ops['shopify_inventory_levels']['writes'] ?? null, $ops['shopify_graphql_query']['writes'] ?? null,
@@ -6788,7 +6788,7 @@ class CheckCommand extends \sys\BaseController {
 		$logOf($tx, 'Nextcloud Talk send: ') ]);
 	    [ $api, ] = $step('app::nextcloud-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/cloud/groups', 'parameters' => '{"search": "adm"}', 'variable' => 'x' ]);
 	    [ $apiBad, ] = $step('app::nextcloud-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/nothing', 'variable' => 'x' ]);
-	    $A = \util\AgentTools::class;
+	    $A = \util\agent\Tools::class;
 	    $ops = $A::operations('nextcloud');
 	    $this->check('nextcloud: API: an OCS request, its parameters; an unknown path: Nextcloud\'s message; as an AI step\'s tools, reads and writes', [ [ 'admins' ], 'error',
 		[ false, true, false, true ] ], [ $api?->getVariable('x')['groups'] ?? null, $apiBad?->getVariable('route'),
@@ -6996,7 +6996,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $us, ] = $step('app::jira-projects', [ 'operation' => 'users', 'search' => 'dan', 'variable' => 'p' ]);
 	    [ $api, ] = $step('app::jira-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/rest/api/3/issue/{{ k }}', 'query' => '{"fields": ["summary"]}', 'variable' => 'x' ], [ 'k' => 'OPS-1' ]);
 	    [ $apiBad, ] = $step('app::jira-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/secure/Dashboard.jspa', 'variable' => 'x' ]);
-	    $ops = \util\AgentTools::operations('jira');
+	    $ops = \util\agent\Tools::operations('jira');
 	    $this->check('jira: Projects: a project\'s issue types; a custom field\'s id; a user; API: any /rest/ path; not /rest/: refused; as AI tools', [
 		[ 'Task', 'Sub-task' ], [ 'customfield_10016' ], [ 'dan-5b10a2844c20165700ede22h' ], 'OPS-1', 'error', [ false, true, false ] ], [
 		array_column($pr?->getVariable('p')['issueTypes'] ?? [], 'name'), array_column($fl?->getVariable('p')['items'] ?? [], 'id'), array_column($us?->getVariable('p')['items'] ?? [], 'accountId'),
@@ -7188,7 +7188,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $pl, ] = $step([ 'operation' => 'pipelines', 'pipelineType' => 'deals', 'variable' => 'p' ], [], 'app::hubspot-crm');
 	    [ $ow, ] = $step([ 'operation' => 'owners', 'email' => 'ana@example.com', 'variable' => 'p' ], [], 'app::hubspot-crm');
 	    [ $api, ] = $step([ 'operation' => 'request', 'method' => 'GET', 'path' => '/crm/v3/objects/contacts/{{ id }}', 'variable' => 'x' ], [ 'id' => '1001' ], 'app::hubspot-api');
-	    $ops = \util\AgentTools::operations('hubspot');
+	    $ops = \util\agent\Tools::operations('hubspot');
 	    $this->check('hubspot: CRM properties (an enumeration\'s choices), pipelines\' stages, an owner by email; API: any path; as AI tools', [ [ 'lifecyclestage', [ 'lead', 'customer' ] ],
 		[ 'appointmentscheduled', 'closedwon' ], [ '77' ], 'ana@example.com', [ false, true, false ] ], [
 		[ $pp?->getVariable('p')['items'][0]['name'] ?? null, array_column($pp?->getVariable('p')['items'][0]['options'] ?? [], 'value') ], array_column($pl?->getVariable('p')['items'][0]['stages'] ?? [], 'id'),
@@ -7381,7 +7381,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $lm, ] = $step([ 'operation' => 'limits', 'variable' => 'o' ], [], 'app::salesforce-org');
 	    [ $api, ] = $step([ 'operation' => 'request', 'method' => 'GET', 'path' => '/limits', 'variable' => 'x' ], [], 'app::salesforce-api');
 	    [ $api2, ] = $step([ 'operation' => 'request', 'method' => 'GET', 'path' => '/services/oauth2/userinfo', 'variable' => 'x' ], [], 'app::salesforce-api');
-	    $ops = \util\AgentTools::operations('salesforce');
+	    $ops = \util\agent\Tools::operations('salesforce');
 	    $this->check('salesforce: an activity on a lead (WhoId), on an account (WhatId), completed; delete; Org describe (a picklist\'s values), limits; API below /services/data or from '
 		. '/services/; as AI tools', [
 		[ $lead['id'] ?? '', 'Completed', 'Interested in Pro plan' ], [ $accounts[0]['Id'] ?? '', null ], 5, [ 'Status', [ 'Open - Not Contacted', 'Working - Contacted' ] ], 99876, 100000, 'bot@acme.example',
@@ -7609,7 +7609,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $sv, ] = $step($SU, [ 'operation' => 'viewTickets', 'view' => 'unsolved tickets', 'variable' => 'y' ]);
 	    [ $api, ] = $step('app::zendesk-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/tickets/{{ k }}', 'variable' => 'z' ], [ 'k' => 1 ]);
 	    [ $apiBad, ] = $step('app::zendesk-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => 'https://example.com/api/v2/tickets.json', 'variable' => 'z' ]);
-	    $ops = \util\AgentTools::operations('zendesk');
+	    $ops = \util\agent\Tools::operations('zendesk');
 	    $this->check('zendesk: Setup: groups; a ticket field\'s id and options; a view by title, its tickets; API: any path below /api/v2; another address refused; as AI tools', [
 		[ 'Support', 'Tier 2' ], [ 501, [ 'gold', 'free' ] ], [ 1, 2 ], 'Printer down', 'error', [ false, true, true, false ] ], [
 		array_column($sg?->getVariable('y')['items'] ?? [], 'name'),
@@ -7825,7 +7825,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $o1, ] = $step($US, [ 'operation' => 'offboard', 'user' => 'dan@acme.com', 'removeManager' => true, 'variable' => 'x' ]);
 	    [ $api, ] = $step('app::entra-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/organization', 'variable' => 'z' ]);
 	    [ $apiBad, ] = $step('app::entra-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/users/../x', 'variable' => 'z' ]);
-	    $ops = \util\AgentTools::operations('entra');
+	    $ops = \util\agent\Tools::operations('entra');
 	    $o = $o1?->getVariable('x') ?? [];
 	    $this->check('entra: Users offboard: disabled, signed out, the groups left (not the dynamic one), the licenses and the manager removed; API: any path; .. refused; as AI tools', [
 		[ true, true, [ 'Sales', 'Ops', 'Incident 4711' ], [ 'All staff' ], [ 'SPE_E3' ], true, [], false, true ], [ 'Acme', 'error' ], [ true, false, false, true ] ], [
@@ -8061,7 +8061,7 @@ class CheckCommand extends \sys\BaseController {
 	    //offboard, the API step, the tools
 	    [ $o1, ] = $step($US, [ 'operation' => 'offboard', 'user' => 'dan@acme.com', 'removeApps' => true, 'variable' => 'x' ]);
 	    [ $api, ] = $step('app::okta-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/users', 'query' => '{"limit": 1}', 'variable' => 'z' ]);
-	    $ops = \util\AgentTools::operations('okta');
+	    $ops = \util\agent\Tools::operations('okta');
 	    $o = $o1?->getVariable('x') ?? [];
 	    $this->check('okta: Users offboard: the Okta groups left (the app group and Everyone kept), the app removed, signed out, deactivated; API: the next page said; as AI tools', [
 		[ [ 'Sales', 'Incident 4711' ], [ 'AD Staff', 'Everyone' ], [ 'Payroll' ], true, 'DEPROVISIONED', [], 'DEPROVISIONED' ], [ 1, true ], [ true, false, true, false ] ], [
@@ -8293,7 +8293,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $p6, ] = $step($P, [ 'operation' => 'cancel', 'pipelineId' => 900, 'variable' => 'x' ]);
 	    [ $p7, ] = $step($P, [ 'operation' => 'run', 'ref' => 'nope', 'variable' => 'x' ]);
 	    [ $api, ] = $step('app::gitlab-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/projects/{project}/repository/branches', 'query' => '{"per_page": 2}', 'variable' => 'z' ]);
-	    $ops = \util\AgentTools::operations('gitlab');
+	    $ops = \util\agent\Tools::operations('gitlab');
 	    $this->check('gitlab: Pipelines: run with variables (as texts), followed to the end; failed ones; jobs of one by address; the log\'s last lines without colors and sections; retry; cancel; '
 		. 'a ref GitLab refuses: error. API: {project} filled in, the next page. As AI tools', [
 		[ [ [ 'key' => 'ENVIRONMENT', 'value' => 'staging', 'variable_type' => 'env_var' ], [ 'key' => 'DRY', 'value' => 'true', 'variable_type' => 'env_var' ] ], 'success', true ], [ 900 ], 'script_failure',
@@ -8574,7 +8574,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $a7, ] = $step($A, [ 'operation' => 'dispatch', 'workflow' => 'deploy.yml', 'ref' => 'nope', 'variable' => 'x' ]);
 	    [ $api, ] = $step('app::github-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/repos/{repo}/issues', 'query' => '{"state": "all", "per_page": 2}', 'variable' => 'z' ]);
 	    [ $apiBad, ] = $step('app::github-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => 'https://example.com/x', 'variable' => 'z' ]);
-	    $ops = \util\AgentTools::operations('github');
+	    $ops = \util\agent\Tools::operations('github');
 	    $this->check('github: Actions: start a workflow (its path given, inputs as texts), its run found and followed to the end; failed runs; jobs of a run by address; the log\'s last lines '
 		. '(its redirect followed); re-run the failed jobs; cancel; a branch GitHub refuses: error. API: {repo} filled in, the next page; another address refused. As AI tools', [
 		[ [ 'env' => 'staging', 'dry' => 'true' ], true, 'success', 'Deploy' ], [ 900 ], 'build', [ 2, "2026-11-25T10:00:01Z line 2\n2026-11-25T10:00:02Z Error: boom" ], 'in_progress', 'cancelled', 'error',
@@ -8851,7 +8851,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $b5, ] = $step($B, [ 'operation' => 'delete', 'bucket' => 'check-new', 'variable' => 'b' ]);
 	    [ $a1, ] = $step('app::s3-api', [ 'operation' => 'request', 'method' => 'GET', 'bucket' => 'docs', 'key' => 'a.txt', 'query' => '{"tagging": ""}', 'variable' => 'z' ]);
 	    [ $a2, ] = $step('app::s3-api', [ 'operation' => 'request', 'method' => 'GET', 'key' => 'a.txt', 'variable' => 'z' ]);
-	    $ops = \util\AgentTools::operations('s3');
+	    $ops = \util\agent\Tools::operations('s3');
 	    $this->check('s3: Links: a download link S3 takes (the name to save as), another key with its signature refused, an upload link (PUT), 8 days refused; Buckets list, create, info, delete '
 		. '(not empty: S3\'s error); API: a sub-resource (tagging) read as XML, a key without a bucket refused; as AI tools', [
 		[ 200, 'hello', true, 403 ], [ 'dropped', 'PUT' ], 'error', [ [ 'docs', 'empty' ], 'check-new', 'eu-central-1', 'error', true ], [ 'ops', 'error' ], [ false, true, false, true ] ], [
@@ -9127,7 +9127,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $f5, ] = $step($F, [ 'operation' => 'delete', 'file' => $fileId, 'variable' => 'f' ]);
 	    [ $a1, $sentA ] = $step('app::slack-api', [ 'operation' => 'call', 'method' => 'pins.add', 'args' => '{"channel": "CGEN00001", "timestamp": "{{ ts }}"}', 'variable' => 'z' ], [ 'ts' => $ts1 ]);
 	    [ $a2, ] = $step('app::slack-api', [ 'operation' => 'call', 'method' => '../auth', 'variable' => 'z' ]);
-	    $ops = \util\AgentTools::operations('slack');
+	    $ops = \util\agent\Tools::operations('slack');
 	    $this->check('slack: Files upload a text (the address Slack gives, then shared with a comment as mrkdwn), download into a project file, list, a missing project file, delete; '
 		. 'API: any method; not a method refused; as AI tools (send writes, history reads)', [
 		[ 'report.txt', 'CGEN00001', '*Weekly* report', '9' ], 'Total: 42', [ 1, 'report.txt' ], 'error', true, [ true, 'error' ], [ true, false, false, true ] ], [
@@ -9420,7 +9420,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $a1, ] = $step('app::infobip-account', [ 'operation' => 'lookup', 'to' => '40722123456, 40733000000, 1234567', 'variable' => 'a' ]);
 	    [ $api, ] = $step('app::infobip-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/account/1/balance', 'variable' => 'x' ]);
 	    [ $apiBad, ] = $step('app::infobip-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => 'https://example.com/account/1/balance', 'variable' => 'x' ]);
-	    $ops = \util\AgentTools::operations('infobip');
+	    $ops = \util\agent\Tools::operations('infobip');
 	    $this->check('infobip: 2FA send (a pinId); a wrong PIN: not verified, not an error; the right one; message templates; Account lookup (valid, ported, an error); API; another address '
 		. 'refused; as AI tools (a lookup is charged: a write)', [
 		[ true, '40722123456', 'MESSAGE_SENT' ], [ false, 2, 'WRONG_PIN', null ], true, [ 'Your code is {{pin}}' ],
@@ -9679,7 +9679,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $ac4, ] = $step($AC, [ 'operation' => 'contacts', 'search' => 'marin', 'variable' => 'x' ]);
 	    [ $api, ] = $step('app::yousign-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/signature_requests/{{ id }}', 'variable' => 'x' ], [ 'id' => $id ]);
 	    [ $apiBad, ] = $step('app::yousign-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => 'https://example.com/v3/x', 'variable' => 'x' ]);
-	    $ops = \util\AgentTools::operations('yousign');
+	    $ops = \util\agent\Tools::operations('yousign');
 	    $this->check('yousign: Account: templates with their signers\' labels, workspaces (the default), a contact added (its phone international), contacts by a search; API: a path; '
 		. 'another address refused; as AI tools: reads, writes', [
 		[ [ 'Client' ] ], [ true, false ], [ '+40733000000', 'Eva SRL' ], [ 'Eva' ], 'Contract 7', 'error', [ false, false, true, true, true, false, true ] ], [
@@ -10531,7 +10531,7 @@ class CheckCommand extends \sys\BaseController {
 	    [ $X::quote("it's"), $X::wrap('echo', [ 'a' => 'x $(id) `y`', 'n' => 3, 'j' => [ 'k' => 1 ] ]), (function() use ($X) { try { $X::wrap('x', [ 'a-b' => 1 ]); return false; } catch (\RuntimeException $e) { return true; } })() ]);
 	$this->check('ssh: a key line from known_hosts / ssh-keyscan text, its SHA256 fingerprint', [ 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl', '' ],
 	    [ $X::keyLine("# comment\n[h]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n"), $X::fingerprint('not a key') ]);
-	$families = \util\AgentTools::families();
+	$families = \util\agent\Tools::families();
 	$this->check('ssh / windows: AI tools families, the writes asked for approval by default', [ 'ssh', 'win', [ 'run', 'restart' ], [ 'run', 'start', 'stop', 'restart' ] ],
 	    [ $families['ssh']['prefix'] ?? null, $families['windows']['prefix'] ?? null, \models\node\NodeAppSsh::WRITES, \models\node\NodeAppWindows::WRITES ]);
 

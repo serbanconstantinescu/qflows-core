@@ -1,7 +1,7 @@
 <?php
 
 /*
-    the designer's Tests panel (app.WfTests; util\AgentEval): a workflow's test cases, its test runs, Tests must pass to publish. All on ?id=<workflow>, answers in JSON.
+    the designer's Tests panel (app.WfTests; util\agent\TestRuns): a workflow's test cases, its test runs, Tests must pass to publish. All on ?id=<workflow>, answers in JSON.
     Workflow::read to see them (as the executions they come from), Workflow::update to change the cases and run them (as Run), Workflow::publish for the gate (who may publish decides what publishing asks for)
 */
 
@@ -9,7 +9,7 @@ namespace controllers;
 
 use models\wf\WfTestCase;
 use models\wf\WfTestRun;
-use util\AgentEval;
+use util\agent\TestRuns;
 
 class EvalController extends \sys\BaseController {
 
@@ -56,8 +56,8 @@ class EvalController extends \sys\BaseController {
 	    if (!empty($n['isNode']) && $name && is_subclass_of(\V::app()->om->getObjectClass($name), \models\node\NodeAppAi::class))
 		$steps[] = [ 'id' => (string)$n['wfid'], 'title' => (string)($n['title'] ?? '') ];
 	}
-	$gate = AgentEval::gate($wf);
-	$resp->sendJSON([ 'cases' => $cases, 'runs' => array_map([ AgentEval::class, 'summary' ], WfTestRun::ofWorkflow($wf)), 'required' => $gate['required'], 'gate' => [ 'ok' => $gate['ok'], 'message' => $gate['message'] ], 'steps' => $steps,
+	$gate = TestRuns::gate($wf);
+	$resp->sendJSON([ 'cases' => $cases, 'runs' => array_map([ TestRuns::class, 'summary' ], WfTestRun::ofWorkflow($wf)), 'required' => $gate['required'], 'gate' => [ 'ok' => $gate['ok'], 'message' => $gate['message'] ], 'steps' => $steps,
 	    'canEdit' => \V::app()->user->can('Workflow::update', [ 'object' => $wf ]), 'canPublish' => \V::app()->user->can('Workflow::publish', [ 'object' => $wf ]), 'maxCases' => WfTestCase::MAX_CASES,
 	    'modes' => WfTestCase::MODES, 'checkTypes' => WfTestCase::CHECKS, 'operators' => WfTestCase::OPERATORS ]);
     }
@@ -68,7 +68,7 @@ class EvalController extends \sys\BaseController {
 	$run = WfTestRun::read((string)($req->query['run'] ?? ''), $wf);
 	if (!$run)
 	    \V::app()->error(404, 'Not found');
-	$resp->sendJSON([ 'run' => AgentEval::summary($run) + [ 'cases' => array_values((array)($run['cases'] ?? [])) ], 'diff' => AgentEval::diff($run, WfTestRun::previous($run)) ]);
+	$resp->sendJSON([ 'run' => TestRuns::summary($run) + [ 'cases' => array_values((array)($run['cases'] ?? [])) ], 'diff' => TestRuns::diff($run, WfTestRun::previous($run)) ]);
     }
 
     //a case created (no `case_id`) or changed: POST `case`, JSON { name, vars, tools, mocks, checks } => { case }; its problems in { error }. Workflow::update
@@ -123,7 +123,7 @@ class EvalController extends \sys\BaseController {
 	if (\V::app()->om->count('WfTestCase', [ 'wf' => $wf->_id, 'aid' => $wf->aid ]) >= WfTestCase::MAX_CASES)
 	    $resp->sendJSON([ 'error' => 'A workflow has at most ' . WfTestCase::MAX_CASES . ' test cases' ], true, 409);
 	try {
-	    $case = AgentEval::fromExecution($wf, $exe);
+	    $case = TestRuns::fromExecution($wf, $exe);
 	} catch (\ErrorException $e) {
 	    $resp->sendJSON([ 'error' => ucfirst($e->getMessage()) ], true, 409);
 	}
@@ -153,13 +153,13 @@ class EvalController extends \sys\BaseController {
 	    \V::app()->error(405, 'Method not allowed');
 	$wf = $this->findWorkflow('Workflow::update');
 	try {
-	    [ $run, $new ] = AgentEval::start($wf, (string)\V::app()->user->name);
+	    [ $run, $new ] = TestRuns::start($wf, (string)\V::app()->user->name);
 	} catch (\ErrorException $e) {
 	    $resp->sendJSON([ 'error' => ucfirst($e->getMessage()) ], true, 409);
 	}
 	if ($new)
 	    \models\AuditLog::record('workflow.test.run', $wf, 'test run ' . (string)$run['_id']);
-	$resp->sendJSON([ 'run' => AgentEval::summary($run), 'started' => $new ]);
+	$resp->sendJSON([ 'run' => TestRuns::summary($run), 'started' => $new ]);
     }
 
     //POST ?run=. Workflow::update
@@ -170,7 +170,7 @@ class EvalController extends \sys\BaseController {
 	$run = WfTestRun::read((string)($req->query['run'] ?? ''), $wf);
 	if (!$run)
 	    \V::app()->error(404, 'Not found');
-	if (!AgentEval::stop($run, (string)\V::app()->user->name))
+	if (!TestRuns::stop($run, (string)\V::app()->user->name))
 	    $resp->sendJSON([ 'error' => 'The test run is no longer running' ], true, 409);
 	$resp->sendJSON([ 'stopped' => true ]);
     }

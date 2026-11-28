@@ -1,9 +1,9 @@
 <?php
 
 /*
-    one run of a workflow's test cases (util\AgentEval: by the daemon). The latest KEEP are kept per workflow, each with its executions (and their traces).
+    one run of a workflow's test cases (util\agent\TestRuns: by the daemon). The latest KEEP are kept per workflow, each with its executions (and their traces).
 	state    queued, running; then passed, failed (a check failed or a case could not run), stopped, error (the run itself could not go on)
-	draft_hash, cases_hash: what it ran (util\AgentEval::draftHash, casesHash): the publish gate wants them to be the current ones
+	draft_hash, cases_hash: what it ran (util\agent\TestRuns::draftHash, casesHash): the publish gate wants them to be the current ones
 	cases    [ { case, name, state (pass | fail | error | stopped), execution, trace, error, answer, tokens { input, output }, cost { usd, credits }, duration_ms,
 		   checks: [ { type, label, pass, detail } ], notes } ], in the order they ran
 	totals   { cases, passed, failed, tokens { input, output }, cost { usd, credits } }

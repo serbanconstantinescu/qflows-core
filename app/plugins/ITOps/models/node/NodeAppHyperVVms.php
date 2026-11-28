@@ -36,7 +36,7 @@ class NodeAppHyperVVms extends NodeAppHyperV {
 	'network' => 'Get its network adapters',
 	'delete' => 'Delete',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'start', 'shutdown', 'reboot', 'turnOff', 'save', 'pause', 'resume', 'reset', 'delete' ];
     const LISTS = [ 'list' ];
     const STATES = [ 'any' => 'Any', 'Running' => 'Running', 'Off' => 'Off', 'Saved' => 'Saved', 'Paused' => 'Paused' ];

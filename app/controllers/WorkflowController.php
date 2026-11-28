@@ -277,9 +277,9 @@ class WorkflowController extends \sys\BaseController {
 	$check = $source ? $wf->forVersion($source) : $wf;
 	//issues(): a draft can be saved with errors in the steps' settings, it is not published with them
 	$errors = array_values(array_filter($check->issues(), fn($i) => $i['level'] == 'error'));
-	//the tests of the draft (util\AgentEval::gate); when Tests must pass to publish is on, a new version of the draft needs them passed. Not an older version or an unchanged draft published again: a way back stays open
-	$gate = \util\AgentEval::gate($wf);
-	$blocked = \util\AgentEval::blocks($gate, $source, $reuse);
+	//the tests of the draft (util\agent\TestRuns::gate); when Tests must pass to publish is on, a new version of the draft needs them passed. Not an older version or an unchanged draft published again: a way back stays open
+	$gate = \util\agent\TestRuns::gate($wf);
+	$blocked = \util\agent\TestRuns::blocks($gate, $source, $reuse);
 	//shared, and this changes its inputs or outputs: the workflows of other projects that call it (the dialog says)
 	$callers = [];
 	if (!empty((array)$wf->shares) && $active && self::callContractOf($check->nodes) != self::callContractOf($active->nodes))

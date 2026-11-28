@@ -240,7 +240,7 @@ class AuditLog extends \sys\BaseModel {
     }
 
     //$value with what looks like a secret removed: the values of keys that name one (numbers and yes / no are kept: max_tokens), and secrets inside texts; texts longer than
-    //$maxValue shortened (util\AgentTracer cuts them itself, the full length noted)
+    //$maxValue shortened (util\agent\Tracer cuts them itself, the full length noted)
     public static function withoutSecrets($value, $key = '', $maxValue = self::MAX_VALUE) {
 	if (is_array($value)) {
 	    $out = [];

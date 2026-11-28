@@ -34,7 +34,7 @@ class NodeAppPmHosts extends NodeAppPatchMon {
 	'integrations' => 'Get its integrations',
 	'delete' => 'Delete a host',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'delete' ];
     const LISTS = [ 'list' ];
     const STATES = [

@@ -20,7 +20,7 @@ class NodeAppSynoApi extends NodeAppSynology {
     public static $defaultVariable = 'nas';
 
     const OPERATIONS = [ 'request' => 'Call an API', 'apis' => 'List the NAS\'s APIs' ];
-    //the operations that change something (any call); the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something (any call); the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'request' ];
     const LISTS = [ 'apis' ];
 

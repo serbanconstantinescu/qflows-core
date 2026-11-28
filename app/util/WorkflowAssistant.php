@@ -24,7 +24,7 @@
 	what was built so far is returned, `stopped` says why.
 
     ask() = { reply, nodes (the designer's data; null when the canvas was not changed), problems (Workflow::validateFlow of the new steps), to_fix, rounds, usage, cost, stopped };
-	\ErrorException on failure. complete(): one question without tools or the Assistant's prompts (the judge of a test: util\AgentEval).
+	\ErrorException on failure. complete(): one question without tools or the Assistant's prompts (the judge of a test: util\agent\TestRuns).
 */
 
 namespace util;
@@ -189,7 +189,7 @@ class WorkflowAssistant {
 	    + (int)($usage['cache_read_input_tokens'] ?? 0) * $cacheRead + (int)($usage['cache_creation_input_tokens'] ?? 0) * $in * \util\AiPrices::CACHE_WRITE) / 1000000;
     }
 
-    //one question without tools or the Assistant's prompts (the judge of a test: util\AgentEval): the answer's text. cost, usage, credits: of this call. \ErrorException when it fails
+    //one question without tools or the Assistant's prompts (the judge of a test: util\agent\TestRuns): the answer's text. cost, usage, credits: of this call. \ErrorException when it fails
     public function complete($system, $prompt) {
 	$this->usage = [ 'input_tokens' => 0, 'output_tokens' => 0, 'cache_read_input_tokens' => 0, 'cache_creation_input_tokens' => 0 ];
 	$this->cost = 0.0;

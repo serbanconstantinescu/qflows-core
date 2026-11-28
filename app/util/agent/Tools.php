@@ -23,9 +23,11 @@
 	`<family>Credential` = NO_CREDENTIAL ("Used")
 */
 
-namespace util;
+namespace util\agent;
 
-class AgentTools {
+use util\JSON;
+
+class Tools {
     //the families: key => [ label, prefix (of the tools' names), capability (the credential's: the steps' own when null), base (the registered steps extending it) or steps (these
     //classes), alt: the steps are alternatives - one per type of credential (Database: the credential's type picks the step; the tools are named without the step) ]
     const FAMILIES = [
@@ -340,7 +342,7 @@ class AgentTools {
 		'default' => [],
 		'ui' => [ 'tools' => $project + [ 'role' => 'chosen' ] ],
 	    ],
-	    //MCP servers, Tool servers: they have no choice per tool (util\AgentGuard::govern)
+	    //MCP servers, Tool servers: they have no choice per tool (util\agent\Guard::govern)
 	    [
 		'key' => self::TOOLS_APPROVAL,
 		'type' => 'select',
@@ -479,7 +481,7 @@ class AgentTools {
 		$ask = match((string)$ai->cfg("{$key}ApprovalMode", 'writes')) { 'all' => true, 'none' => false, 'chosen' => in_array($name, array_map('strval', (array)$ai->cfg("{$key}Approval", [])), true),
 		    default => $o['writes'] };
 		[ $schema, $reason ] = $ask ? self::withReason($schema) : [ $schema, null ];
-		//kind, family, writes, askMeta (util\AgentGuard: the account's policy, the limits, approval when the policy or a lockdown asks for it)
+		//kind, family, writes, askMeta (util\agent\Guard: the account's policy, the limits, approval when the policy or a lockdown asks for it)
 		$meta = [ 'what' => trim(preg_replace('/\s*\([^)]*\)\s*$/', '', (string)$class::OPERATIONS[$o['op']])), 'on' => $cred ? "{$fam['label']} {$cred->name}" : $fam['label'],
 		    'label' => $o['label'], 'main' => array_keys(array_filter($fields, fn($f) => $f['required'])) ];
 		$tools[$name] = [ 'name' => $name, 'kind' => 'integration', 'family' => $key, 'writes' => (bool)$o['writes'], 'askMeta' => $meta,

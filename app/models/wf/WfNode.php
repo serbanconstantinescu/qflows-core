@@ -177,7 +177,7 @@ class WfNode extends \sys\NestedModel {
 	if ($this->exec && !\util\Tiers::allows($this->exec->aid, $this->getObjectName()))
 	    throw new \ErrorException(static::$label . ': ' . \util\Tiers::featureMessage($this->exec->aid, \V::app()->om->registry[$this->getObjectName()]['feature']));
 
-	//a test case: only what has no effect outside the run runs (util\AgentEvalContext); an execution of a test that lost its context (loaded again by something) does not go on at all
+	//a test case: only what has no effect outside the run runs (util\agent\EvalContext); an execution of a test that lost its context (loaded again by something) does not go on at all
 	if ($this->exec && $this->exec->isTest()) {
 	    if (!$this->exec->__test)
 		throw new \ErrorException('a test case cannot go on outside its test run');

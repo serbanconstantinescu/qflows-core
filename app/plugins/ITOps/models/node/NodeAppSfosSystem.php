@@ -24,7 +24,7 @@ class NodeAppSfosSystem extends NodeAppSophos {
 	'zones' => 'List zones',
 	'gateways' => 'List gateways',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [];
     const LISTS = [ 'interfaces', 'zones', 'gateways' ];
 

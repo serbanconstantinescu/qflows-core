@@ -11,9 +11,13 @@
 	A table needs a text column `fact` and, unless everyone shares the memories, a text column `scope`; when it has them, also `conversation` and `source` (text) are filled
 */
 
-namespace util;
+namespace util\agent;
 
-class AgentMemory {
+use util\Expression;
+use util\JSON;
+use util\Tiers;
+
+class Memory {
     const SECTION_CONVERSATION = 'Conversation';
     const SECTION_MEMORY = 'Long-term memory';
     const STORES = [ '' => 'None', 'table' => 'A data table', 'knowledge' => 'A knowledge base' ];
@@ -182,7 +186,7 @@ class AgentMemory {
 	    $mem = [ 'kb' => $kb, 'scope' => $scope, 'conv' => $conv, 'timeout' => $timeout ];
 	}
 	return [
-	    self::REMEMBER => [ 'name' => self::REMEMBER, 'kind' => 'memory', 'writes' => true, 'title' => 'Remember', 'ask' => AgentGuard::on($ai->cfg('memoryApproval', false)),
+	    self::REMEMBER => [ 'name' => self::REMEMBER, 'kind' => 'memory', 'writes' => true, 'title' => 'Remember', 'ask' => Guard::on($ai->cfg('memoryApproval', false)),
 		'askMeta' => [ 'what' => 'Remember', 'on' => $on, 'label' => 'Long-term memory', 'main' => [ 'fact' ] ],
 		'description' => 'Saves a fact for later conversations: one short sentence that stands on its own (who, what). Save what will still matter later: not what is only about this message, and never passwords or keys.',
 		'schema' => json_decode(JSON::encode([ 'type' => 'object', 'properties' => [ 'fact' => [ 'type' => 'string', 'description' => 'The fact, at most ' . self::MAX_FACT . ' characters' ] ], 'required' => [ 'fact' ] ])),

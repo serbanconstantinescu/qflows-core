@@ -25,7 +25,7 @@ class NodeAppHyperVHost extends NodeAppHyperV {
 	'replication' => 'List VM replication',
 	'events' => 'List Hyper-V errors and warnings',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [];
     const LISTS = [ 'volumes', 'switches', 'replication', 'events' ];
     const LEVELS = [ 'errors' => 'Errors', 'warnings' => 'Errors and warnings' ];

@@ -33,7 +33,7 @@ class NodeAppGoogleDocs extends NodeAppGoogle {
 	'replace' => 'Replace texts (fill a template)',
 	'copy' => 'Copy a document (a template)',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'create', 'append', 'replace', 'copy' ];
 
     //the operations on an existing document, the ones writing content
@@ -110,7 +110,7 @@ class NodeAppGoogleDocs extends NodeAppGoogle {
 		'label' => 'Placeholders',
 		'default' => '',
 		'help' => 'Optional: {{ ... }} giving an object: each {{key}} in the document gets its value',
-		//agent: as an AI step's tool, an object (util\AgentTools)
+		//agent: as an AI step's tool, an object (util\agent\Tools)
 		'ui' => [ 'width' => 9, 'newRow' => true, 'placeholder' => '{{ row }}', 'expression' => true, 'showIf' => static::operationIn([ 'replace' ]),
 		    'agent' => [ 'type' => 'object', 'help' => 'Optional: each {{key}} in the document gets its value' ] ],
 	    ],

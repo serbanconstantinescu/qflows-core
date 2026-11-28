@@ -3,11 +3,11 @@
 /*
     what the agents (AI steps with tools) of an account may do, one document per account, set by its owners (Account settings > AI: AccountController::settings);
     changes are in the audit log (a saved model). No document: nothing is restricted (the defaults).
-	- denied_families: the integration families no agent may use (util\AgentTools::families())
+	- denied_families: the integration families no agent may use (util\agent\Tools::families())
 	- write_mode: the tools that change something: all, none, or chosen (allowed_writes: the tools by name; @workflows: workflows run as tools; @mcp: tools of MCP servers and tool servers)
 	- writes_need_approval: a tool that changes something always waits for a person's approval
 	- budget: the most the AI steps with the account's own keys may spend per calendar month (USD; estimated from the tokens: models\agent\AgentUsage), at the list prices (data\AiProviders); the System AI uses credits instead
-    Checked on the server: when a step is saved (stepErrors: the message says why) and when it runs (allowsTool: util\AgentGuard::govern, so a policy made after the step was saved holds too).
+    Checked on the server: when a step is saved (stepErrors: the message says why) and when it runs (allowsTool: util\agent\Guard::govern, so a policy made after the step was saved holds too).
     A tool that changes something: an integration operation in the step's WRITES, a workflow run as a tool, a project tool or MCP tool not marked read-only (annotation readOnlyHint)
 */
 
@@ -38,7 +38,7 @@ class AgentPolicy extends \sys\BaseModel {
 		'help' => false,
 		'perm:read' => 'everybody',
 		'perm:update' => 'everybody',
-		'choices' => array_map(fn($f) => $f['label'], \util\AgentTools::families()),
+		'choices' => array_map(fn($f) => $f['label'], \util\agent\Tools::families()),
 		'default' => [],
 	    ],
 	    [
@@ -96,8 +96,8 @@ class AgentPolicy extends \sys\BaseModel {
 	foreach(\util\MCPTools::all() as $t)
 	    if (($t['annotations']['readOnlyHint'] ?? false) !== true)
 		$choices[$t['name']] = 'Project: ' . ($t['title'] ?? $t['name']);
-	foreach(\util\AgentTools::families() as $key => $fam)
-	    foreach(\util\AgentTools::operations($key) as $name => $o)
+	foreach(\util\agent\Tools::families() as $key => $fam)
+	    foreach(\util\agent\Tools::operations($key) as $name => $o)
 		if ($o['writes'])
 		    $choices[$name] = $fam['label'] . ': ' . $o['short'];
 	return $choices;
@@ -147,15 +147,15 @@ class AgentPolicy extends \sys\BaseModel {
 	$policy = self::ofAccount($wf->aid);
 	$why = 'by the account\'s AI policy (Account settings > AI)';
 	$errors = [];
-	foreach(\util\AgentTools::families() as $key => $fam) {
+	foreach(\util\agent\Tools::families() as $key => $fam) {
 	    if ((string)$step->cfg("{$key}Credential", '') === '')
 		continue;
 	    if (!$policy->familyAllowed($key)) {
 		$errors[] = "{$fam['label']}: agents may not use this integration, {$why}";
 		continue;
 	    }
-	    $ops = \util\AgentTools::operations($key);
-	    $offered = array_map('strval', (array)($step->cfg("{$key}Tools", null) ?? \util\AgentTools::readTools($key)));
+	    $ops = \util\agent\Tools::operations($key);
+	    $offered = array_map('strval', (array)($step->cfg("{$key}Tools", null) ?? \util\agent\Tools::readTools($key)));
 	    $writes = array_values(array_filter($offered, fn($name) => !empty($ops[$name]['writes'])));
 	    foreach($writes as $name) {
 		if (!$policy->writeAllowed($name, 'integration')) {
@@ -181,17 +181,17 @@ class AgentPolicy extends \sys\BaseModel {
 	    }
 	}
 	if ($policy->needsApproval() && $projectWrites) {
-	    $mode = (string)$step->cfg(\util\AgentTools::PROJECT_APPROVAL_MODE, 'writes');
-	    if ($mode === 'none' || ($mode === 'chosen' && array_diff($projectWrites, array_map('strval', (array)$step->cfg(\util\AgentTools::PROJECT_APPROVAL, [])))))
+	    $mode = (string)$step->cfg(\util\agent\Tools::PROJECT_APPROVAL_MODE, 'writes');
+	    if ($mode === 'none' || ($mode === 'chosen' && array_diff($projectWrites, array_map('strval', (array)$step->cfg(\util\agent\Tools::PROJECT_APPROVAL, [])))))
 		$errors[] = "Project tools: ask for approval must cover those that change something: they always need approval, {$why}";
 	}
-	if ($policy->needsApproval() && ($step->cfg('mcp', []) || $step->cfg('servers', [])) && (string)$step->cfg(\util\AgentTools::TOOLS_APPROVAL, 'writes') === 'none')
+	if ($policy->needsApproval() && ($step->cfg('mcp', []) || $step->cfg('servers', [])) && (string)$step->cfg(\util\agent\Tools::TOOLS_APPROVAL, 'writes') === 'none')
 	    $errors[] = "MCP and tool servers: ask for approval: those that change something always need approval, {$why}";
-	$workflows = array_map('strval', (array)$step->cfg(\util\AgentTools::WORKFLOWS, []));
+	$workflows = array_map('strval', (array)$step->cfg(\util\agent\Tools::WORKFLOWS, []));
 	if ($workflows) {
 	    if (!$policy->writeAllowed('', 'workflow'))
 		$errors[] = "Workflows: agents may not run workflows as tools, {$why}";
-	    elseif ($policy->needsApproval() && array_diff($workflows, array_map('strval', (array)$step->cfg(\util\AgentTools::WORKFLOWS_APPROVAL, []))))
+	    elseif ($policy->needsApproval() && array_diff($workflows, array_map('strval', (array)$step->cfg(\util\agent\Tools::WORKFLOWS_APPROVAL, []))))
 		$errors[] = "Workflows that ask for approval: all of Workflows must ask: they always need approval, {$why}";
 	}
 	return $errors;

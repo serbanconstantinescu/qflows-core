@@ -8,7 +8,7 @@
 	                  their structure: create_table, update_table (rename), add_column, update_column, delete_column (the column designer's rules: models\datatable\FieldForm)
 	workflows         list_workflows, run_workflow (Manual trigger; the published version, else the draft), get_execution (its result);
 	                  building them (drafts; people publish): list_step_types, get_workflow, create_workflow, update_workflow (util\WorkflowSpec)
-	tests             run_tests, get_test_run (util\AgentEval; over the MCP server only: NOT_FOR_MODELS)
+	tests             run_tests, get_test_run (util\agent\TestRuns; over the MCP server only: NOT_FOR_MODELS)
 	files             list_files, read_file (text), read_image
 	variables         list_variables (the project's)
 	knowledge bases   list_knowledge_bases, query_knowledge_base (models\kb\KnowledgeBase::search: by meaning and by words; KnowledgeBase::read).
@@ -236,7 +236,7 @@ class McpServerTools {
 		    'limit' => [ 'type' => 'integer', 'minimum' => 1, 'maximum' => self::MAX_PASSAGES, 'default' => 5, 'description' => 'How many passages' ],
 		    'filter' => [ 'type' => 'object', 'description' => 'Optional: { meta name: value or a list of values } the passages must have, e.g. {"category": "hr"}' ],
 		], 'required' => [ 'knowledge_base', 'query' ] ], 'annotations' => $ro ],
-	    //a workflow's tests (util\AgentEval)
+	    //a workflow's tests (util\agent\TestRuns)
 	    [ 'name' => 'run_tests', 'title' => 'Run a workflow\'s tests',
 		'description' => 'Runs all the test cases of a workflow on its saved draft, in the background, and waits for them: no step or tool that changes something runs, but the models are called (tokens are spent). Returns the run id, its state (passed, failed, stopped, error; queued, running: it takes longer than the request allows, see get_test_run), the totals and per case its result, answer and checks. One already running: that one.',
 		'inputSchema' => [ 'type' => 'object', 'properties' => [
@@ -281,7 +281,7 @@ class McpServerTools {
 
     //test run $run as the tools give it
     private static function testRun(array $run) {
-	return \util\AgentEval::summary($run) + [ 'cases' => array_values(array_map(fn($c) => array_intersect_key($c, array_flip([ 'name', 'state', 'error', 'answer', 'tokens', 'cost', 'checks', 'notes', 'execution' ])), (array)($run['cases'] ?? []))) ];
+	return \util\agent\TestRuns::summary($run) + [ 'cases' => array_values(array_map(fn($c) => array_intersect_key($c, array_flip([ 'name', 'state', 'error', 'answer', 'tokens', 'cost', 'checks', 'notes', 'execution' ])), (array)($run['cases'] ?? []))) ];
     }
 
     //runs tool $name with $args on project $project as the current user; $asUser = false: for the AI steps (a workflow's own step: no web user; the workflow
@@ -549,7 +549,7 @@ class McpServerTools {
 		$wf = self::findIn('Workflow', $args['workflow'] ?? '', $project, 'workflow');
 		if (!self::allowed($asUser, 'Workflow::update', $wf))
 		    throw new \ErrorException('you may not run this workflow\'s tests');
-		[ $run, $new ] = \util\AgentEval::start($wf, $user ? (string)$user->name . ' (MCP)' : 'MCP');
+		[ $run, $new ] = \util\agent\TestRuns::start($wf, $user ? (string)$user->name . ' (MCP)' : 'MCP');
 		if ($new && $asUser)
 		    \models\AuditLog::record('workflow.test.run', $wf, 'test run ' . (string)$run['_id'] . ' (MCP)');
 		$until = microtime(true) + \models\wf\WfExecution::WAIT_RESULT;
@@ -569,7 +569,7 @@ class McpServerTools {
 		$run = \models\wf\WfTestRun::read($id, $wf);
 		if (!$run)
 		    throw new \ErrorException($id === '' ? 'this workflow has no test runs' : "no test run `{$id}` of this workflow");
-		return self::testRun($run) + [ 'changes' => \util\AgentEval::diff($run, \models\wf\WfTestRun::previous($run)) ];
+		return self::testRun($run) + [ 'changes' => \util\agent\TestRuns::diff($run, \models\wf\WfTestRun::previous($run)) ];
 
 	    case 'get_execution':
 		$id = (string)($args['id'] ?? '');

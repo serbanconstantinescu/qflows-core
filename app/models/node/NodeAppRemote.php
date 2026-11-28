@@ -6,7 +6,7 @@
 	- the settings: credential, operation (static::OPERATIONS), the operation's own (operationFields(): each shown for its operations), timeout, result variable, on error
 	- execute(): runOperation() (the subclass); the result in the variable, logged as "<label> <operation>: <summary> (<n> ms)"; a \RuntimeException (no connection, a
 	  refused sign-in, the script's error) follows On error; other errors fail the step
-	- an AI step's tools (util\AgentTools families `ssh`, `windows`): WRITES are the operations that change something (run a script, a service started / stopped / restarted),
+	- an AI step's tools (util\agent\Tools families `ssh`, `windows`): WRITES are the operations that change something (run a script, a service started / stopped / restarted),
 	  asked for approval by default; the others only read
 */
 

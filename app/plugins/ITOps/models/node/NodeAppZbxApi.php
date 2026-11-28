@@ -17,7 +17,7 @@ class NodeAppZbxApi extends NodeAppZabbix {
     public static $defaultVariable = 'zbx';
 
     const OPERATIONS = [ 'call' => 'Call a method' ];
-    //the operations that change something (any request); the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something (any request); the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'call' ];
 
     protected static function operationFields() {

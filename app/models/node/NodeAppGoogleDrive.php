@@ -40,7 +40,7 @@ class NodeAppGoogleDrive extends NodeAppGoogle {
 	'share' => 'Share a file',
 	'delete' => 'Delete a file',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'download', 'upload', 'createFolder', 'move', 'share', 'delete' ];
 
     //the operations working on one existing file (fileId)

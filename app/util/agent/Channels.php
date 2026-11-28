@@ -4,12 +4,16 @@
     where an agent's answers go when the conversation is not on a chat page: an email (threaded: In-Reply-To, References, its address to reply to), a Teams chat or Slack
     (CLD: 2026-11-25T14:00:00+02:00: a direct message or a thread, as the trigger's app).
     The chat pages read the messages themselves (models\agent\AgentConversation).
-    AgentChannels::$sink: the check suite takes what would be sent (fn(kind, data) => what the call answers), so nothing leaves and no job reaches a running daemon
+    Channels::$sink: the check suite takes what would be sent (fn(kind, data) => what the call answers), so nothing leaves and no job reaches a running daemon
 */
 
-namespace util;
+namespace util\agent;
 
-class AgentChannels {
+use util\Http;
+use util\Markdown;
+use util\Slack;
+
+class Channels {
     public static $sink = null;
     //the check suite: what Graph answers, by path
     public static $fake = [];

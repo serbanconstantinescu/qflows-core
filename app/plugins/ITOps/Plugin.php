@@ -29,7 +29,7 @@
     the endpoints of the push triggers (controllers/, ENDPOINTS): /gravityzone/<token> -> GravityzoneController::receive, /fortigate/<token> -> FortigateController::receive,
 	/synology/<token> -> SynologyController::receive; callers are not users: no session; their refusals in the execution log (gravityzone.refused, fortigate.refused,
 	synology.refused)
-    the steps as the tools of AI steps (the core's util\AgentTools, hook agent:families): one family per product, named as the product (PRODUCTS' family: the prefix of the tools'
+    the steps as the tools of AI steps (the core's util\agent\Tools, hook agent:families): one family per product, named as the product (PRODUCTS' family: the prefix of the tools'
 	names); the core's agent suites (agenttools, agentapproval, agentguard, agenttrace) use the GravityZone and FortiGate ones
     its checks in the core's check suite (hook check:suites, outside the web): checks.php, one suite per product (hyperV: hyperv) against its fake server in tests/
 */

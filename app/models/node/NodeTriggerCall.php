@@ -53,7 +53,7 @@ class NodeTriggerCall extends \models\wf\WfNode {
 		],
 		'ui' => [ 'addLabel' => 'Add output', 'compact' => true, 'maxRows' => 50 ],
 	    ],
-	    //what the workflow does, for the AI steps that may use it as a tool (util\AgentTools: the tool's description)
+	    //what the workflow does, for the AI steps that may use it as a tool (util\agent\Tools: the tool's description)
 	    [
 		'key' => 'agentDescription',
 		'type' => 'textarea',

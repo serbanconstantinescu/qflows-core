@@ -33,7 +33,7 @@ class NodeAppSynoSystem extends NodeAppSynology {
 	'reboot' => 'Restart the NAS',
 	'shutdown' => 'Shut the NAS down',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'startPackage', 'stopPackage', 'reboot', 'shutdown' ];
     const LISTS = [ 'packages', 'connections' ];
 

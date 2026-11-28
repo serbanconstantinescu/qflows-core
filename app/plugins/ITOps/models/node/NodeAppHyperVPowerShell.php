@@ -17,7 +17,7 @@ class NodeAppHyperVPowerShell extends NodeAppHyperV {
     public static $defaultVariable = 'result';
 
     const OPERATIONS = [ 'run' => 'Run a script' ];
-    //the operations that change something (any script); the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something (any script); the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'run' ];
 
     protected static function operationFields() {

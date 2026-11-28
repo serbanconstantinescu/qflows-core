@@ -24,7 +24,7 @@ class NodeAppSfosWeb extends NodeAppSophos {
 	'groups' => 'List URL groups',
 	'get' => 'Get a URL group',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'block', 'unblock' ];
     const LISTS = [ 'groups' ];
     const MAX_DOMAINS = 500;

@@ -1,7 +1,7 @@
 <?php
 
 /*
-    a step whose operations an AI step may use as tools (util\AgentTools). Used by the bases of the integration steps (GravityZone, FortiGate,
+    a step whose operations an AI step may use as tools (util\agent\Tools). Used by the bases of the integration steps (GravityZone, FortiGate,
     Sophos, Veeam, VMware, Proxmox, Hyper-V, Checkmk, Zabbix, Microsoft, Google, Database): the step runs as it does in a workflow (its execute(): the same code, log lines and
     errors), with two differences while it is a tool ($toolCall):
 	- the settings are the model's arguments, taken as they are: never {{ }} expressions (settingValue(), varsForSettings())
@@ -12,7 +12,7 @@
 namespace models\node;
 
 trait AgentToolTrait {
-    //set by util\AgentTools: the step runs as an AI step's tool
+    //set by util\agent\Tools: the step runs as an AI step's tool
     public $toolCall = false;
     //the operation's result, after a tool call
     public $toolResult = null;

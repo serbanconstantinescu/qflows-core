@@ -44,7 +44,7 @@ class NodeAppSynoFiles extends NodeAppSynology {
 	'extract' => 'Extract an archive',
 	'shareLink' => 'Create a sharing link',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'download', 'upload', 'createFolder', 'rename', 'copy', 'move', 'delete', 'compress', 'extract', 'shareLink' ];
     const LISTS = [ 'shares', 'list', 'get', 'search' ];
     const TYPES = [ 'all' => 'Files and folders', 'file' => 'Files', 'dir' => 'Folders' ];

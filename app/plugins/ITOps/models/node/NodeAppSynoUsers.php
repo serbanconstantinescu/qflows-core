@@ -39,7 +39,7 @@ class NodeAppSynoUsers extends NodeAppSynology {
 	'addToGroup' => 'Add users to a group',
 	'removeFromGroup' => 'Remove users from a group',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'create', 'update', 'disable', 'enable', 'delete', 'addToGroup', 'removeFromGroup' ];
     const LISTS = [ 'list', 'groups', 'members' ];
     const ADDITIONAL = [ 'email', 'description', 'expired' ];

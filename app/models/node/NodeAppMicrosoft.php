@@ -17,7 +17,7 @@
 namespace models\node;
 
 abstract class NodeAppMicrosoft extends \models\wf\WfNode {
-    //its operations can be an AI step's tools (util\AgentTools: settingValue, setResult)
+    //its operations can be an AI step's tools (util\agent\Tools: settingValue, setResult)
     use AgentToolTrait;
 
     //static data/structure

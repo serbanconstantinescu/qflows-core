@@ -17,7 +17,7 @@ class NodeAppProxmoxApi extends NodeAppProxmox {
     public static $defaultVariable = 'proxmox';
 
     const OPERATIONS = [ 'request' => 'Send a request' ];
-    //the operations that change something (any request); the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something (any request); the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'request' ];
     const METHODS = [ 'GET' => 'GET', 'POST' => 'POST', 'PUT' => 'PUT', 'DELETE' => 'DELETE' ];
 

@@ -28,7 +28,7 @@ class NodeAppProxmoxBackups extends NodeAppProxmox {
 	'jobs' => 'List backup jobs',
 	'delete' => 'Delete a backup',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'backup', 'delete' ];
     const LISTS = [ 'list', 'jobs' ];
     const MODES = [ 'snapshot' => 'Snapshot (no downtime)', 'suspend' => 'Suspend', 'stop' => 'Stop' ];

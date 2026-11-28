@@ -25,7 +25,7 @@ class NodeAppPmPackages extends NodeAppPatchMon {
 	'reports' => 'List its package reports',
 	'queue' => 'Get its agent queue',
     ];
-    //the operations that change something: none (an AI step's tools: all ticked by default, util\AgentTools)
+    //the operations that change something: none (an AI step's tools: all ticked by default, util\agent\Tools)
     const WRITES = [];
     const LISTS = [ 'packages', 'reports' ];
     const WHICH = [ 'updates' => 'With an update', 'security' => 'Security updates', 'all' => 'All installed' ];

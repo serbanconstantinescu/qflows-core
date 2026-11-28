@@ -40,7 +40,7 @@ class NodeAppGmail extends NodeAppGoogle {
 	'trash' => 'Move a message to the trash',
 	'labels' => 'List the labels',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'send', 'draft', 'modify', 'trash' ];
 
     //the operations composing a message, the ones on an existing message

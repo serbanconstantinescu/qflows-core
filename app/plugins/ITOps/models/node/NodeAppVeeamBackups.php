@@ -21,7 +21,7 @@ class NodeAppVeeamBackups extends NodeAppVeeam {
 	'points' => 'List restore points',
 	'latest' => 'Check a machine\'s latest restore point',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [];
     const LISTS = [ 'backups', 'points' ];
 

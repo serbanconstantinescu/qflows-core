@@ -39,7 +39,7 @@ class NodeAppOutlookMail extends NodeAppMicrosoft {
 	'delete' => 'Delete a message',
 	'folders' => 'List the folders',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'send', 'draft', 'modify', 'delete' ];
 
     //the operations composing a message, the ones on an existing message

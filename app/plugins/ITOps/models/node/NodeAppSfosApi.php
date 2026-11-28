@@ -17,7 +17,7 @@ class NodeAppSfosApi extends NodeAppSophos {
     public static $defaultVariable = 'sfos';
 
     const OPERATIONS = [ 'request' => 'Send a request' ];
-    //the operations that change something (any request); the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something (any request); the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'request' ];
 
     protected static function operationFields() {

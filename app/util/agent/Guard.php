@@ -3,7 +3,7 @@
 /*
     what keeps an AI step's agent in bounds during one run (models\node\NodeAppAi: run, loop). Everything here is checked on the server, whatever the dialog shows.
 	Limits (the step's section Guardrails; empty: none): Most tool calls and Most write calls per run, Cost limit (USD estimated from the tokens with the account's own keys, credits on the System
-	    AI). A call past a limit is not run; the agent stops (AgentLimitReached), its variable keeps what it did. The account's monthly budget stops it the same way (models\agent\AgentUsage).
+	    AI). A call past a limit is not run; the agent stops (LimitReached), its variable keeps what it did. The account's monthly budget stops it the same way (models\agent\AgentUsage).
 	The account's policy (models\agent\AgentPolicy): govern() takes the tools it does not allow out of the run, and makes those that must ask ask.
 	Untrusted content: wrap() puts text from outside between marks with a random name per run (a text cannot close a block it cannot name; the name in a text is removed), the system prompt
 	    says what they mean (systemPrompt()). Wrapped: tool results (result()), files sent with the prompt (files()), values of {{ }} in the prompts (render(): text from the workflow's
@@ -13,9 +13,15 @@
     A run that waits for an approval goes on with save() (saved with its conversation): the counters, the cost, the marks' name, the masked values.
 */
 
-namespace util;
+namespace util\agent;
 
-class AgentGuard {
+use util\AiPrices;
+use util\Expression;
+use util\JSON;
+use util\PersonalData;
+use util\Validator;
+
+class Guard {
     const SECTION = 'Guardrails';
     const LIMIT_TOOLS = 'tool_calls';
     const LIMIT_WRITES = 'write_calls';
@@ -70,7 +76,7 @@ class AgentGuard {
 	    'mask' => $this->mask ? $this->mask->save() : null ];
     }
 
-    //for the trace (util\AgentTracer): on the System AI, the prices used [ input, output, cache read ] (null: not known), a call's estimated cost (USD; null: not known, or credits)
+    //for the trace (util\agent\Tracer): on the System AI, the prices used [ input, output, cache read ] (null: not known), a call's estimated cost (USD; null: not known, or credits)
     public function onSystem() {
 	return $this->system;
     }
@@ -106,7 +112,7 @@ class AgentGuard {
 	return (int)$v > 0 ? (int)$v : null;
     }
 
-    //public (util\AgentMemory)
+    //public (util\agent\Memory)
     public static function on($v) {
 	return !empty($v) && (string)$v !== '0' && $v !== 'false';
     }
@@ -301,7 +307,7 @@ class AgentGuard {
 	    $this->access[$name] = $t['writes'] ? 'write' : 'read';
 	    //CLD: 2026-11-28T12:00:00+02:00: `ask`: the tool's own setting (the project's tools: Project tools: ask for approval; Remember asks for approval), a read one too; the MCP
 	    //and tool servers' tools that change something ask by default (MCP and tool servers: ask for approval); the policy: every one that changes something
-	    $must = !empty($t['ask']) || ($t['writes'] && ($this->policy->needsApproval() || (($t['kind'] ?? '') === 'mcp' && (string)$this->step->cfg(AgentTools::TOOLS_APPROVAL, 'writes') !== 'none')));
+	    $must = !empty($t['ask']) || ($t['writes'] && ($this->policy->needsApproval() || (($t['kind'] ?? '') === 'mcp' && (string)$this->step->cfg(Tools::TOOLS_APPROVAL, 'writes') !== 'none')));
 	    if (empty($t['approval']) && ($must || ($t['writes'] && $lockdown))) {
 		$t = self::askable($t);
 		if ($must)
@@ -321,14 +327,14 @@ class AgentGuard {
 	if (!is_object($schema))
 	    $schema = (object)[ 'type' => 'object' ];
 	$props = is_object($schema->properties ?? null) ? $schema->properties : (object)[];
-	$reason = isset($props->{AgentTools::REASON}) ? 'approval_' . AgentTools::REASON : AgentTools::REASON;
-	$props->$reason = (object)[ 'type' => 'string', 'description' => AgentTools::REASON_DESCRIPTION ];
+	$reason = isset($props->{Tools::REASON}) ? 'approval_' . Tools::REASON : Tools::REASON;
+	$props->$reason = (object)[ 'type' => 'string', 'description' => Tools::REASON_DESCRIPTION ];
 	$schema->properties = $props;
 	$run = $t['run'];
 	$check = $t['check'] ?? null;
 	$t['schema'] = $schema;
-	$t['run'] = fn(array $args) => $run(AgentTools::withoutReason($args, $reason));
-	$t['check'] = fn(array $args) => $check ? $check(AgentTools::withoutReason($args, $reason)) : null;
+	$t['run'] = fn(array $args) => $run(Tools::withoutReason($args, $reason));
+	$t['check'] = fn(array $args) => $check ? $check(Tools::withoutReason($args, $reason)) : null;
 	$t['lockdown'] = ($t['askMeta'] ?? [ 'what' => (string)($t['title'] ?? $t['name']), 'on' => '', 'label' => (string)$t['name'], 'main' => array_map('strval', (array)($schema->required ?? [])) ]) + [ 'reason' => $reason ];
 	return $t;
     }
@@ -338,12 +344,12 @@ class AgentGuard {
 	return !empty($t['approval']) ? $t['approval'] : ($this->tainted && !empty($t['lockdown']) ? $t['lockdown'] : null);
     }
 
-    //a call of tool $t is about to run or ask: counted; past a limit: an AgentLimitReached (not thrown, the step ends the round first), else null
+    //a call of tool $t is about to run or ask: counted; past a limit: an LimitReached (not thrown, the step ends the round first), else null
     public function takeCall(array $t) {
 	if ($this->maxTools !== null && $this->tools >= $this->maxTools)
-	    return new AgentLimitReached(self::LIMIT_TOOLS, "the agent was stopped: it reached the limit of {$this->maxTools} tool call(s) per run (Most tool calls per run)");
+	    return new LimitReached(self::LIMIT_TOOLS, "the agent was stopped: it reached the limit of {$this->maxTools} tool call(s) per run (Most tool calls per run)");
 	if (!empty($t['writes']) && $this->maxWrites !== null && $this->writes >= $this->maxWrites)
-	    return new AgentLimitReached(self::LIMIT_WRITES, "the agent was stopped: it reached the limit of {$this->maxWrites} write call(s) per run (Most write calls per run)");
+	    return new LimitReached(self::LIMIT_WRITES, "the agent was stopped: it reached the limit of {$this->maxWrites} write call(s) per run (Most write calls per run)");
 	$this->tools++;
 	if (!empty($t['writes']))
 	    $this->writes++;
@@ -365,7 +371,7 @@ class AgentGuard {
 	if ($budget !== null && $this->prices && ($this->prices[0] > 0 || $this->prices[1] > 0)) {
 	    $spent = \models\agent\AgentUsage::spent($this->aid);
 	    if ($spent >= $budget)
-		throw new AgentLimitReached(self::LIMIT_BUDGET, "the agent was stopped: the account's monthly AI budget of {$budget} USD is used up (about " . round($spent, 2) . ' USD this month; Account settings > AI)');
+		throw new LimitReached(self::LIMIT_BUDGET, "the agent was stopped: the account's monthly AI budget of {$budget} USD is used up (about " . round($spent, 2) . ' USD this month; Account settings > AI)');
 	}
     }
 
@@ -375,7 +381,7 @@ class AgentGuard {
 	    if (method_exists($session, 'used'))
 		$this->credits = $this->creditsBefore + (float)$session->used();
 	    elseif ($this->maxCost !== null)
-		throw new AgentLimitReached(self::LIMIT_COST, 'the agent was stopped: this installation\'s System AI does not report the credits used, so the Cost limit per run cannot be kept');
+		throw new LimitReached(self::LIMIT_COST, 'the agent was stopped: this installation\'s System AI does not report the credits used, so the Cost limit per run cannot be kept');
 	    return;
 	}
 	if (!$this->prices)
@@ -392,9 +398,9 @@ class AgentGuard {
 	    return;
 	if ($this->system) {
 	    if ($this->credits >= $this->maxCost)
-		throw new AgentLimitReached(self::LIMIT_COST, "the agent was stopped: it reached the cost limit of {$this->maxCost} credit(s) per run (about " . round($this->credits, 2) . ' used; Cost limit per run)');
+		throw new LimitReached(self::LIMIT_COST, "the agent was stopped: it reached the cost limit of {$this->maxCost} credit(s) per run (about " . round($this->credits, 2) . ' used; Cost limit per run)');
 	} elseif ($this->prices && $this->cost >= $this->maxCost) {
-	    throw new AgentLimitReached(self::LIMIT_COST, "the agent was stopped: it reached the cost limit of {$this->maxCost} USD per run (about " . round($this->cost, 4) . ' USD, estimated from the tokens; Cost limit per run)');
+	    throw new LimitReached(self::LIMIT_COST, "the agent was stopped: it reached the cost limit of {$this->maxCost} USD per run (about " . round($this->cost, 4) . ' USD, estimated from the tokens; Cost limit per run)');
 	}
     }
 

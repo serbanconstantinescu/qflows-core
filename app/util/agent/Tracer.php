@@ -9,9 +9,9 @@
 	Long texts are cut, with their full length noted (<field>_length). Past MAX_TOTAL for a visit, each text only SMALL: a document stays well under MongoDB's 16 MB
 */
 
-namespace util;
+namespace util\agent;
 
-class AgentTracer {
+class Tracer {
     //characters kept: the model's text, a tool's result, a call's arguments
     const MAX_TEXT = 20000;
     const MAX_RESULT = 8000;

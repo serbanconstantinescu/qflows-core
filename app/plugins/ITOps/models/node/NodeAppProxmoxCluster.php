@@ -29,7 +29,7 @@ class NodeAppProxmoxCluster extends NodeAppProxmox {
 	'pools' => 'List pools',
 	'version' => 'Get the version',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [];
     const LISTS = [ 'nodes', 'storage', 'tasks', 'pools' ];
 

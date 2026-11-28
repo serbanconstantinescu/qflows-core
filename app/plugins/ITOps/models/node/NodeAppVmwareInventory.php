@@ -32,7 +32,7 @@ class NodeAppVmwareInventory extends NodeAppVmware {
 	'exitMaintenance' => 'Exit maintenance mode (host)',
 	'version' => 'Get vCenter\'s version',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'enterMaintenance', 'exitMaintenance' ];
     const LISTS = [ 'hosts', 'clusters', 'datacenters', 'datastores', 'networks', 'folders', 'resourcePools' ];
     //the REST collection of each list, and what an item is

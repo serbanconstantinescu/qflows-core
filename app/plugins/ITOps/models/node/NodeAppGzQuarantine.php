@@ -25,7 +25,7 @@ class NodeAppGzQuarantine extends NodeAppGravityZone {
 	'empty' => 'Empty the quarantine',
 	'add' => 'Quarantine a file',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'restore', 'remove', 'empty', 'add' ];
     const LISTS = [ 'list' ];
     const AREA = 'quarantine/computers';

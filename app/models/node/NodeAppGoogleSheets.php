@@ -40,7 +40,7 @@ class NodeAppGoogleSheets extends NodeAppGoogle {
 	'create' => 'Create a spreadsheet',
 	'addSheet' => 'Add a sheet',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'append', 'update', 'clear', 'create', 'addSheet' ];
 
     //the operations on the cells of a sheet (sheet, range)

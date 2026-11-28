@@ -19,11 +19,11 @@
 		administrator enabled for the account (hook ai:mcp-servers, localServers()); one session each per run, closed after it
 	    the tool servers are core (util\ToolServers: mcp.json, e.g. the web browser of scripts/playwright-mcp.sh), those enabled for the
 	//account by its owners or the super-admins
-	//qflows's own steps and workflows (util\AgentTools): a credential per integration family (`<family>Credential`: GravityZone,
+	//qflows's own steps and workflows (util\agent\Tools): a credential per integration family (`<family>Credential`: GravityZone,
 	//FortiGate, ..., a database, Gmail, ...) and the operations the model may use (`<family>Tools`; default: those that only read); Workflows (`workflows`): the project's workflows
 	//that start with Called by a workflow, run as tools
 	//CLD: 2026-11-28T12:00:00+02:00: the designer shows all of them in one Tools picker (app.smartform ToolsField), with each tool's approval
-	//approvals: a tool that asks for approval (util\AgentTools: per operation / workflow) is not run when the model calls it; the calls of that round that
+	//approvals: a tool that asks for approval (util\agent\Tools: per operation / workflow) is not run when the model calls it; the calls of that round that
 	//ask are sent in one task (WfTask kind ai-approval: the approvers, a time limit, Approve / Reject for each, a comment), the conversation and the round saved (saveBlob:
 	//GridFS, nothing in memory: a restart of the daemon loses nothing; node `agentWait`: { task, file }) and the step sleeps. When the task is decided (or its time limit
 	//passes), the step resumes the same conversation: the approved calls run, the others are tool errors ("rejected by Maria Lopez: wrong address", "not approved in time").
@@ -38,9 +38,9 @@
 	The variable (default `ai`): { text, json, model, stop_reason, rounds, tool_calls: [ { tool, arguments, error } ], usage: { input_tokens, output_tokens } }; on error { error }
 	//html: the text as safe HTML (util\Markdown: models answer in Markdown), e.g. for a web page, an HTTP request or an email
 	//({{ ai.html }} formatted: util\EmailHtml)
-    //what keeps the agent in bounds: util\AgentGuard (limits, the account's policy, untrusted content marked, lockdown, masking), each tool call in the audit log
-    //each visit writes its trace (util\AgentTracer, models\agent\AgentTrace; the Executions panel): rounds, tool calls, approvals, tokens, cost; its id in the variable (trace_id)
-    //Continue the conversation: in a run started by a chat message, the earlier turns go to the model (addConversation, addHistory; older ones summarized); remember, recall: util\AgentMemory
+    //what keeps the agent in bounds: util\agent\Guard (limits, the account's policy, untrusted content marked, lockdown, masking), each tool call in the audit log
+    //each visit writes its trace (util\agent\Tracer, models\agent\AgentTrace; the Executions panel): rounds, tool calls, approvals, tokens, cost; its id in the variable (trace_id)
+    //Continue the conversation: in a run started by a chat message, the earlier turns go to the model (addConversation, addHistory; older ones summarized); remember, recall: util\agent\Memory
     //Credential `system` (SYSTEM): the installation's System AI instead of a credential of the project, when it is of the step's provider (a plugin gives
     //it: hook ai:system-provider, systemProvider(); the MultiTenant plugin's System AI). A run reserves the account's credits, counts each call's tokens in credits, stops before a call once the
     //reserved ones are used up, and is charged what it used (its session: start, add, exhausted, finish)
@@ -96,15 +96,15 @@ abstract class NodeAppAi extends \models\wf\WfNode {
     const APPROVAL_KIND = 'ai-approval';
     const MAX_ARGUMENT_SHOWN = 500;
 
-    //the run's util\AgentGuard; what the agent did so far (kept in the variable when a limit stops it)
+    //the run's util\agent\Guard; what the agent did so far (kept in the variable when a limit stops it)
     public $guard = null;
     private $progress = null;
-    //the trace of this visit (util\AgentTracer)
+    //the trace of this visit (util\agent\Tracer)
     public $tracer = null;
     //the tokens of a summary of the conversation (counted in the variable's usage)
     private $summaryUsage = [ 0, 0 ];
 
-    //whether the provider is someone else's servers (util\AgentGuard: Mask personal data)
+    //whether the provider is someone else's servers (util\agent\Guard: Mask personal data)
     public static function isCloud() {
 	return \data\AiProviders::isCloud(static::CAPABILITY);
     }
@@ -223,7 +223,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	return false;
     }
 
-    //a text file part as the text sent: <file name="...">...</file>; `wrapped`: already so, inside its untrusted marks (util\AgentGuard::files)
+    //a text file part as the text sent: <file name="...">...</file>; `wrapped`: already so, inside its untrusted marks (util\agent\Guard::files)
     protected static function fileAsText(array $part) {
 	if (!empty($part['wrapped']))
 	    return $part['text'];
@@ -362,7 +362,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 		'ui' => [ 'rows' => 4, 'showIf' => [ 'key' => 'output', 'operator' => 'eq', 'value' => 'json' ] ],
 	    ],
 	    //CLD: 2026-11-28T12:00:00+02:00: what the model may use - the project's tools, knowledge bases, workflows, integrations, MCP and tool servers - in one Tools picker of the
-	    //designer (`ui.tools`: the source and the field's role; app.smartform ToolsField), the approvals of each there too (util\AgentTools::approvalFields)
+	    //designer (`ui.tools`: the source and the field's role; app.smartform ToolsField), the approvals of each there too (util\agent\Tools::approvalFields)
 	    [
 		'key' => 'tools',
 		//a `select` field with `multiple` and its choices
@@ -385,8 +385,8 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 		'help' => 'The model searches them when it needs to (one tool: search_knowledge_base)',
 		'ui' => [ 'tools' => [ 'source' => 'knowledge', 'label' => 'Knowledge bases', 'group' => 'This project', 'role' => 'use' ] ],
 	    ],
-	    //the workflows of the project the model may run (util\AgentTools: wf_<name> tools)
-	    \util\AgentTools::workflowsField(),
+	    //the workflows of the project the model may run (util\agent\Tools: wf_<name> tools)
+	    \util\agent\Tools::workflowsField(),
 	    [
 		'key' => 'mcp',
 		'type' => 'select',
@@ -461,9 +461,9 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 		'choices' => self::ON_ERROR,
 		'help' => 'Unreachable, declined, cut off, bad JSON',
 	    ],
-	//the families (in the designer, those with a credential in the project: util\AgentTools), the approvals, the sections Approvals, Guardrails (the limits and defences),
+	//the families (in the designer, those with a credential in the project: util\agent\Tools), the approvals, the sections Approvals, Guardrails (the limits and defences),
 	//Conversation and Memory
-	], \util\AgentMemory::fields(static::designerAccount(), static::designerAccount() ? \V::app()->user->crtProject : null), \util\AgentTools::familyFields(static::designerAccount(), static::designerAccount() ? \V::app()->user->crtProject : null), \util\AgentTools::approvalFields(), \util\AgentGuard::fields(static::isCloud()));
+	], \util\agent\Memory::fields(static::designerAccount(), static::designerAccount() ? \V::app()->user->crtProject : null), \util\agent\Tools::familyFields(static::designerAccount(), static::designerAccount() ? \V::app()->user->crtProject : null), \util\agent\Tools::approvalFields(), \util\agent\Guard::fields(static::isCloud()));
     }
 
     //the models each credential of the current project (providing static::CAPABILITY) recorded, and the System AI's (SYSTEM): [ credential id => [ model ] ], for the designer
@@ -562,7 +562,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	}
 	//the integrations (a credential of the project, known operations), the workflows (of the project, called by a workflow), the guardrails,
 	//what the account's AI policy does not allow (it says why), the long-term memory
-	foreach(array_merge(\util\AgentTools::errors($this), \util\AgentGuard::errors($this), \models\agent\AgentPolicy::stepErrors($this), \util\AgentMemory::errors($this)) as $message) {
+	foreach(array_merge(\util\agent\Tools::errors($this), \util\agent\Guard::errors($this), \models\agent\AgentPolicy::stepErrors($this), \util\agent\Memory::errors($this)) as $message) {
 	    $this->errors('config', $message);
 	    $valid = false;
 	}
@@ -623,7 +623,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	    $this->tracer?->finish('error', $message);
 	    //a limit reached: what the agent did so far is kept
 	    if (\util\Validator::isIdentifier($name))
-		$this->exec->setVariable($name, [ 'error' => $message ] + ($this->tracer ? [ 'trace_id' => $this->tracer->id() ] : []) + ($e instanceof \util\AgentLimitReached ? [ 'limit' => $e->limit ] + (array)$this->progress + [ 'tool_calls' => [] ]
+		$this->exec->setVariable($name, [ 'error' => $message ] + ($this->tracer ? [ 'trace_id' => $this->tracer->id() ] : []) + ($e instanceof \util\agent\LimitReached ? [ 'limit' => $e->limit ] + (array)$this->progress + [ 'tool_calls' => [] ]
 		    + ($this->guard ? [ 'cost' => $this->guard->costs() ] : []) : []));
 	    $this->exec->log($this->wfid, "{$label}: {$message}");
 	    if ($this->cfg('onError', 'fail') === 'output')
@@ -656,7 +656,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
     //Continue the conversation: the earlier turns of the conversation added to $state (a new conversation of the step); what no longer fits summarized first, when the step says so.
     //Sent marked as they came: what the tools did between the untrusted marks, everything masked as the prompt is, and the run has read untrusted content (a lockdown holds). A failed summary does not stop the turn
     protected function addConversation($cred, array &$state, $session) {
-	if (!\util\AgentGuard::on($this->cfg('continueConversation', false)))
+	if (!\util\agent\Guard::on($this->cfg('continueConversation', false)))
 	    return;
 	$at = \models\agent\AgentConversation::ofExecution($this->exec);
 	if (!$at) {
@@ -666,7 +666,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	[ $conv, $turn ] = $at;
 	$context = \models\agent\AgentConversation::context($conv, $turn, max(1, (int)$this->cfg('memoryTurns', 20)), max(100, (int)$this->cfg('memoryTokens', 8000)));
 	$made = null;
-	if ($context['older'] && \util\AgentGuard::on($this->cfg('summarizeOlder', true)))
+	if ($context['older'] && \util\agent\Guard::on($this->cfg('summarizeOlder', true)))
 	    [ $context['summary'], $made ] = $this->summarize($cred, $conv, $context, $session);
 	$guard = $this->guard;
 	$turns = [];
@@ -688,7 +688,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
     }
 
     //the turns of $context['older'] and the summary so far as one summary, by this step's model, saved in the conversation => [ the summary (the old one when it fails), what it took ]. The
-    //cost limit and the budget hold (AgentLimitReached goes on: the agent stops), its tokens count. A Run again does not change the conversation
+    //cost limit and the budget hold (util\agent\LimitReached goes on: the agent stops), its tokens count. A Run again does not change the conversation
     protected function summarize($cred, array $conv, array $context, $session) {
 	$guard = $this->guard;
 	[ $text, $upto ] = \models\agent\AgentConversation::turnsText($context['older']);
@@ -709,7 +709,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 		if (empty($answer['continue']))
 		    break;
 	    }
-	} catch (\util\AgentLimitReached $e) {
+	} catch (\util\agent\LimitReached $e) {
 	    throw $e;
 	} catch (\ErrorException $e) {
 	    $this->exec->log($this->wfid, static::$label . ': the older turns were not summarized: ' . mb_substr($e->getMessage(), 0, 200));
@@ -727,7 +727,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
     //the agent loop; $clients gets the MCP clients opened (closed by execute())
     protected function run(array &$clients) {
 	//the visit's trace, the first thing: a visit that fails at once has one too
-	$this->tracer = !empty($this->agentWait['trace']) ? \util\AgentTracer::resume($this, (string)$this->agentWait['trace']) : \util\AgentTracer::begin($this);
+	$this->tracer = !empty($this->agentWait['trace']) ? \util\agent\Tracer::resume($this, (string)$this->agentWait['trace']) : \util\agent\Tracer::begin($this);
 	$this->traceSecrets();
 	//System AI: its credential (the session, with the credits: below)
 	$system = null;
@@ -745,9 +745,9 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	//resumed after an approval: the saved conversation (no files again: they are in it)
 	$resume = !empty($this->agentWait) ? $this->loadWait() : null;
 	//the guard of this run (resumed: as it was saved)
-	$this->guard = new \util\AgentGuard($this, $system !== null, $resume['guard'] ?? null);
+	$this->guard = new \util\agent\Guard($this, $system !== null, $resume['guard'] ?? null);
 	//a limit or budget this model's spending is not counted in: said in the run's log
-	if ($system === null && !$resume && ($warning = \util\AgentGuard::priceWarning(static::CAPABILITY, [ 'model' => $this->cfg('model', ''), 'maxCost' => $this->cfg('maxCost', '') ], $this->exec->aid)))
+	if ($system === null && !$resume && ($warning = \util\agent\Guard::priceWarning(static::CAPABILITY, [ 'model' => $this->cfg('model', ''), 'maxCost' => $this->cfg('maxCost', '') ], $this->exec->aid)))
 	    $this->exec->log($this->wfid, static::$label . ': ' . $warning);
 	$this->tracer->addSecrets($cred);
 	$this->tracer->attach($this->guard);
@@ -759,7 +759,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 
 	//the tools (collectTools), only those the account's policy allows (govern())
 	$tools = $this->guard->govern($this->collectTools($clients, $project));
-	//a test case: recorded results, no write tool runs (util\AgentEvalContext)
+	//a test case: recorded results, no write tool runs (util\agent\EvalContext)
 	if ($this->exec->__test)
 	    $tools = $this->exec->__test->tools($this, $tools);
 
@@ -843,7 +843,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 		    $reached = $guard->takeCall($tools[$tool]);
 		    if ($reached)
 			$this->limitReached($reached, $tool, $args, $pending, $calls, $round, count($results));
-		    //nothing asks in a test: what would have to ask does not run (util\AgentEvalContext)
+		    //nothing asks in a test: what would have to ask does not run (util\agent\EvalContext)
 		    $asks = $this->exec->__test ? null : $guard->approvalFor($tools[$tool]);
 		}
 		if (!isset($tools[$tool])) {
@@ -900,15 +900,15 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 
     //the tools the model may use: [ name => [ name, description, schema (object), run: fn(args) => [ text, isError, images ] ] ];
     //$clients gets the MCP sessions opened (closed by execute()). The project's tools, the MCP server credentials' tools (mcp<n>_<tool>), the installation's tool servers' tools
-    //(<server>_<tool>: only those the server allows), the integrations' operations (<prefix>_<step>_<operation>) and the workflows (wf_<name>): util\AgentTools
+    //(<server>_<tool>: only those the server allows), the integrations' operations (<prefix>_<step>_<operation>) and the workflows (wf_<name>): util\agent\Tools
     protected function collectTools(array &$clients, $project) {
 	//the tools: [ name => [ name, description, schema (object), run: fn(args) => [ text, isError ] ] ]
 	//run: fn(args) => [ text, isError, images: [ [ mimeType, data ] ] ]
 	$tools = [];
 	$wanted = array_map('strval', (array)$this->cfg('tools', []));
 	//CLD: 2026-11-28T12:00:00+02:00: `ask`: the tool asks for approval (Project tools: ask for approval, as a family's: those that change something, all, none, those chosen)
-	$mode = (string)$this->cfg(\util\AgentTools::PROJECT_APPROVAL_MODE, 'writes');
-	$chosen = array_map('strval', (array)$this->cfg(\util\AgentTools::PROJECT_APPROVAL, []));
+	$mode = (string)$this->cfg(\util\agent\Tools::PROJECT_APPROVAL_MODE, 'writes');
+	$chosen = array_map('strval', (array)$this->cfg(\util\agent\Tools::PROJECT_APPROVAL, []));
 	foreach(static::projectTools() as $t) {
 	    if (!in_array($t['name'], $wanted, true))
 		continue;
@@ -931,10 +931,10 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	$timeout = (int)$this->cfg('timeout', static::DEFAULT_TIMEOUT);
 	//the knowledge bases: one tool searching them (knowledgeTool)
 	$tools += $this->knowledgeTool($project, $timeout);
-	//the operations of the integrations and the workflows the step names (util\AgentTools: run in this execution, as steps / Run a workflow)
-	$tools += \util\AgentTools::tools($this);
-	//the long-term memory: remember, recall (util\AgentMemory)
-	$tools += \util\AgentMemory::tools($this, $project, $timeout);
+	//the operations of the integrations and the workflows the step names (util\agent\Tools: run in this execution, as steps / Run a workflow)
+	$tools += \util\agent\Tools::tools($this);
+	//the long-term memory: remember, recall (util\agent\Memory)
+	$tools += \util\agent\Memory::tools($this, $project, $timeout);
 	foreach((array)$this->cfg('mcp', []) as $i => $id) {
 	    $mcp = \models\Credential::findFor($this->exec, (string)$id, 'mcp');
 	    if (empty($mcp))
@@ -1136,7 +1136,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 		$ids[strtolower($id)] = true;
     }
 
-    //a tool's result as sent to the model: cut at MAX_TOOL_RESULT, masked and marked as untrusted (AgentGuard::result: the cut too), logged ($note after the tool's name),
+    //a tool's result as sent to the model: cut at MAX_TOOL_RESULT, masked and marked as untrusted (util\agent\Guard::result: the cut too), logged ($note after the tool's name),
     //listed in $calls => [ id, text, isError, images ]; in the audit log: $status (default: ok / error), $by: who approved it
     protected function toolResult($id, $tool, $args, $text, $isError, array $images, array &$calls, $note = '', $status = null, $by = null) {
 	$this->guard->audit($tool, $args, $status ?? ($isError ? 'error' : 'ok'), $by);
@@ -1150,7 +1150,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	$ids = [];
 	foreach((array)$this->cfg('mcp', []) as $id)
 	    $ids[] = [ 'mcp', (string)$id ];
-	foreach(\util\AgentTools::families() as $key => $fam)
+	foreach(\util\agent\Tools::families() as $key => $fam)
 	    if ((string)$this->cfg("{$key}Credential", '') !== '')
 		$ids[] = [ $fam['capability'], (string)$this->cfg("{$key}Credential") ];
 	foreach($ids as [ $capability, $id ])
@@ -1158,7 +1158,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
     }
 
     //call $tool went past a limit: not run, nor are the round's calls that were to ask (in $calls: not run; in the audit log), the agent stops; $round, $index: the call's place in the trace
-    protected function limitReached(\util\AgentLimitReached $reached, $tool, array $args, array $pending, array &$calls, $round, $index) {
+    protected function limitReached(\util\agent\LimitReached $reached, $tool, array $args, array $pending, array &$calls, $round, $index) {
 	foreach($pending as $p) {
 	    $calls[$p['call']] = [ 'tool' => $p['tool'], 'arguments' => $p['args'], 'error' => true, 'approval' => 'not asked' ];
 	    $this->tracer->approval($round, $p['index'], 'not asked');
@@ -1181,7 +1181,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	foreach($pending as $p) {
 	    //$p['meta']; the model's words with the masked values back; in the audit log
 	    $meta = $p['meta'];
-	    $args = \util\AgentTools::withoutReason($p['args'], $meta['reason']);
+	    $args = \util\agent\Tools::withoutReason($p['args'], $meta['reason']);
 	    $reason = trim(\util\Expression::toText($p['args'][$meta['reason']] ?? ''));
 	    $items[] = [ 'tool' => $p['tool'], 'label' => $meta['label'], 'title' => self::approvalTitle($meta, $args), 'arguments' => $args,
 		'reason' => mb_substr($reason !== '' ? $reason : trim((string)$this->guard->restore((string)($answer['text'] ?? ''))), 0, 2000) ];
@@ -1312,7 +1312,7 @@ abstract class NodeAppAi extends \models\wf\WfNode {
 	    $this->tracer->result($resume['round'], $p['index'], $text, $isError, $took, count((array)$images));
 	    $one = [];
 	    //what the audit log says: approved by whom, else why it did not run
-	    $withoutReason = \util\AgentTools::withoutReason($p['args'], $p['meta']['reason'] ?? null);
+	    $withoutReason = \util\agent\Tools::withoutReason($p['args'], $p['meta']['reason'] ?? null);
 	    $results[$p['index']] = $this->toolResult($p['id'], $p['tool'], $withoutReason, $text, $isError, (array)$images, $one, " ({$decision})",
 		$outcome === 'approved' ? null : ($done ? 'rejected' : 'not approved in time'), $outcome === 'approved' && $user ? $user : null);
 	    //the call listed when it was asked: its outcome

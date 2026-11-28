@@ -31,7 +31,7 @@ class NodeAppVeeamJobs extends NodeAppVeeam {
 	'enable' => 'Enable a job',
 	'disable' => 'Disable a job',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'start', 'stop', 'retry', 'enable', 'disable' ];
     const LISTS = [ 'list', 'states' ];
     const ON_JOB = [ 'get', 'start', 'stop', 'retry', 'enable', 'disable' ];

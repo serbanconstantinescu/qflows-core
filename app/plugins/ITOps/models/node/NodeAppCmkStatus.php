@@ -26,7 +26,7 @@ class NodeAppCmkStatus extends NodeAppCheckmk {
 	'services' => 'List services',
 	'query' => 'Livestatus query',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [];
     const LISTS = [ 'problems', 'services', 'query' ];
     const SERVICE_STATES = [ 0 => 'OK', 1 => 'WARN', 2 => 'CRIT', 3 => 'UNKNOWN' ];

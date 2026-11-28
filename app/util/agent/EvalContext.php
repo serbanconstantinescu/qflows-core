@@ -1,23 +1,25 @@
 <?php
 
 /*
-    one test case running (util\AgentEval): held by its execution ($exe->__test), never saved. What keeps a test from acting on the world:
+    one test case running (util\agent\TestRuns): held by its execution ($exe->__test), never saved. What keeps a test from acting on the world:
 	Steps: only the steps of RUNS, those with no effect outside the run, and the AI steps. Any other step (Send email, HTTP Request, Data table, a Wait, a Human task, Run a workflow, a new step type: nothing is
 	    allowed by default) does not run: what it gave in the source execution (the case's `steps`) stands in for it, its variables and the outputs it took; nothing recorded: its first output, no variables.
 	Tools: the case's mode. mock: answered from the recordings, no tool runs. real: a tool that only reads and asks for no approval runs; the others are answered from the recordings, or refused.
-	    A tool's flag is the one util\AgentGuard::govern acts on: what is not known to be read-only is a write. Nothing asks for approval in a test. Only the calls that really ran go in the audit log.
+	    A tool's flag is the one util\agent\Guard::govern acts on: what is not known to be read-only is a write. Nothing asks for approval in a test. Only the calls that really ran go in the audit log.
     What the AI steps did (visits) is collected here for the checks: each visit's answer, its calls with their access
 */
 
-namespace util;
+namespace util\agent;
 
-class AgentEvalContext {
+use util\JSON;
+
+class EvalContext {
     //the steps that run in a test, besides the triggers and the AI steps
     const RUNS = [ \models\node\NodeAppSet::class, \models\node\NodeAppCode::class, \models\node\NodeCoreIf::class, \models\node\NodeCoreSwitch::class, \models\node\NodeCoreMerge::class, \models\node\NodeCoreLoop::class, \models\node\NodeCoreNote::class ];
     const NOT_RECORDED = 'This test case has no recorded result for this tool call: the tool did not run.';
     const REFUSED = 'A test does not run tools that change something or need an approval, and this test case has no recorded result for this call: the tool did not run.';
     //arguments that say why, not what: left out when two calls are compared
-    const NOT_COMPARED = [ AgentTools::REASON, 'approval_' . AgentTools::REASON ];
+    const NOT_COMPARED = [ Tools::REASON, 'approval_' . Tools::REASON ];
 
     public $chat;
     public $visits = [];
@@ -129,7 +131,7 @@ class AgentEvalContext {
 	return array_map([ self::class, 'sorted' ], $value);
     }
 
-    //the tool call just made is not to be written in the audit log (util\AgentGuard::audit)
+    //the tool call just made is not to be written in the audit log (util\agent\Guard::audit)
     public function notAudited() {
 	return !$this->ranForReal;
     }
@@ -142,7 +144,7 @@ class AgentEvalContext {
 	    $calls[] = [ 'tool' => (string)($c['tool'] ?? ''), 'arguments' => is_array($c['arguments'] ?? null) ? $c['arguments'] : [], 'error' => !empty($c['error']),
 		'access' => $step->guard ? $step->guard->accessOf((string)($c['tool'] ?? '')) : 'unknown' ];
 	$this->visits[] = [ 'node' => (string)$step->wfid, 'step' => (string)($step->title ?: $step::$label), 'text' => (string)($result['text'] ?? ''), 'json' => $result['json'] ?? null, 'is_json' => (string)$step->cfg('output', 'text') === 'json',
-	    'masked' => AgentGuard::on($step->cfg('maskPersonalData', false)), 'calls' => $calls, 'error' => $error,
+	    'masked' => Guard::on($step->cfg('maskPersonalData', false)), 'calls' => $calls, 'error' => $error,
 	    'tokens' => [ 'input' => (int)($from['usage']['input_tokens'] ?? 0), 'output' => (int)($from['usage']['output_tokens'] ?? 0) ],
 	    'cost' => $step->guard ? $step->guard->costs() : [ 'usd' => null, 'credits' => null ], 'trace_id' => $step->tracer ? $step->tracer->id() : null ];
     }

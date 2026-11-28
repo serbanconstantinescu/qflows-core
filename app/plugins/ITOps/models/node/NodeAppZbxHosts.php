@@ -33,7 +33,7 @@ class NodeAppZbxHosts extends NodeAppZabbix {
 	'items' => 'Latest values of a host',
 	'groups' => 'List host groups',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'create', 'enable', 'disable', 'delete' ];
     const LISTS = [ 'list', 'items', 'groups' ];
     const STATUS = [ 'all' => 'All', 'enabled' => 'Enabled', 'disabled' => 'Disabled' ];

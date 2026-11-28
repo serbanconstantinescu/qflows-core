@@ -45,7 +45,7 @@ class WfExecution extends \sys\BaseModel {
     //runtime objects, keyed by wfid
     public $__nodes = [];
     public $__edges = [];
-    //a test case running (util\AgentEvalContext; test_run says it is one): never saved
+    //a test case running (util\agent\EvalContext; test_run says it is one): never saved
     public $__test = null;
 
     //the values stored in GridFS (path => [ hash, id ]: an unchanged one is not stored again), those uploaded by the save going on, those to delete after it

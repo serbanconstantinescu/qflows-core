@@ -22,7 +22,7 @@ class NodeAppZbxProblems extends NodeAppZabbix {
 	'problems' => 'List current problems',
 	'event' => 'Get an event',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [];
     const LISTS = [ 'problems' ];
     //not 0: a select keeps no '0' (and keys 0..5 would be a list, read as labels)

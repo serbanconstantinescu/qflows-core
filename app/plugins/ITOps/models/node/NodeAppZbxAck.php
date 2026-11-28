@@ -31,7 +31,7 @@ class NodeAppZbxAck extends NodeAppZabbix {
 	'maintenances' => 'List maintenances',
 	'maintenanceDelete' => 'Remove maintenances',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'acknowledge', 'unacknowledge', 'message', 'maintenanceCreate', 'maintenanceDelete' ];
     const LISTS = [ 'maintenances' ];
     //by name: a select keeps no '0'

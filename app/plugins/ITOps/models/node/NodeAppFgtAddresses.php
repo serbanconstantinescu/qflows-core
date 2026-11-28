@@ -37,7 +37,7 @@ class NodeAppFgtAddresses extends NodeAppFortiGate {
 	'add' => 'Add an address to a group',
 	'remove' => 'Remove an address from a group',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'block', 'unblock', 'create', 'delete', 'add', 'remove' ];
     const LISTS = [ 'list', 'groups' ];
     const TYPES = [ 'ipmask' => 'Subnet / IP', 'fqdn' => 'FQDN', 'iprange' => 'IP range' ];

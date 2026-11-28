@@ -28,7 +28,7 @@ class NodeAppFgtSystem extends NodeAppFortiGate {
 	'licenses' => 'Get licenses',
 	'backup' => 'Back up the configuration into Files',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'backup' ];
 
     //CLD: 2026-11-27T12:00:00+02:00: the folder of Files the saved files go in

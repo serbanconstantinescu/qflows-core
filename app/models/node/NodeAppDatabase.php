@@ -18,7 +18,7 @@ namespace models\node;
 use util\SqlDb;
 
 abstract class NodeAppDatabase extends \models\wf\WfNode {
-    //its operations can be an AI step's tools (util\AgentTools: varsForSettings, setResult)
+    //its operations can be an AI step's tools (util\agent\Tools: varsForSettings, setResult)
     use AgentToolTrait;
 
     //static data/structure
@@ -36,7 +36,7 @@ abstract class NodeAppDatabase extends \models\wf\WfNode {
 	'execute' => 'Execute a statement',
 	'insert' => 'Insert rows',
     ];
-    //the operations that change something (a query too: its SQL may change data); the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something (a query too: its SQL may change data); the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'query', 'execute', 'insert' ];
     const MAX_ROWS = 10000;
     const MAX_INSERT = 10000;
@@ -103,7 +103,7 @@ abstract class NodeAppDatabase extends \models\wf\WfNode {
 		'default' => '',
 		'help' => 'An expression giving a list of objects keyed by column, e.g. {{ response.body.items }}',
 		'requiredIf' => [ 'if' => 'operation', 'in' => [ 'insert' ] ],
-		//agent: as an AI step's tool, a list (util\AgentTools)
+		//agent: as an AI step's tool, a list (util\agent\Tools)
 		'ui' => [ 'rows' => 3, 'width' => 8, 'expression' => true, 'showIf' => static::operationIn([ 'insert' ]), 'agent' => [ 'type' => 'list', 'help' => 'A list of objects keyed by column' ] ],
 	    ],
 	    [

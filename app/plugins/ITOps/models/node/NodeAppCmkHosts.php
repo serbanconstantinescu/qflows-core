@@ -30,7 +30,7 @@ class NodeAppCmkHosts extends NodeAppCheckmk {
 	'activate' => 'Activate pending changes',
 	'pending' => 'List pending changes',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'create', 'delete', 'discover', 'activate' ];
     const LISTS = [ 'list', 'pending' ];
     const MODES = [ 'fix_all' => 'Accept all (new and vanished services, labels)', 'new' => 'Add new services only', 'refresh' => 'Refresh (search again)', 'tabula_rasa' => 'Start over (remove all, then add)' ];

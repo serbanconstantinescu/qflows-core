@@ -2,7 +2,7 @@
 
 /*
     CLD: 2026-11-25T14:00:00+02:00: Slack message - a conversation with an agent in Slack: a message to the credential's app starts a run (variables message, conversation, user,
-    slack: { channel, ts, thread_ts, kind, user }); Reply to chat answers there as the app (util\AgentChannels). What starts a run:
+    slack: { channel, ts, thread_ts, kind, user }); Reply to chat answers there as the app (util\agent\Channels). What starts a run:
 	- a direct message to the app (one conversation per direct-message channel; a thread in it: its own conversation)
 	- a message in a channel that mentions the app (@app): it starts a conversation in that message's thread, answered in the thread; the thread's next messages
 	  continue it, with or without a mention

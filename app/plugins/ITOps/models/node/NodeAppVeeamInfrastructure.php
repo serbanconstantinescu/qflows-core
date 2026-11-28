@@ -26,7 +26,7 @@ class NodeAppVeeamInfrastructure extends NodeAppVeeam {
 	'license' => 'Get the license',
 	'server' => 'Get the backup server',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [];
     const LISTS = [ 'repositories', 'proxies', 'servers' ];
 

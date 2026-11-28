@@ -26,7 +26,7 @@ class NodeAppGzReports extends NodeAppGravityZone {
 	'download' => 'Download into Files',
 	'delete' => 'Delete a report',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'create', 'download', 'delete' ];
     const LISTS = [ 'list' ];
     const MAX_FILE = 100 * 1024 * 1024;

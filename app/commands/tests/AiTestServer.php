@@ -13,10 +13,10 @@
     [ name, arguments ] - asks, in round N (the assistant turns with tool calls so far), for the calls of round N; after the last round it answers `RESULTS: ` and the JSON list of
     every tool result sent ({ tool_call_id, content }, in order)
     in a script's arguments @@EMAIL@@ / @@PHONE@@ / @@IBAN@@ is the first such placeholder (util\PersonalData) in the request: a model passing on what it was given (CheckCommand::suiteAgentguard)
-    tool results are sent between untrusted marks (util\AgentGuard): what this server answers quotes them without the marks; the requests in the log have them
+    tool results are sent between untrusted marks (util\agent\Guard): what this server answers quotes them without the marks; the requests in the log have them
     a conversation's earlier turns hold earlier SCRIPT lines: the last one is the current turn's (CheckCommand::suiteAgentchat); a request to summarize a conversation (util: NodeAppAi::summarize, its system
     prompt) answers `SUMMARY-OK`, no tools
-    a line `ANSWER: <text>` in a message is what a script ends with, instead of the results (CheckCommand::suiteAgenteval: a JSON answer); the judge of a test (util\AgentEval, its system prompt) answers
+    a line `ANSWER: <text>` in a message is what a script ends with, instead of the results (CheckCommand::suiteAgenteval: a JSON answer); the judge of a test (util\agent\TestRuns, its system prompt) answers
     {"pass": true} when the request holds JUDGE-PASS, text that is not JSON with JUDGE-BAD, else {"pass": false}
     the scripted chat in each API's form (CheckCommand::suiteAgentapproval: every AI step resumes a saved conversation): OpenAI (POST .../chat/completions),
     Claude (POST /v1/messages, key in x-api-key), Gemini (POST .../models/<model>:generateContent, key in x-goog-api-key), Ollama (POST /api/chat). A round may start with a text

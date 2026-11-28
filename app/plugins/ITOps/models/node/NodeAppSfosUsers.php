@@ -27,7 +27,7 @@ class NodeAppSfosUsers extends NodeAppSophos {
 	'ipsec' => 'List IPsec connections',
 	'sslvpn' => 'List SSL VPN policies',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'enable', 'disable' ];
     const LISTS = [ 'users', 'ipsec', 'sslvpn' ];
 

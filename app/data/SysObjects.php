@@ -1082,7 +1082,7 @@ class SysObjects {
 		'class' => 'models\agent\AgentTrace',
 		'auditLog' => false,
 	    ],
-	    //a workflow's test cases and test runs (util\AgentEval); the audit log has named actions for them (EvalController): a case's inputs are large
+	    //a workflow's test cases and test runs (util\agent\TestRuns); the audit log has named actions for them (EvalController): a case's inputs are large
 	    'WfTestCase' => [
 		'class' => 'models\wf\WfTestCase',
 		'auditLog' => false,

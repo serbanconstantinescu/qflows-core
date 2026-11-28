@@ -34,7 +34,7 @@ class NodeAppTeams extends NodeAppMicrosoft {
 	'channels' => 'List the channels of a team',
 	'chats' => 'List my chats',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'sendChannel', 'reply', 'sendChat' ];
 
     //the operations sending a message, the ones in a channel

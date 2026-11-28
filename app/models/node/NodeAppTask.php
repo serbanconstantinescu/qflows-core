@@ -33,7 +33,7 @@ class NodeAppTask extends \models\wf\WfNode {
     const UNITS = [ 'none' => 'No time limit' ] + \data\Constants::TIME_UNITS;
 
     //the choices of the current project (the designer's user): its members, the account's roles
-    //public (the AI steps' approvers: util\AgentTools::approvalFields)
+    //public (the AI steps' approvers: util\agent\Tools::approvalFields)
     public static function memberChoices() {
 	if (\V::app()->config('app.mode') != 'web' || \V::app()->user->isGuest || empty(\V::app()->user->crtProject))
 	    return [];

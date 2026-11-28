@@ -37,7 +37,7 @@ class NodeAppPmPatching extends NodeAppPatchMon {
 	'summary' => 'Get the patching summary',
 	'preview' => 'When would a run start',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'patch', 'approve', 'stop' ];
     const LISTS = [ 'runs', 'active' ];
     const WHAT = [ 'all' => 'All updates', 'packages' => 'These packages' ];

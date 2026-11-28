@@ -30,7 +30,7 @@ class NodeAppWorkflow extends \models\wf\WfNode {
     const CHECK_EVERY = 3600;
 
     //the workflows of the current project (the designer's user) that start with Called by a workflow, and those shared with it and published, named with their project:
-    //[ id => [ name, contract ] ]; public (the AI steps' Workflows setting: util\AgentTools)
+    //[ id => [ name, contract ] ]; public (the AI steps' Workflows setting: util\agent\Tools)
     public static function callable() {
 	if (\V::app()->config('app.mode') != 'web' || \V::app()->user->isGuest || empty(\V::app()->user->crtProject))
 	    return [];
@@ -165,7 +165,7 @@ class NodeAppWorkflow extends \models\wf\WfNode {
     }
 
     //the workflow called by a step of $config, in $aid (default: the current account); null when missing
-    //public (util\AgentTools: the workflows of an AI step's tools)
+    //public (util\agent\Tools: the workflows of an AI step's tools)
     public static function findWorkflow($id, $aid = null, $project = null) {
 	$id = (string)$id;
 	if ($id === '' || !\util\Validator::rule('oid', $id))

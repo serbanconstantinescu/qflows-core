@@ -101,7 +101,7 @@ class NodeTriggerTeams extends \models\wf\WfNode {
 	    throw new \Exception('Teams message: the credential is no longer available');
 	$me = (string)($data['me'] ?? '');
 	if ($me === '')
-	    $me = (string)(\util\AgentChannels::graph($cred, 'GET', '/me', [ '$select' => 'id' ])['id'] ?? '');
+	    $me = (string)(\util\agent\Channels::graph($cred, 'GET', '/me', [ '$select' => 'id' ])['id'] ?? '');
 	$now = gmdate('Y-m-d\TH:i:s\Z');
 	if ($first)
 	    return [ [ 'me' => $me, 'since' => $now, 'seen' => [] ], [] ];
@@ -111,7 +111,7 @@ class NodeTriggerTeams extends \models\wf\WfNode {
 	$chats = [ $chat ];
 	if ($chat === '') {
 	    $chats = [];
-	    foreach((array)(\util\AgentChannels::graph($cred, 'GET', '/me/chats', [ '$expand' => 'lastMessagePreview', '$orderby' => 'lastMessagePreview/createdDateTime desc', '$top' => self::MAX_CHATS ])['value'] ?? []) as $c)
+	    foreach((array)(\util\agent\Channels::graph($cred, 'GET', '/me/chats', [ '$expand' => 'lastMessagePreview', '$orderby' => 'lastMessagePreview/createdDateTime desc', '$top' => self::MAX_CHATS ])['value'] ?? []) as $c)
 		if (substr((string)($c['lastMessagePreview']['createdDateTime'] ?? ''), 0, 19) >= $since)
 		    $chats[] = (string)($c['id'] ?? '');
 	}
@@ -119,7 +119,7 @@ class NodeTriggerTeams extends \models\wf\WfNode {
 	$later = false;
 	foreach($chats as $id) {
 	    $known = array_map('strval', (array)($seen[$id] ?? []));
-	    $list = (array)(\util\AgentChannels::graph($cred, 'GET', '/chats/' . rawurlencode($id) . '/messages', [ '$top' => self::MAX_MESSAGES, '$orderby' => 'createdDateTime desc' ])['value'] ?? []);
+	    $list = (array)(\util\agent\Channels::graph($cred, 'GET', '/chats/' . rawurlencode($id) . '/messages', [ '$top' => self::MAX_MESSAGES, '$orderby' => 'createdDateTime desc' ])['value'] ?? []);
 	    usort($list, fn($a, $b) => strcmp((string)($a['createdDateTime'] ?? ''), (string)($b['createdDateTime'] ?? '')));
 	    foreach($list as $m) {
 		$mid = (string)($m['id'] ?? '');

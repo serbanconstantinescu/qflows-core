@@ -2937,7 +2937,7 @@ return [
 	    [ $so, ] = $step($SU, [ 'operation' => 'searchOptions', 'itemtype' => 'Ticket', 'search' => 'stat', 'variable' => 'u' ]);
 	    [ $api, ] = $step('app::glpi-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/Ticket/{{ k }}', 'query' => '{"expand_dropdowns": true}', 'variable' => 'x' ], [ 'k' => 1 ]);
 	    [ $apiBad, ] = $step('app::glpi-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/initSession', 'variable' => 'x' ]);
-	    $ops = \util\AgentTools::operations('glpi');
+	    $ops = \util\agent\Tools::operations('glpi');
 	    $this->check('glpi: Setup: a user by email (emails, groups, profiles; no secrets); categories (complete names); search options; API: any path (GLPI\'s answer as it is); the session\'s own refused; as AI tools', [
 		[ 5, [ 'ana@example.com' ], [ 'Helpdesk' ], 'Technician', false ], [ 'Hardware > Printers', 'Software > Printers' ], [ [ 12, 'Status' ] ], 'Hardware &#62; Printers', 'error',
 		[ false, true, false, true ] ], [
@@ -3146,7 +3146,7 @@ return [
 	    $upd = array_values(array_filter($sent, fn($r) => str_ends_with($r['path'], '/updateDeviceProperties')))[0]['body'] ?? [];
 	    [ $api, ] = $step('app::intune-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => '/beta/deviceManagement/managedDevices', 'query' => '{"$select": "id,deviceName", "$top": 10}', 'variable' => 'z' ]);
 	    [ $apiBad, ] = $step('app::intune-api', [ 'operation' => 'request', 'method' => 'GET', 'path' => 'https://example.com/v1.0/me', 'variable' => 'z' ]);
-	    $ops = \util\AgentTools::operations('intune');
+	    $ops = \util\agent\Tools::operations('intune');
 	    $this->check('intune: Autopilot: by group tag (no managed device); import (the hash without spaces) pending, then complete; update by serial number (the user addressable too); a wrong '
 		. 'hash; delete; API: Graph beta; another address refused; as AI tools', [
 		[ [ 'AP-1001' ], null ], [ 'pending', 'IT' ], [ 'complete', 'aaaaaaaa-0000-0000-0000-000000000777' ],

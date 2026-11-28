@@ -38,7 +38,7 @@ class NodeAppVmwareVms extends NodeAppVmware {
 	'clone' => 'Clone a VM',
 	'delete' => 'Delete a VM',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'start', 'shutdown', 'reboot', 'stop', 'suspend', 'reset', 'clone', 'delete' ];
     const LISTS = [ 'list' ];
     const POWER = [ 'start' => 'POWERED_ON', 'stop' => 'POWERED_OFF', 'suspend' => 'SUSPENDED', 'reset' => 'POWERED_ON' ];

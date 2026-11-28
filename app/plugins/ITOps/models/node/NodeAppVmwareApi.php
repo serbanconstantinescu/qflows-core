@@ -18,7 +18,7 @@ class NodeAppVmwareApi extends NodeAppVmware {
     public static $defaultVariable = 'vmware';
 
     const OPERATIONS = [ 'rest' => 'REST API request', 'vim' => 'VI/JSON request' ];
-    //the operations that change something (any request); the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something (any request); the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'rest', 'vim' ];
     const METHODS = [ 'GET' => 'GET', 'POST' => 'POST', 'PUT' => 'PUT', 'PATCH' => 'PATCH', 'DELETE' => 'DELETE' ];
 

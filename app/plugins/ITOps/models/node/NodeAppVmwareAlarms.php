@@ -22,7 +22,7 @@ class NodeAppVmwareAlarms extends NodeAppVmware {
 	'list' => 'List triggered alarms',
 	'acknowledge' => 'Acknowledge an alarm',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'acknowledge' ];
     const LISTS = [ 'list' ];
     const STATUS = [ 'yellow' => 'Yellow (warning) and red', 'red' => 'Red (alert) only' ];

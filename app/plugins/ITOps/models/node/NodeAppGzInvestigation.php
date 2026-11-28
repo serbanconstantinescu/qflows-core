@@ -27,7 +27,7 @@ class NodeAppGzInvestigation extends NodeAppGravityZone {
 	'fileUrl' => 'Get a retrieved file\'s address',
 	'kill' => 'Kill a process',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'command', 'package', 'retrieve', 'kill' ];
     const AREA = 'investigation';
 

@@ -2,19 +2,25 @@
 
 /*
     testing AI steps and agent workflows: the test cases of a workflow (models\wf\WfTestCase), their runs on its draft (models\wf\WfTestRun; job() in the daemon), the checks, the publish gate.
-	A case runs as an execution of the draft, trigger `test`, test_run set (kept out of the Executions list and the Overview), with util\AgentEvalContext: no write tool and no step with an effect outside the run runs.
+	A case runs as an execution of the draft, trigger `test`, test_run set (kept out of the Executions list and the Overview), with util\agent\EvalContext: no write tool and no step with an effect outside the run runs.
 	The model-judged check goes to the account's chosen provider (Assistant settings; paid as the Assistant: its budget, or System AI credits). It sees the rubric, the answer between marks with a random name (data, not
 	    instructions: an answer cannot grade itself) and the tools' names; masked when the step masks personal data. Only { "pass": true } passes: an answer it cannot read is a failed check.
 	The gate (Workflow `tests_required`): the latest run passed, on this draft and these cases. Publishing an older version or an unchanged draft again is not gated: a way back must stay open.
-    AgentEval::$inline: the check suite runs the job at once (nothing is queued for a running daemon)
+    TestRuns::$inline: the check suite runs the job at once (nothing is queued for a running daemon)
 */
 
-namespace util;
+namespace util\agent;
 
 use models\wf\WfTestCase;
 use models\wf\WfTestRun;
+use util\AssistantSystem;
+use util\Expression;
+use util\Format;
+use util\JSON;
+use util\PersonalData;
+use util\WorkflowAssistant;
 
-class AgentEval {
+class TestRuns {
     public static $inline = false;
     //what a run keeps of an answer, of a check's detail (characters)
     const MAX_ANSWER = 4000;
@@ -45,7 +51,7 @@ class AgentEval {
 	    if (empty($n['isNode']) || !$objectName || empty($n['runs']))
 		continue;
 	    $node = \V::app()->om->create($objectName, $n);
-	    if (AgentEvalContext::runs($node))
+	    if (EvalContext::runs($node))
 		continue;
 	    $kept = [];
 	    foreach(array_keys($node::outputVariables(is_array($n['config'] ?? null) ? $n['config'] : [])) as $name)
@@ -190,7 +196,7 @@ class AgentEval {
 	//one job per workflow; a job given up by the daemon stays with its key (state fail): removed so that it does not stop the next run
 	$key = 'agent-eval:' . (string)$wf->_id;
 	\V::app()->om->deleteMany('Job', [ 'key' => $key, 'state' => [ '$in' => [ 'done', 'fail' ] ] ]);
-	$job = \models\Job::submit('\util\AgentEval::job', [ 'run' => (string)$id ], [ 'aid' => $wf->aid, 'project' => $wf->project, 'key' => $key, 'delete_on_done' => true ]);
+	$job = \models\Job::submit('\util\agent\TestRuns::job', [ 'run' => (string)$id ], [ 'aid' => $wf->aid, 'project' => $wf->project, 'key' => $key, 'delete_on_done' => true ]);
 	if ($job === null) {
 	    \V::app()->om->deleteOne('WfTestRun', [ '_id' => $id, 'aid' => $wf->aid ]);
 	    throw new \ErrorException('a test run of this workflow is still being finished: try again in a moment');
@@ -232,7 +238,7 @@ class AgentEval {
 	    \V::app()->om->updateOne('WfTestRun', [ '_id' => $id, 'aid' => $aid, 'state' => 'running' ], [ '$set' => [ 'state' => $passed ? 'passed' : 'failed', 'ended_at' => new \MongoDB\BSON\UTCDateTime(), 'updated_at' => new \MongoDB\BSON\UTCDateTime() ] ]);
 	    \util\Daemon::push('testrun::changed', [ 'aid' => $aid, 'project' => $wf->project ], [ 'wf' => (string)$wf->_id, 'run' => (string)$id ]);
 	} catch (\Throwable $e) {
-	    \V::app()->log->error('AgentEval: test run ' . (string)$id . ': ' . $e->getMessage());
+	    \V::app()->log->error('TestRuns: test run ' . (string)$id . ': ' . $e->getMessage());
 	    \V::app()->om->updateOne('WfTestRun', [ '_id' => $id, 'aid' => $aid, 'state' => [ '$in' => WfTestRun::ACTIVE ] ], [ '$set' => [ 'state' => 'error', 'error' => mb_substr($e->getMessage(), 0, self::MAX_DETAIL), 'ended_at' => new \MongoDB\BSON\UTCDateTime() ] ]);
 	    //CLD: 2026-11-28T10:00:00Z: failed: the project's open pages told (app.wftests)
 	    \util\Daemon::push('testrun::changed', [ 'aid' => $aid, 'project' => $wf->project ], [ 'wf' => (string)$wf->_id, 'run' => (string)$id ]);
@@ -271,7 +277,7 @@ class AgentEval {
 	    return $result;
 	}
 	$started = microtime(true);
-	$context = new AgentEvalContext($case);
+	$context = new EvalContext($case);
 	$context->chat = $context->chat || in_array((string)$trigger['fqname'], [ 'trigger::chat', 'trigger::teams' ], true);
 	try {
 	    $input = is_array($case->input) ? array_intersect_key($case->input, [ 'vars' => 1 ]) : [];
@@ -542,7 +548,7 @@ class AgentEval {
 	    try {
 		\models\assistant\AssistantUsage::add($wf->aid, $assistant->cost, $assistant->usage);
 	    } catch (\Exception $e) {
-		\V::app()->log->error('AgentEval: the usage was not recorded: ' . $e->getMessage());
+		\V::app()->log->error('TestRuns: the usage was not recorded: ' . $e->getMessage());
 	    }
 	}
 	if ($hold !== null) {

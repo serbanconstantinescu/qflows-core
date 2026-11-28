@@ -28,7 +28,7 @@ class NodeAppCmkAck extends NodeAppCheckmk {
 	'downtimes' => 'List downtimes',
 	'deleteDowntime' => 'Remove a downtime',
     ];
-    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\AgentTools)
+    //the operations that change something; the others only read (an AI step's tools: the read ones ticked by default, util\agent\Tools)
     const WRITES = [ 'ackHost', 'ackService', 'downHost', 'downService', 'deleteDowntime' ];
     const LISTS = [ 'downtimes' ];
     const MAX_MINUTES = 60 * 24 * 366;
