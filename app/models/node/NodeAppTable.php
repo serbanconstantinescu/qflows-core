@@ -364,6 +364,9 @@ class NodeAppTable extends \models\wf\WfNode {
 	$op = (string)$this->cfg('operation', 'query');
 	try {
 	    $result = $this->run($op);
+	    //CLD: 2026-11-28T10:00:00Z: written: the table's open pages told, at most once a second (a loop writes many times; the last one sent with the run's next save)
+	    if (!in_array($op, self::READ_OPERATIONS, true) && $this->tableCache)
+		$this->tableCache[1]->pushChanged(false, 1);
 	} catch (\ErrorException $e) {
 	    if (\util\Validator::isIdentifier($name))
 		$this->exec->setVariable($name, [ 'error' => $e->getMessage() ]);

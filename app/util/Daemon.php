@@ -5,8 +5,9 @@
     nothing happens when the daemon does not run (false)
     notify()       NEWJOB: dispatch the queued jobs now (it also checks the queue every 10 s)
     kill($jid)     KILLJOB:<jid>: stop the worker running the job
-    push($type, $scope, $data)   PUSH:<json>: an event for the open pages it concerns (the UI refreshes)
-    CLD: 2026-11-28T10:00:00Z: PUSH for the realtime UI events (the daemon does not handle it yet)
+    push($type, $scope, $data, $every)   PUSH:<json>: an event for the open pages it concerns (the UI refreshes); $every: the same event at most once in so many seconds
+		 from this process, the ones held back sent by flush() (a run's saves: WfExecution; the end of a web request)
+    CLD: 2026-11-28T10:00:00Z: PUSH for the realtime UI events (commands\DaemonCommand::push_publish), the throttle for the frequent ones (a data table written in a loop)
 */
 
 namespace util;
@@ -39,9 +40,41 @@ class Daemon {
 
     //CLD: 2026-11-28T10:00:00Z: an event for the UI, e.g. push('tasks::changed', [ 'aid' => $aid, 'project' => $project ]): it only says what changed, the pages load the data
     //themselves. $scope: who it is for (aid, project, user, execution). A short timeout: a missed event is not lost work (the pages reload on reconnect)
-    public static function push($type, $scope, $data = []) {
+    public static function push($type, $scope, $data = [], $every = 0) {
 	$scope = array_map(fn($v) => (string)$v, array_filter((array)$scope, fn($v) => $v !== null && $v !== ''));
-	return self::command('PUSH:' . \util\JSON::encode([ 'type' => (string)$type, 'scope' => $scope, 'data' => (object)$data ]), 0.2);
+	$line = 'PUSH:' . \util\JSON::encode([ 'type' => (string)$type, 'scope' => $scope, 'data' => (object)$data ]);
+	if ($every > 0) {
+	    $now = microtime(true);
+	    if ($now - (self::$sentAt[$line] ?? 0) < $every) {
+		self::$held[$line] = true;
+		if (!self::$flushAtEnd) {
+		    self::$flushAtEnd = true;
+		    register_shutdown_function([ self::class, 'flush' ]);
+		}
+		return true;
+	    }
+	    //the old ones forgotten (a long-lived worker)
+	    if (count(self::$sentAt) > 1000)
+		self::$sentAt = array_filter(self::$sentAt, fn($t) => $now - $t < 60);
+	    self::$sentAt[$line] = $now;
+	    unset(self::$held[$line]);
+	}
+	return self::command($line, 0.2);
+    }
+
+    //CLD: 2026-11-28T10:00:00Z: push(..., $every): the lines sent last (line => microtime), those held back, whether flush() runs at the end of the process
+    private static $sentAt = [];
+    private static $held = [];
+    private static $flushAtEnd = false;
+
+    //the events held back by push(..., $every) sent now
+    public static function flush() {
+	$held = array_keys(self::$held);
+	self::$held = [];
+	foreach($held as $line) {
+	    self::$sentAt[$line] = microtime(true);
+	    self::command($line, 0.2);
+	}
     }
 
     //CLD: 2026-11-28T10:00:00Z: where the browsers' live events are served (commands\DaemonCommand::setup_push_listener; nginx /push proxies to it)

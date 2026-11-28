@@ -257,6 +257,8 @@ class AgentMemory {
 	\models\datatable\DataTableDef::assignRow($row, $values);
 	Tiers::check($table->aid, 'datatable_records', 1, $table->iname);
 	$row->save();
+	//CLD: 2026-11-28T10:00:00Z: the table's open pages told (DataTableDef::pushChanged)
+	$table->pushChanged(false, 1);
 	return (string)$row->_id;
     }
 

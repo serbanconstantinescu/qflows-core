@@ -95,11 +95,60 @@ $script = "
 		app.events.on('object::deleted object::created object::updated', (e) => {
 		    if (e && e.object === 'DataTableDef' && e.oid === '{$dtIdJs}' && e.label !== undefined)
 			document.querySelectorAll('.main-header .dt-name').forEach((el) => el.innerHTML = e.label);
+		    live.own = Date.now();
 		    container._dataView.reload();
 		});
 	    }
 	}
     );
+
+    //CLD: 2026-11-28T10:00:00Z: a change of this table elsewhere (another person, a workflow, an agent: app.live datatable::changed): its rows loaded again on the page shown
+    //(at most every LIVE_MIN ms; not while rows are selected), its columns: the page loaded again (not while a dialog is open). This page's own change (live.own, the page
+    //just loaded) is not loaded twice
+    const LIVE_MIN = 2000;
+    const live = { own: Date.now(), timer: null, pending: false, columns: false };
+    const liveRun = () => {
+	const dv = container._dataView;
+	if (!container.isConnected || !dv)
+	    return;
+	if (live.columns) {
+	    if (document.querySelector('.modal.show')) {
+		live.pending = true;
+		return;
+	    }
+	    live.columns = false;
+	    app.pjax.fetch(window.location.pathname + window.location.search, { push: false });
+	    return;
+	}
+	if (dv.selected && dv.selected.size) {
+	    live.pending = true;
+	    return;
+	}
+	dv.loadData();
+    };
+    const liveLoad = () => {
+	if (live.timer) {
+	    live.pending = true;
+	    return;
+	}
+	liveRun();
+	live.timer = setTimeout(() => {
+	    live.timer = null;
+	    if (live.pending) {
+		live.pending = false;
+		liveLoad();
+	    }
+	}, LIVE_MIN);
+    };
+    app.live.on(container, 'datatable::changed live::resync', (data, type) => {
+	if (type === 'datatable::changed' && data.table !== '{$dtIdJs}')
+	    return;
+	if (Date.now() - live.own < LIVE_MIN)
+	    return;
+	if (data.columns)
+	    live.columns = true;
+	liveLoad();
+    });
 }();
 ";
 \V::app()->cs->addPageScript($script);

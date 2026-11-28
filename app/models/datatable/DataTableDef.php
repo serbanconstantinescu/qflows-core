@@ -163,6 +163,12 @@ class DataTableDef extends \sys\BaseModel {
     //messages are \ErrorException for the user
 
     //the table's columns: [ key => Field ] (its row model's schema, without the system fields)
+    //CLD: 2026-11-28T10:00:00Z: its rows (or, $columns, its columns) changed: the account's open pages told (views/datatable/manage.php: datatable::changed; a shared table is
+    //seen from other projects). $every: at most once in so many seconds from this process (util\Daemon::push)
+    public function pushChanged($columns = false, $every = 0) {
+	\util\Daemon::push('datatable::changed', [ 'aid' => $this->aid ], [ 'table' => (string)$this->_id, 'columns' => (bool)$columns ], $every);
+    }
+
     public function columns() {
 	if (!\V::app()->om->isDefined($this->iname))
 	    \V::app()->om->registerDataTables();

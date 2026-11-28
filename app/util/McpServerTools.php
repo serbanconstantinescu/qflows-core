@@ -339,6 +339,8 @@ class McpServerTools {
 		    $row->save();
 		    $ids[] = (string)$row->_id;
 		}
+		//CLD: 2026-11-28T10:00:00Z: the table's open pages told (DataTableDef::pushChanged)
+		$t->pushChanged();
 		return [ 'inserted' => count($ids), 'ids' => $ids ];
 
 	    case 'update_row':
@@ -346,11 +348,15 @@ class McpServerTools {
 		$columns = $t->columns();
 		$row = self::rowFrom($t, $columns, $args['values'] ?? null, self::rowById($t, $args['id'] ?? ''), 'values: ');
 		$row->save();
+		//CLD: 2026-11-28T10:00:00Z: the table's open pages told (DataTableDef::pushChanged)
+		$t->pushChanged();
 		return [ 'row' => \models\datatable\DataTableDef::rowValue($row, $columns) ];
 
 	    case 'delete_row':
 		$t = self::table($args, $project, 'DataTable::writeData', fn($permName, $o) => self::allowed($asUser, $permName, $o));
 		self::rowById($t, $args['id'] ?? '')->delete();
+		//CLD: 2026-11-28T10:00:00Z: the table's open pages told (DataTableDef::pushChanged)
+		$t->pushChanged();
 		return [ 'deleted' => 1 ];
 
 	    //the structure of the data tables
@@ -401,6 +407,8 @@ class McpServerTools {
 		$t = self::table($args, $project, 'DataTable::update', fn($permName, $o) => self::allowed($asUser, $permName, $o));
 		\sys\fields\Field::create(self::columnForm($t->iname, $aid, $args['column'] ?? null, $project, 'column: ')->data())->save();
 		$om->registerDataTables();
+		//CLD: 2026-11-28T10:00:00Z: the table's open pages told (DataTableDef::pushChanged)
+		$t->pushChanged(true);
 		return [ 'table' => self::tableInfo($t) ];
 
 	    case 'update_column':
@@ -426,6 +434,8 @@ class McpServerTools {
 		$field->assign($form->data());
 		$field->save();
 		$om->registerDataTables();
+		//CLD: 2026-11-28T10:00:00Z: the table's open pages told (DataTableDef::pushChanged)
+		$t->pushChanged(true);
 		return [ 'table' => self::tableInfo($t) ];
 
 	    case 'delete_column':
@@ -437,6 +447,8 @@ class McpServerTools {
 		if ($om->isDefined($t->iname))
 		    $om->updateMany($t->iname, [ 'aid' => $aid ], [ '$unset' => [ $key => '' ] ]);
 		$om->registerDataTables();
+		//CLD: 2026-11-28T10:00:00Z: the table's open pages told (DataTableDef::pushChanged)
+		$t->pushChanged(true);
 		return [ 'deleted' => $key, 'table' => self::tableInfo($t) ];
 
 	    case 'list_workflows':

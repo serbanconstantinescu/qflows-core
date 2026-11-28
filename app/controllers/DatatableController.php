@@ -485,6 +485,8 @@ class DatatableController extends \sys\BaseController {
 		\sys\fields\Field::create($form->data())->save();
 
 		$this->addToast('success', 'OK', 'Column created!');
+		//CLD: 2026-11-28T10:00:00Z: the table's open pages load its columns again (DataTableDef::pushChanged)
+		$dt->pushChanged(true);
 		$this->redirect(\V::app()->createUrl('/datatable/manage', [ 'id' => $dt->_id ]));
 	    } else {
 		\V::app()->log->debug('Column::errors: ' . print_r($form->errors(), true));
@@ -512,6 +514,8 @@ class DatatableController extends \sys\BaseController {
 		$field->save();
 
 		$this->addToast('success', 'OK', 'Column saved!');
+		//CLD: 2026-11-28T10:00:00Z: the table's open pages load its columns again (DataTableDef::pushChanged)
+		$dt->pushChanged(true);
 		$this->redirect(\V::app()->createUrl('/datatable/manage', [ 'id' => $dt->_id ]));
 	    }
 	}
@@ -535,6 +539,8 @@ class DatatableController extends \sys\BaseController {
 	    \V::app()->om->updateMany($dt->iname, [], [ '$unset' => [ $key => '' ] ]);
 
 	$this->addToast('success', 'OK', 'Column deleted!');
+	//CLD: 2026-11-28T10:00:00Z: the table's open pages load its columns again (DataTableDef::pushChanged)
+	$dt->pushChanged(true);
 	$this->redirect(\V::app()->createUrl('/datatable/manage', [ 'id' => $dt->_id ]));
     }
 
@@ -571,6 +577,8 @@ class DatatableController extends \sys\BaseController {
 		$row->save();
 		$this->addToast('success', 'OK', 'Row added!');
 		$this->addEvent('object::created', [ 'object' => $dt->iname, 'oid' => (string)$row->_id ]);
+		//CLD: 2026-11-28T10:00:00Z: the table's open pages told (DataTableDef::pushChanged)
+		$dt->pushChanged();
 		$this->sendEvents();
 	    }
 	}
@@ -611,6 +619,8 @@ class DatatableController extends \sys\BaseController {
 		$row->save();
 		$this->addToast('success', 'OK', 'Row saved!');
 		$this->addEvent('object::updated', [ 'object' => $dt->iname, 'oid' => (string)$row->_id ]);
+		//CLD: 2026-11-28T10:00:00Z: the table's open pages told (DataTableDef::pushChanged)
+		$dt->pushChanged();
 		$this->sendEvents();
 	    }
 	}
@@ -627,6 +637,8 @@ class DatatableController extends \sys\BaseController {
 	$row->delete();
 	$this->addToast('success', 'OK', 'Row deleted!');
 	$this->addEvent('object::deleted', [ 'object' => $dt->iname, 'oid' => (string)$row->_id ]);
+	//CLD: 2026-11-28T10:00:00Z: the table's open pages told (DataTableDef::pushChanged)
+	$dt->pushChanged();
 	$this->sendEvents();
     }
 
@@ -651,6 +663,8 @@ class DatatableController extends \sys\BaseController {
 	\models\AuditLog::record('datatable.rows.delete', $dt, \util\Format::plural($n, 'row') . ' deleted');
 	$this->addToast('success', 'OK', \util\Format::plural($n, 'row') . ' deleted');
 	$this->addEvent('object::deleted', [ 'object' => $dt->iname, 'oid' => null ]);
+	//CLD: 2026-11-28T10:00:00Z: the table's open pages told (DataTableDef::pushChanged)
+	$dt->pushChanged();
 	$this->sendEvents();
     }
 
@@ -840,6 +854,8 @@ class DatatableController extends \sys\BaseController {
 	$message = $details;
 	if ($skipped)
 	    $message .= '; skipped (not valid): row' . (count($skipped) > 1 ? 's ' : ' ') . implode(', ', array_slice($skipped, 0, 10)) . (count($skipped) > 10 ? '…' : '');
+	//CLD: 2026-11-28T10:00:00Z: the table's open pages told (DataTableDef::pushChanged)
+	$dt->pushChanged();
 	$this->addToast($skipped ? 'warning' : 'success', 'Imported', $message);
 	$this->redirect(\V::app()->createUrl('/datatable/manage', [ 'id' => $dt->_id ]));
 	return null;

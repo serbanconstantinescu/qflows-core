@@ -358,7 +358,9 @@ class WfExecution extends \sys\BaseModel {
 	self::deleteStored($drop);
 	if ($ok instanceof \Throwable)
 	    throw $ok;
-	//CLD: 2026-11-28T10:00:00Z: the project's open pages told (the designer's Executions panel and canvas: app.wfexecutions; the Overview, not of a test); while it runs at most SAVE_RATE a second (run)
+	//CLD: 2026-11-28T10:00:00Z: the project's open pages told (the designer's Executions panel and canvas: app.wfexecutions; the Overview, not of a test); while it runs at most SAVE_RATE a second (run);
+	//with the events its steps held back (util\Daemon::push $every, e.g. a data table written in a loop)
+	\util\Daemon::flush();
 	if ($ok === true)
 	    \util\Daemon::push('execution::changed', [ 'aid' => $this->aid, 'project' => $this->project ], [ 'wf' => (string)$this->wf, 'execution' => (string)$this->_id, 'state' => (string)$this->state, 'test' => !empty($this->test_run) ]);
 	return $ok;
