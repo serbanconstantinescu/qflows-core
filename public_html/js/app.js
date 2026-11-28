@@ -86,8 +86,61 @@ window.app.sidebar = (function() {
     let isCollapsed = false;
     let _document = $(document);
 
+    //CLD: 2026-11-28T10:00:00Z: reload(): when it last ran, the one waiting (a menu of the sidebar was open)
+    let lastReload = 0;
+    let reloadTimer = null;
+    let reloadFull = false;
+
 
     const api = {
+	//CLD: 2026-11-28T10:00:00Z: the sidebar rendered again in place (SiteController::render_aside), not through app.pjax (it closes the open dialogs and resets app.events'
+	//handlers). full: all of it (this page's own change: sidebar::refresh); else the header and the primary view only (another one's change: sidebar::changed, app.live), the
+	//Settings and Documentation views and the scroll kept. After a page that is loading; not while a menu of it is open or an item is dragged: tried again in 2 s
+	reload: function(full) {
+	    if (!sidebar || !sidebar.length)
+		return;
+	    clearTimeout(reloadTimer);
+	    //one waiting in full stays in full
+	    full = reloadFull = full || reloadFull;
+	    //a page loading (e.g. the new workflow after its creation): after it, so that the link of the page shown is marked
+	    if (app.pjax && app.pjax.isActive()) {
+		reloadTimer = setTimeout(() => api.reload(full), 100);
+		return;
+	    }
+	    if (sidebar.find('.dropdown-menu.show, .sorting').length) {
+		reloadTimer = setTimeout(() => api.reload(full), 2000);
+		return;
+	    }
+	    lastReload = Date.now();
+	    reloadFull = false;
+	    fetch('/site/render_aside', { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+		.then((r) => r.ok ? r.text() : Promise.reject(r.status))
+		.then((html) => {
+		    if (full) {
+			sidebar.html(html);
+		    } else {
+			const fresh = new DOMParser().parseFromString('<div>' + html + '</div>', 'text/html').body.firstElementChild;
+			const scroller = sidebar.find('.sidebar-view-primary .overflow-y-auto')[0];
+			const top = scroller ? scroller.scrollTop : 0;
+			[ '.sidebar-header', '.sidebar-view-primary' ].forEach((sel) => {
+			    const now = sidebar.find(sel)[0];
+			    const next = fresh.querySelector(sel);
+			    if (now && next)
+				now.innerHTML = next.innerHTML;
+			});
+			const again = sidebar.find('.sidebar-view-primary .overflow-y-auto')[0];
+			if (again)
+			    again.scrollTop = top;
+		    }
+		    api.highlight();
+		})
+		.catch((err) => console.log('app.sidebar.reload:', err));
+	},
+
+	//whether it was rendered again in the last 2 s (this page's own change and its live event: once)
+	reloadedLately: function() {
+	    return Date.now() - lastReload < 2000;
+	},
 
 	//routing highlight on location.href change
 	highlight: function (e) {
@@ -385,14 +438,8 @@ app.events = (function() {
 	    _listeners = {};
 	    //pre-register some system handlers
 	    api.on('toast::add', app.utils.toast);
-	    api.on('sidebar::refresh', (data) => {
-		var timer = setInterval(() => {
-		    if (!app.pjax.isActive()) {
-			clearInterval(timer);
-			app.pjax.fetch('/site/render_aside', { push: false, destination: $('aside.sidebar') });
-		    }
-		}, 100);
-	    });
+	    //CLD: 2026-11-28T10:00:00Z: in place (app.sidebar.reload), no longer through app.pjax (which closed the dialogs and reset these handlers)
+	    api.on('sidebar::refresh', () => app.sidebar.reload(true));
 	},
     };
 

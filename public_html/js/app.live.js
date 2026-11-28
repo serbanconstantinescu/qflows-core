@@ -153,6 +153,12 @@ app.live = (function() {
 	},
     };
 
+    //another one's change of the workflows, projects, members (sidebar::changed); this page's own was rendered just now (reloadedLately)
+    api.on(null, 'sidebar::changed live::resync', () => {
+	if (app.sidebar && !app.sidebar.reloadedLately())
+	    app.sidebar.reload(false);
+    });
+
     //the sidebar's "My tasks" count (the tasks of the whole account: TaskController::count)
     api.on(null, 'tasks::changed live::resync', () => {
 	const link = document.querySelector('aside.sidebar a[href="/task/list"]');

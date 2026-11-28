@@ -428,6 +428,8 @@ class WorkflowController extends \sys\BaseController {
 	$order = array_map(fn($id) => new \MongoDB\BSON\ObjectId($id), array_values(array_filter($ids, fn($id) => isset($known[$id]))));
 
 	\V::app()->om->updateOne('Project', [ '_id' => $project->_id, 'aid' => $project->aid ], [ '$set' => [ 'workflow_order' => $order ] ]);
+	//CLD: 2026-11-28T10:00:00Z: the project's other open pages show the new order (app.live: sidebar::changed)
+	\util\Daemon::push('sidebar::changed', [ 'aid' => $project->aid, 'project' => $project->_id ]);
 	$resp->sendJSON([ 'ok' => true, 'count' => count($order) ]);
     }
 

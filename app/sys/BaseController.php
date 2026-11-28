@@ -46,6 +46,9 @@ class BaseController extends \sys\BaseObject {
 
     public function addEvent($type, $data = []) {
 	$this->events[] = [ 'type' => $type, 'data' => $data ?? [] ];
+	//CLD: 2026-11-28T10:00:00Z: what changes this sidebar (workflows, projects, members) changes the others of the account too: their open pages told (app.live: sidebar::changed)
+	if ($type === 'sidebar::refresh' && !empty(\V::app()->var('rt.account')->_id))
+	    \util\Daemon::push('sidebar::changed', [ 'aid' => \V::app()->var('rt.account')->_id ]);
     }
 
     //send events and stop
