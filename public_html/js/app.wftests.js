@@ -6,13 +6,17 @@ if (!window.app)
 //   const tests = new app.WfTests(panel, options);     (the panel element: .tests-panel, or its selector)
 //
 //the workflow's test cases (left) and, on the right, the results of a test run (pass / fail per case and per check, tokens, cost, the difference from the run before it, the last runs in a list) or the case being edited.
-//Run tests runs the saved draft in the daemon (EvalController), refreshed every 2 s while one runs. The top-bar button (.btn-tests-toggle) toggles it. options: urls (data, detail, save, del, start, stop, required), whenSaved(fn),
+//Run tests runs the saved draft in the daemon (EvalController), refreshed every 2 s while one runs.
+//CLD: 2026-11-28T10:00:00Z: while open, loaded again when a test run of this workflow changes (app.live: testrun::changed, options.wf; at most once a LIVE_MIN ms, not while a case
+//is edited) and after the live events were away (live::resync); the 2 s timer only while they are not connected, else every SAFETY ms. The top-bar button (.btn-tests-toggle) toggles it. options: urls (data, detail, save, del, start, stop, required), whenSaved(fn),
 //onOpen() / onClose() (the page: one bottom panel at a time), onShowExecution(execution, trace). Methods: open(), close(), toggle(), isOpen(), refresh(), editCase(case), destroy()
 window.app.WfTests = (function() {
     let current = null;
 
     const NS = '.wftests';
     const active = (state) => state === 'queued' || state === 'running';
+    const LIVE_MIN = 1000;
+    const SAFETY = 30000;
     const muted = (html) => `<span style='color: var(--qflows-debug-muted)'>${html}</span>`;
 
     function runBadge(state) {
@@ -57,6 +61,15 @@ window.app.WfTests = (function() {
 	    this.timer = null;
 	    this.askDelete = false;
 	    this.bound = [];
+	    //the live events: the last load (the safety timer), the throttle
+	    this.loadedAt = 0;
+	    this.liveTimer = null;
+	    this.livePending = false;
+	    if (this.el)
+		app.live.on(this.el, 'testrun::changed live::resync', (data, type) => {
+		    if (current === this && (type !== 'testrun::changed' || data.wf === this.o.wf))
+			this.liveLoad();
+		});
 
 	    this.on($('.btn-tests-toggle'), 'click', (e) => {
 		e.preventDefault();
@@ -149,6 +162,8 @@ window.app.WfTests = (function() {
 
 	destroy() {
 	    clearInterval(this.timer);
+	    clearTimeout(this.liveTimer);
+	    this.liveTimer = null;
 	    this.bound.splice(0).forEach(($el) => $el.off(NS));
 	    if (current === this)
 		current = null;
@@ -191,14 +206,34 @@ window.app.WfTests = (function() {
 	    this.o.onClose();
 	}
 
-	//while a run is on
+	//while a run is on (the live events load it while they are connected: liveLoad)
 	tick() {
+	    if (app.live.connected() && Date.now() - this.loadedAt < SAFETY)
+		return;
 	    const latest = this.data && (this.data.runs || [])[0];
 	    if (this.isOpen() && latest && active(latest.state))
 		this.refresh();
 	}
 
+	//a test run changed (app.live): loaded again while the panel is open and no case is edited; at most once a LIVE_MIN ms, a change meanwhile loaded after it
+	liveLoad() {
+	    if (this.liveTimer) {
+		this.livePending = true;
+		return;
+	    }
+	    if (this.isOpen() && !this.editing && document.body.contains(this.el))
+		this.refresh();
+	    this.liveTimer = setTimeout(() => {
+		this.liveTimer = null;
+		if (this.livePending) {
+		    this.livePending = false;
+		    this.liveLoad();
+		}
+	    }, LIVE_MIN);
+	}
+
 	refresh() {
+	    this.loadedAt = Date.now();
 	    return $.getJSON(this.o.urls.data).done((data) => {
 		this.data = data;
 		const runs = data.runs || [];

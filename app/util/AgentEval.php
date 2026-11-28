@@ -181,6 +181,8 @@ class AgentEval {
 	//save() (one write per test run); save() sets created_at
 	if (!\V::app()->om->create('WfTestRun', $run)->save())
 	    throw new \ErrorException('the test run was not saved');
+	//CLD: 2026-11-28T10:00:00Z: the project's open pages told (the designer's Tests panel: app.wftests)
+	\util\Daemon::push('testrun::changed', [ 'aid' => $wf->aid, 'project' => $wf->project ], [ 'wf' => (string)$wf->_id, 'run' => (string)$id ]);
 	if (self::$inline) {
 	    self::job((object)[ 'run' => (string)$id, 'aid' => $wf->aid ]);
 	    return [ WfTestRun::read((string)$id, $wf), true ];
@@ -212,6 +214,8 @@ class AgentEval {
 	try {
 	    //what really runs: the draft and the cases as they are now, whatever was saved since it was queued
 	    \V::app()->om->updateOne('WfTestRun', [ '_id' => $id, 'aid' => $aid ], [ '$set' => [ 'state' => 'running', 'draft_hash' => self::draftHash($wf->nodes), 'cases_hash' => self::casesHash($wf), 'started_at' => $run['started_at'] ?? new \MongoDB\BSON\UTCDateTime(), 'updated_at' => new \MongoDB\BSON\UTCDateTime() ] ]);
+	    //CLD: 2026-11-28T10:00:00Z: running, then after each case and at the end: the project's open pages told (app.wftests)
+	    \util\Daemon::push('testrun::changed', [ 'aid' => $aid, 'project' => $wf->project ], [ 'wf' => (string)$wf->_id, 'run' => (string)$id ]);
 	    $done = array_column((array)($run['cases'] ?? []), 'case');
 	    $results = (array)($run['cases'] ?? []);
 	    foreach(\V::app()->om->find('WfTestCase', [ 'wf' => $wf->_id, 'aid' => $aid ], [ 'sort' => [ '_id' => 1 ] ]) as $case) {
@@ -222,12 +226,16 @@ class AgentEval {
 		$result = self::runCase($wf, $case, $id);
 		$results[] = $result;
 		\V::app()->om->updateOne('WfTestRun', [ '_id' => $id, 'aid' => $aid, 'state' => 'running' ], [ '$push' => [ 'cases' => $result ], '$set' => [ 'totals' => self::totals($results), 'updated_at' => new \MongoDB\BSON\UTCDateTime() ], '$unset' => [ 'current' => '' ] ]);
+		\util\Daemon::push('testrun::changed', [ 'aid' => $aid, 'project' => $wf->project ], [ 'wf' => (string)$wf->_id, 'run' => (string)$id ]);
 	    }
 	    $passed = $results && !array_filter($results, fn($r) => $r['state'] !== 'pass');
 	    \V::app()->om->updateOne('WfTestRun', [ '_id' => $id, 'aid' => $aid, 'state' => 'running' ], [ '$set' => [ 'state' => $passed ? 'passed' : 'failed', 'ended_at' => new \MongoDB\BSON\UTCDateTime(), 'updated_at' => new \MongoDB\BSON\UTCDateTime() ] ]);
+	    \util\Daemon::push('testrun::changed', [ 'aid' => $aid, 'project' => $wf->project ], [ 'wf' => (string)$wf->_id, 'run' => (string)$id ]);
 	} catch (\Throwable $e) {
 	    \V::app()->log->error('AgentEval: test run ' . (string)$id . ': ' . $e->getMessage());
 	    \V::app()->om->updateOne('WfTestRun', [ '_id' => $id, 'aid' => $aid, 'state' => [ '$in' => WfTestRun::ACTIVE ] ], [ '$set' => [ 'state' => 'error', 'error' => mb_substr($e->getMessage(), 0, self::MAX_DETAIL), 'ended_at' => new \MongoDB\BSON\UTCDateTime() ] ]);
+	    //CLD: 2026-11-28T10:00:00Z: failed: the project's open pages told (app.wftests)
+	    \util\Daemon::push('testrun::changed', [ 'aid' => $aid, 'project' => $wf->project ], [ 'wf' => (string)$wf->_id, 'run' => (string)$id ]);
 	}
 	WfTestRun::prune($wf);
     }
@@ -237,6 +245,8 @@ class AgentEval {
 	$n = \V::app()->om->updateOne('WfTestRun', [ '_id' => $run['_id'], 'aid' => $run['aid'], 'state' => [ '$in' => WfTestRun::ACTIVE ] ], [ '$set' => [ 'state' => 'stopped', 'ended_at' => new \MongoDB\BSON\UTCDateTime() ] ]);
 	if (!$n)
 	    return false;
+	//CLD: 2026-11-28T10:00:00Z: the project's open pages told (the designer's Tests panel: app.wftests)
+	\util\Daemon::push('testrun::changed', [ 'aid' => $run['aid'], 'project' => ($run['project'] ?? null) ], [ 'wf' => (string)$run['wf'], 'run' => (string)$run['_id'] ]);
 	if (!empty($run['job']))
 	    \V::app()->om->deleteOne('Job', [ '_id' => $run['job'], 'state' => 'new' ]);
 	$now = \V::app()->om->findOne('WfTestRun', [ '_id' => $run['_id'], 'aid' => $run['aid'] ], [ 'arrays' => true ]);

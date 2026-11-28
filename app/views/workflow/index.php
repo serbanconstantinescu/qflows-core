@@ -147,6 +147,8 @@ $stepIssuesUrl = \V::app()->createUrl('/workflow/step_issues', array_filter([ 'i
     });
     //the Tests panel
     const tests = new app.WfTests(document.querySelector('.tests-panel'), {
+	//CLD: 2026-11-28T10:00:00Z: its test runs' live events (app.live: testrun::changed)
+	wf: '{$wfIdJs}',
 	urls: { data: '{$testsUrls['data']}', detail: '{$testsUrls['run_detail']}', save: '{$testsUrls['case_save']}', del: '{$testsUrls['case_delete']}', start: '{$testsUrls['start']}', stop: '{$testsUrls['run_stop']}', required: '{$testsUrls['required']}' },
 	whenSaved: (fn) => autosave.whenSaved(fn),
 	onOpen: () => {
